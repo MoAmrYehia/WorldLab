@@ -149,17 +149,26 @@ def run_bench(worlds: int, agents: list[str], scenarios: list[str], out: str, se
             for r in ex.map(one, jobs):
                 rows.append(r)
     (out_dir / "runs.json").write_text(json.dumps(rows, indent=1))
+    return summarize(rows, agents, scenarios, out_dir)
+
+
+def summarize(rows: list[dict], agents: list[str], scenarios: list[str], out_dir: Path) -> list[dict]:
     table = []
     for ag in agents:
         for sc in scenarios:
             sel = [r for r in rows if r["agent"] == ag and r["scenario"] == sc]
-            table.append({"agent": ag, "scenario": sc, **_agg(sel)})
+            row = {"agent": ag, "scenario": sc, **_agg(sel)}
+            if sc != "none":
+                # the oracle's power is computed for the final physics, so the
+                # comparison is only fair when nothing changed mid-run
+                row["energy_overhead"] = None
+            table.append(row)
     (out_dir / "summary.json").write_text(json.dumps(table, indent=1))
     cols = ["agent", "scenario", "goal_complete", "compliance", "detected", "detect_s_median", "false_alarms",
             "diagnosis_ok", "energy_overhead", "exploration_J", "model_error"]
     md = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for t in table:
-        md.append("| " + " | ".join("" if t[c] is None else str(t[c]) for c in cols) + " |")
+        md.append("| " + " | ".join("–" if t[c] is None else str(t[c]) for c in cols) + " |")
     (out_dir / "summary.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))
     return table
