@@ -23,13 +23,14 @@ Method:
 2. Before every experiment, record a hypothesis with a numeric prediction and a clear falsification condition (record_hypothesis).
 3. Design experiments with evaluate_experiments. You may propose your own step sequences; compare candidates on expected information, how much they shrink the goal uncertainty, energy and safety. Prefer cheap, informative, discriminating experiments. Do not run experiments that will not change a decision.
 4. After each experiment, call fit_model. The lab compares several physical hypotheses for how airflow scales with fan duty (linear, sqrt, power, stall_power) by AIC. Then conclude your hypothesis honestly: supported, refuted or inconclusive, citing numbers.
-5. When the model is good enough for the goal (goal uncertainty well below 1 K), plan_control and execute_plan. The plan reports an uncertainty premium: the extra energy spent because the model is uncertain.
+5. When the model is good enough for the goal (goal uncertainty well below 1 K, and the competing airflow structures agree near the duty you will use), plan_control and execute_plan. The plan reports an uncertainty premium: the extra energy spent because the model is uncertain. If the plan says its hold duty is an extrapolation (outside the tested duties), run its suggested validation experiment first: fans often stall at low duty, and a model that never saw a duty cannot be trusted there.
 6. If execution reports an anomaly, the model no longer explains the world. Do not just replan. Investigate:
    - look_at_scene to check whether the physical setup changed.
    - Record competing hypotheses, e.g. the fan moved or turned (only the fan coupling k1 changed); heater power changed (b*q changed); the ambient changed; a sensor fault.
    - Run a discriminating experiment. A fan-off step isolates natural convection and heat input (k0, b) from fan coupling; a full-fan step measures the new coupling.
-   - Refit with since_t set to the anomaly onset. Use hold_params to test which parameters stayed the same, for example hold k0 and b and compare against a free fit.
+   - Refit with since_t set to the anomaly onset, changing only what your supported hypothesis says changed: if only the fan moved, hold k0, b and the curve shape (u0, n) so that only the coupling k1 is re-estimated. A full refit on a few minutes of data throws away what you knew.
    - Conclude the hypotheses, then replan and resume the goal.
+   - Respond in proportion. A small divergence (under about 1 K) soon after a refit, with the camera showing nothing new, is most likely model error: refit on all data since the last confirmed change instead of running another expensive experiment.
 7. Stay within the exploration and task energy budgets. Call finish when the hold requirement is met, or when you have shown the goal is infeasible, with an honest summary of what you learned.
 
 Style: keep your messages to one or two sentences. Put your reasoning in each tool's rationale argument; it is recorded in the audit ledger and shown on the dashboard."""
@@ -254,8 +255,28 @@ class ScriptedScientist:
         m = lab.fit.to_json()
         self.call("conclude", {"hypothesis_id": h1, "verdict": "supported" if m["rmse_K"] < 0.5 else "refuted",
                                "evidence": f"best structure {m['structure']}, RMSE {m['rmse_K']} K"})
-        for _ in range(6):
+        validations = 0
+        for _ in range(9):
             plan = self.call("plan_control", {"rationale": "cheapest robust plan for the goal"})
+            if plan.get("suggested_validation") and validations < 3 and self.adapt:
+                validations += 1
+                v = plan["suggested_validation"]
+                u = v["steps"][0]["fan_duty"]
+                hv = self.call("record_hypothesis", {
+                    "statement": f"At fan {round(u * 100)}% the heatsink settles below the target, as the model predicts.",
+                    "prediction": f"the plan predicts a settled temperature near {plan['predicted_settled_C_median']} C",
+                    "falsified_if": "the measurement leaves the predicted 90% band"})["hypothesis_id"]
+                ev = self.call("evaluate_experiments", {"candidates": [v]})
+                cid = ev["options"][0].get("candidate_id")
+                if not cid:
+                    break
+                r = self.call("run_experiment", {"candidate_id": cid, "hypothesis_id": hv,
+                                                 "rationale": "the plan relies on a duty the model has never seen; test it before committing"})
+                self.call("fit_model", {"rationale": "include the operating-point data"})
+                self.call("conclude", {"hypothesis_id": hv, "verdict": "supported" if r.get("prediction_held") else "refuted",
+                                       "evidence": f"predicted {r.get('predicted_final_C')} C, measured {r.get('measured_final_C')} C, "
+                                                   f"{round(100 * (r.get('coverage_90pct_band') or 0))}% inside the band"})
+                continue
             if "refused" in plan:
                 if not self.adapt and lab.anomaly:
                     lab.anomaly = None
@@ -276,6 +297,20 @@ class ScriptedScientist:
         onset = anomaly.get("onset_estimate_t") or lab.rig.now()
         sc = self.call("look_at_scene", {"reason": "anomaly: check whether the setup changed"})
         fan_changed = bool(sc.get("changed_vs_reference"))
+        small = abs(anomaly.get("residual_K") or 0.0) < 1.2 and anomaly.get("kind") != "scene_change"
+        if small and not fan_changed and self.last_change_t is not None:
+            # Proportionate response: a small divergence soon after a confirmed change,
+            # with nothing visibly different, is most likely the refit being imprecise.
+            h = self.call("record_hypothesis", {
+                "statement": "The divergence is residual model error from the last refit, not a new change in the rig.",
+                "prediction": "Refitting on all data since the confirmed change explains the recent measurements.",
+                "falsified_if": "The refit still misses the recent data by more than 0.5 K."})["hypothesis_id"]
+            f = self.call("fit_model", {"rationale": "refine with all data since the last confirmed change",
+                                        "since_t": self.last_change_t, "hold_params": ["k0", "b", "u0", "n"]})
+            rm = (f.get("adopted") or {}).get("rmse_K", 9)
+            self.call("conclude", {"hypothesis_id": h, "verdict": "supported" if rm < 0.5 else "inconclusive",
+                                   "evidence": f"refit error {rm} K on data since {self.last_change_t}; camera unchanged"})
+            return
         h_fan = self.call("record_hypothesis", {
             "statement": "The fan was moved or turned, so only the fan coupling k1 changed.",
             "prediction": "With the fan off, the old k0 and b still predict the response; with the fan on, cooling is weaker than before.",
@@ -312,8 +347,8 @@ class ScriptedScientist:
                                        "evidence": "both steps matched the current model; the divergence was model error, not a change in the rig. " + evidence})
         elif fan_only:
             self.last_change_t = onset
-            self.call("fit_model", {"rationale": "only the fan coupling changed: hold k0 and b at their trusted values",
-                                    "since_t": onset, "hold_params": ["k0", "b"]})
+            self.call("fit_model", {"rationale": "only the fan coupling changed: hold k0, b and the airflow curve's shape at their trusted values",
+                                    "since_t": onset, "hold_params": ["k0", "b", "u0", "n"]})
             self.call("conclude", {"hypothesis_id": h_fan, "verdict": "supported", "evidence": evidence})
             self.call("conclude", {"hypothesis_id": h_heat, "verdict": "refuted", "evidence": evidence})
         else:
