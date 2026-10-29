@@ -62,7 +62,8 @@ class Bus:
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
         self.snapshot: dict = {"samples": [], "events": [], "forecasts": [], "scene": None,
-                               "model": None, "plan": None, "status": {}, "agent": [], "fits": []}
+                               "model": None, "plan": None, "status": {}, "agent": [], "fits": [],
+                               "perturbations": []}
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=5000)
@@ -85,6 +86,8 @@ class Bus:
             snap["forecasts"].append(payload)
         elif kind == "agent":
             snap["agent"].append(payload)
+        elif kind == "perturbation":
+            snap["perturbations"].append(payload)
         elif kind == "fit":
             snap["fits"].append(payload)
             snap["model"] = payload

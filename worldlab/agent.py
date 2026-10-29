@@ -218,6 +218,7 @@ class ScriptedScientist:
     def __init__(self, lab: Lab, adapt: bool = True):
         self.lab = lab
         self.adapt = adapt  # adapt=False: ignores anomalies (no-learning ablation)
+        self.last_change_t: float | None = None  # onset of the last confirmed physical change
 
     def call(self, name, args):
         self.lab.agent_note("tool_call", name, {"args": args})
@@ -302,16 +303,21 @@ class ScriptedScientist:
                     f"full-fan step: mean residual {on.get('mean_residual_K')} K, coverage {on.get('coverage_90pct_band')}; "
                     f"camera change={fan_changed}")
         if nothing:
-            self.call("fit_model", {"rationale": "no physical change found; refine the model with the new data", "since_t": onset})
+            args = {"rationale": "no physical change found; refine the model with all data since the last confirmed change"}
+            if self.last_change_t is not None:
+                args["since_t"] = self.last_change_t
+            self.call("fit_model", args)
             for h in (h_fan, h_heat):
                 self.call("conclude", {"hypothesis_id": h, "verdict": "inconclusive",
                                        "evidence": "both steps matched the current model; the divergence was model error, not a change in the rig. " + evidence})
         elif fan_only:
+            self.last_change_t = onset
             self.call("fit_model", {"rationale": "only the fan coupling changed: hold k0 and b at their trusted values",
                                     "since_t": onset, "hold_params": ["k0", "b"]})
             self.call("conclude", {"hypothesis_id": h_fan, "verdict": "supported", "evidence": evidence})
             self.call("conclude", {"hypothesis_id": h_heat, "verdict": "refuted", "evidence": evidence})
         else:
+            self.last_change_t = onset
             self.call("fit_model", {"rationale": "heat balance changed as well: refit all parameters on post-change data",
                                     "since_t": onset})
             self.call("conclude", {"hypothesis_id": h_fan, "verdict": "refuted", "evidence": evidence})
