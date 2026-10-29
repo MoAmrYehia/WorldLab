@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -13,117 +12,138 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
 
-from worldlab import model as M
+from worldlab.farm import weather as WX
+from worldlab.farm.belief import CropBelief, calibrate
+from worldlab.farm.crops import CROPS, TRAIT_IDS
+from worldlab.farm.optimize import evaluate, optimise
+from worldlab.farm.sim import run_batch
+from worldlab.farm.world import Farm, FIELDS
 from worldlab.agent import LLMScientist, ScriptedScientist
 from worldlab.lab import Lab
 from worldlab.ledger import verify
 from worldlab.llm import LLMConfig
-from worldlab.perception import SimPerception, parse_sam_boxes, image_size
-from worldlab.rig.sim import SimRig, World
+from worldlab.perception import SimPerception, parse_sam_boxes
 from mock_openai import MockServer
 
 
-class ModelTests(unittest.TestCase):
-    def test_fit_recovers_hidden_physics(self):
-        r = SimRig(World())
-        S = []
-        r.set_heater(True)
-        r.set_fan(0)
-        S += r.advance(600)
-        for d, dur in [(1.0, 240), (0.35, 240), (0.6, 180), (0.15, 240)]:
-            r.set_fan(d)
-            S += r.advance(dur)
-        fits = M.fit_all(M.Data.from_samples([s.to_dict() for s in S]))
-        best = fits[0]
-        self.assertEqual(best.structure, "stall_power")
-        for u in (0.0, 0.4, 1.0):
-            k_fit = float(M.cooling_rate(best.structure, best.params(), u))
-            self.assertLess(abs(k_fit - r.true_k(u)) / r.true_k(u), 0.05)
-
-    def test_unexplored_parameters_keep_prior_uncertainty(self):
-        r = SimRig(World())
-        r.set_heater(True)
-        S = r.advance(600)  # fan never used: k1 must stay uncertain
-        f = M.fit("power", M.Data.from_samples([s.to_dict() for s in S]))
-        self.assertGreater(f.sd()["k1"] / f.params()["k1"], 0.3)
+def mg(crop, **kw):
+    d = {"sow": sum(CROPS[crop]["sow"]) // 2, "density": 1.0, "irr": 1.0, "desal": 0.0, "nfert": CROPS[crop]["nreq"], "mulch": 1.0}
+    d.update(kw)
+    return d
 
 
-class LabTests(unittest.TestCase):
-    def run_scripted(self, kind, cam=True, world=None):
-        r = SimRig(world or World())
-        d = tempfile.mkdtemp()
-        lab = Lab(r, run_dir=d, perception=SimPerception(r) if cam else None)
+class CropModelTests(unittest.TestCase):
+    def test_weather_and_et0_are_plausible_for_the_uae(self):
+        wx = WX.generate(3, seed=1)
+        self.assertTrue(2.5 < wx["et0"][:, 80:110].mean() < 4.5)    # winter
+        self.assertTrue(7.0 < wx["et0"][:, 220:260].mean() < 12.0)  # May/June
+        self.assertLess(wx["rain"].sum(axis=1).mean(), 200)
+
+    def _run(self, crops, mgs, fields):
+        wx = WX.generate(1, seed=3)
+        m = {k: np.array([x[k] for x in mgs], float) for k in mgs[0]}
+        return run_batch(crops, None, m, fields, wx, np.zeros(len(crops), int), np.full(len(crops), 4.5))
+
+    def test_wheat_yield_and_water_in_published_range(self):
+        s = self._run(["wheat"], [mg("wheat")], [FIELDS[1]])
+        self.assertTrue(3.0 < s.fresh_yield()[0] < 7.0)
+        self.assertTrue(2500 < s.water_m3_ha()[0] < 8000)
+
+    def test_salt_and_water_stress_reduce_yield(self):
+        s = self._run(["beans", "beans", "maize", "maize"],
+                      [mg("beans"), mg("beans"), mg("maize", irr=1.0), mg("maize", irr=0.5)],
+                      [FIELDS[1], FIELDS[5], FIELDS[1], FIELDS[1]])
+        y = s.fresh_yield()
+        self.assertLess(y[1], 0.5 * y[0])     # salt-sensitive beans on the sabkha rim
+        self.assertLess(y[3], 0.85 * y[2])    # deficit irrigation
+
+    def test_calibration_recovers_hidden_traits(self):
+        farm = Farm(seed=7)
+        crop = "wheat"
+        trials = [{"crop": crop, "sow": s, "plot": p, "density": 1.0, "irr": 1.0, "desal": 0.0, "nfert": 180, "mulch": 1}
+                  for s in (30, 75, 110) for p in ("normal", "saline")]
+        res = farm.run_trials(trials)
+        b = CropBelief(crop)
+        prior = (b.mean.copy(), b.cov.copy())
+        calibrate(b, prior, trials, res["plots"], [res["weather"]] * len(trials))
+        truth = farm.traits[crop]
+        self.assertLess(abs(b.mean[0] - truth["wp"]), 0.08)
+        self.assertLess(abs(b.mean[1] - truth["cgc"]), 0.08)
+        self.assertLess(b.sd()[3], 0.6)                       # salt tolerance learned from saline plots
+
+    def test_optimiser_respects_the_water_quota(self):
+        beliefs = {c: CropBelief(c) for c in CROPS}
+        plan = optimise(evaluate(beliefs, S=12, seed=5), 45000, 90000, restarts=4)
+        self.assertLessEqual(plan["water_p90_m3"], 45000 * 1.01)
+        self.assertTrue(any(f["crop"] for f in plan["fields"]))
+
+
+class FarmLabTests(unittest.TestCase):
+    def run_scripted(self, kind, adapt=True):
+        farm = Farm(seed=7)
         if kind:
-            r.schedule(kind, 2400)
-        ScriptedScientist(lab).run()
-        return lab, r, Path(d)
+            farm.schedule(kind, 90)
+        d = tempfile.mkdtemp()
+        lab = Lab(farm, run_dir=d, perception=SimPerception())
+        ScriptedScientist(lab, adapt=adapt).run()
+        return lab, farm, Path(d)
 
-    def test_no_change_no_false_alarm(self):
-        lab, r, d = self.run_scripted(None)
-        self.assertEqual(len(lab.anomalies), 0)
-        self.assertGreaterEqual(lab.hold_ok_s / lab.hold_done_s, 0.95)
-        self.assertTrue(verify(d / "ledger.jsonl")[0])
+    def test_clog_is_detected_diagnosed_and_repaired(self):
+        lab, farm, d = self.run_scripted("clog")
+        self.assertTrue(lab.anomalies)
+        a = lab.anomalies[0]
+        self.assertEqual(a["field"], farm.events[0]["field"])
+        self.assertLess(a["detected_day"] - 90, 40)
+        sup = [h["statement"] for h in lab.hyps.values() if h["status"] == "supported" and h["phase"] == "season"]
+        self.assertTrue(any("drip line" in s for s in sup))
+        self.assertTrue(farm.repairs and farm.repairs[0]["was_faulty"])
+        self.assertTrue(lab.result["within_quota"])
+        ok, _ = verify(d / "ledger.jsonl")
+        self.assertTrue(ok)
 
-    def test_fan_moved_detected_and_explained(self):
-        lab, r, d = self.run_scripted("fan_moved")
-        self.assertGreaterEqual(len(lab.anomalies), 1)
-        first = lab.anomalies[0]
-        self.assertLess(first["t_detected"] - r.perturbations[0]["t"], 150)
-        verdicts = [e["data"] for e in lab.ledger.entries if e["kind"] == "conclusion"]
-        fan = [v for v in verdicts if "fan was moved" in lab.hyps[v["hypothesis_id"]]["statement"]]
-        self.assertEqual(fan[0]["verdict"], "supported")
-        self.assertGreaterEqual(lab.hold_done_s, lab.goal.hold_s - 1)
-        self.assertGreaterEqual(lab.hold_ok_s / lab.hold_done_s, 0.9)
-
-    def test_heater_drift_attributed_to_heat_input(self):
-        lab, r, d = self.run_scripted("heater_drift", cam=False)
-        verdicts = [e["data"] for e in lab.ledger.entries if e["kind"] == "conclusion"]
-        heat = [v for v in verdicts if "heat input" in lab.hyps[v["hypothesis_id"]]["statement"]]
-        self.assertEqual(heat[0]["verdict"], "supported")
-
-    def test_ambient_change_handled_by_feedback(self):
-        lab, r, d = self.run_scripted("ambient_step", cam=False)
-        self.assertEqual(len(lab.anomalies), 0)
-        self.assertGreaterEqual(lab.hold_ok_s / lab.hold_done_s, 0.95)
+    def test_adapting_beats_ignoring_a_fault(self):
+        lab1, _, _ = self.run_scripted("clog")
+        lab2, _, _ = self.run_scripted("clog", adapt=False)
+        self.assertGreater(lab1.result["people_fed"], lab2.result["people_fed"])
 
     def test_ledger_detects_tampering(self):
-        lab, r, d = self.run_scripted(None, cam=False)
+        farm = Farm(seed=3)
+        d = Path(tempfile.mkdtemp())
+        lab = Lab(farm, run_dir=d)
+        lab.record_hypothesis("a", "b", "c")
+        lab.plan_season("x")
         p = d / "ledger.jsonl"
         lines = p.read_text().splitlines()
-        e = json.loads(lines[5])
-        e["data"]["tampered"] = True
-        lines[5] = json.dumps(e)
+        e = json.loads(lines[1])
+        e["data"]["statement"] = "edited"
+        lines[1] = json.dumps(e)
         p.write_text("\n".join(lines) + "\n")
         ok, msg = verify(p)
         self.assertFalse(ok)
-        self.assertIn("line 6", msg)
 
-    def test_governor_refuses_unsafe_and_over_budget(self):
-        r = SimRig(World())
-        lab = Lab(r)
+    def test_budgets_are_enforced(self):
+        lab = Lab(Farm(seed=3))
         h = lab.record_hypothesis("a", "b", "c")["hypothesis_id"]
-        out = lab.run_experiment(h, "x", steps=[{"fan_duty": 1.5, "heater_on": True, "duration_s": 60}])
-        self.assertIn("refused", out)
-        lab.limits.exploration_budget_J = 10
-        out = lab.run_experiment(h, "x", steps=[{"fan_duty": 1.0, "heater_on": True, "duration_s": 300}])
-        self.assertIn("refused", out)
-        out = lab.run_experiment("H99", "x", steps=[{"fan_duty": 0.0, "heater_on": True, "duration_s": 60}])
-        self.assertIn("refused", out)
+        ev = lab.evaluate_trials([{"crop": "wheat", "sow": 40, "plot": "normal"}] * 12)
+        ids = [o["candidate_id"] for o in ev["options"]]
+        self.assertIn("refused", lab.run_trials(ids, h, "too many"))
+        self.assertIn("refused", lab.run_trials(ids[:2], "H99", "no hypothesis"))
+        self.assertIn("refused", lab.advance(10))
 
 
 class LLMLoopTests(unittest.TestCase):
     def test_agent_loop_against_mock_endpoint(self):
         srv = MockServer().start()
         try:
-            r = SimRig(World())
-            lab = Lab(r, perception=SimPerception(r))
-            cfg = LLMConfig(base_url=srv.base_url, api_key="test", model="muse-spark-1.3",
-                            reasoning_effort="medium", label="mock")
-            out = LLMScientist(lab, cfg, max_turns=30).run()
+            farm = Farm(seed=7)
+            farm.schedule("clog", 90)
+            lab = Lab(farm, perception=SimPerception())
+            cfg = LLMConfig(base_url=srv.base_url, api_key="test", model="muse-spark-1.3", reasoning_effort="medium", label="mock")
+            LLMScientist(lab, cfg, max_turns=60).run()
             self.assertEqual(srv.errors, [])
             self.assertTrue(lab.done)
-            self.assertGreaterEqual(len(lab.experiments), 2)
-            self.assertTrue(any(e["kind"] == "plan_result" for e in lab.ledger.entries))
+            self.assertEqual(lab.plots_used, 4)
+            self.assertIsNotNone(lab.result)
             self.assertEqual(srv.requests[0]["reasoning_effort"], "medium")
         finally:
             srv.stop()
@@ -131,55 +151,19 @@ class LLMLoopTests(unittest.TestCase):
 
 class PerceptionTests(unittest.TestCase):
     def test_parse_sam_output(self):
-        text = ("<0f>0<|box;x1=211;y1=228;x2=270;y2=254;w=320;h=334;c=0.9609375|><|mask;x=0;y=0;c=0.96;data=27,60,~!!!!M!0c|>"
+        text = ("<0f>0<|box;x1=211;y1=228;x2=270;y2=254;w=320;h=334;c=0.96|><|mask;x=0;y=0;data=27,60,!!!!M|>"
                 ",1<|box;x1=155;y1=228;x2=202;y2=254;w=320;h=334|><|mask;x=0;y=0;data=27,48,!!!!!J|>")
         b = parse_sam_boxes(text)
         self.assertEqual(len(b), 2)
         self.assertEqual(b[0]["box"], [211, 228, 271, 255])
-        self.assertAlmostEqual(b[0]["score"], 0.9609375)
 
-    def test_png_size(self):
-        r = SimRig(World())
-        self.assertEqual(image_size(r.capture_frame()), (640, 400))
+    def test_drone_image_is_a_png(self):
+        farm = Farm(seed=7)
+        farm.start_season([{"crop": "wheat", **mg("wheat")}] + [{"crop": None, "sow": 0, "density": 1, "irr": 0, "desal": 0, "nfert": 0, "mulch": 0}] * 5)
+        for d in range(80):
+            farm.step(farm.sim.irrigation_demand(d))
+        self.assertEqual(farm.image(0)[:8], b"\x89PNG\r\n\x1a\n")
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class SerialRigTests(unittest.TestCase):
-    def test_parses_firmware_lines_and_sends_commands(self):
-        import types, time as _t
-        written = []
-        lines = [b"I,worldlab rig ready\n", b"D,1000,31.2500,24.1250,40,1,-1,OK\n",
-                 b"D,2000,31.3125,24.1250,40,1,850,OK\n", b"garbage\n"]
-
-        class FakeSerial:
-            def __init__(self, *a, **k): pass
-            def write(self, b): written.append(b.decode().strip())
-            def readline(self):
-                if lines: return lines.pop(0)
-                _t.sleep(0.05); return b""
-            def close(self): pass
-
-        sys.modules["serial"] = types.SimpleNamespace(Serial=FakeSerial)
-        from worldlab.rig import serial_rig
-        orig_sleep = serial_rig.time.sleep
-        serial_rig.time.sleep = lambda s: orig_sleep(min(s, 0.05))
-        try:
-            rig = serial_rig.SerialRig("FAKE")
-            rig.set_fan(0.55)
-            rig.set_heater(True)
-            got = rig.advance(0.3)
-            self.assertEqual(len(got), 2)
-            self.assertAlmostEqual(got[0].T_obj, 31.25)
-            self.assertEqual(got[0].heater_w, 10.0)
-            self.assertAlmostEqual(got[0].fan_duty, 0.40)
-            self.assertAlmostEqual(got[1].fan_power_w, 0.85)
-            self.assertIn("F 55", written)
-            self.assertIn("H 1", written)
-            rig.close()
-            self.assertIn("S", written)
-        finally:
-            serial_rig.time.sleep = orig_sleep
-            del sys.modules["serial"]

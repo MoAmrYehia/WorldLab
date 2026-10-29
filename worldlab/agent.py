@@ -29,7 +29,7 @@ Method:
 6. During the season, advance in steps (up to 60 days). The lab runs your model alongside the farm and stops when measurements leave the predicted band. Then investigate instead of guessing:
    - Soil drier than predicted: a clogged or leaking drip line (emitter_flow test) or the crop using more water than modelled.
    - Canopy lower or soil wetter than predicted: pests (leaf_inspection, look_at_field) or salt damage (water_test, soil_sample).
-   - Soil salinity higher than predicted: saltier irrigation water (water_test) or too little leaching; respond with more desalinated water where it pays.
+   - Soil salinity higher than predicted: saltier irrigation water (water_test), or less water reaching the roots so less salt is leached (a clogged drip line: emitter_flow). Test both before dismissing.
    - Record competing hypotheses, run the test that tells them apart, conclude.
    - Act on what you found (adjust_field: repair_drip, pest_control, more desalinated water), then update_model with the measured value and the onset day so predictions match reality again. Use dismiss_anomaly only if the tests show nothing changed.
    - After a fault that cost water or yield, rebalance_water to re-plan irrigation for the rest of the season within the remaining quota.
@@ -316,9 +316,22 @@ class ScriptedScientist:
                                            "rationale": f"water test {ec} dS/m"})
                 self.call("conclude", {"hypothesis_id": hs, "verdict": "supported", "evidence": f"water test {ec} dS/m"})
                 self.call("rebalance_water", {"rationale": "blend more desalinated water where it pays"})
+                return
+            self.call("conclude", {"hypothesis_id": hs, "verdict": "refuted", "evidence": f"water test {ec} dS/m"})
+            hc = self.call("record_hypothesis", {"statement": f"The drip line in {f} is clogged or leaking, so less salt is leached.",
+                                                 "prediction": "The emitter flow test reads well below the design flow.",
+                                                 "falsified_if": "Emitters deliver at least 90% of design flow."})["hypothesis_id"]
+            t = self.call("field_test", {"field": f, "test": "emitter_flow", "rationale": "under-delivery cuts leaching and concentrates salt"})
+            v = t.get("delivered_vs_design", 1.0)
+            if v < 0.85 * t.get("expected_if_healthy", 1.0):
+                self.call("adjust_field", {"field": f, "repair_drip": True, "rationale": f"emitters deliver {v:.0%} of design"})
+                self.call("update_model", {"finding": "drip_delivery", "value": v, "since_day": max(onset - 14, 0), "field": f,
+                                           "rationale": "the salt built up because the crop received this fraction of its water"})
+                self.call("conclude", {"hypothesis_id": hc, "verdict": "supported", "evidence": f"emitter flow {v:.2f} of design"})
+                self.call("rebalance_water", {"rationale": "re-plan irrigation after the fault"})
             else:
-                self.call("conclude", {"hypothesis_id": hs, "verdict": "refuted", "evidence": f"water test {ec} dS/m"})
-                self.call("dismiss_anomaly", {"rationale": "water quality normal; salinity model error"})
+                self.call("conclude", {"hypothesis_id": hc, "verdict": "refuted", "evidence": f"emitter flow {v:.2f} of design"})
+                self.call("dismiss_anomaly", {"rationale": "water and delivery normal; salinity model error"})
             return
         if a["signal"] == "sw" and "drier" in a["direction"]:
             h1 = self.call("record_hypothesis", {"statement": f"The drip line in {f} is clogged or leaking.",

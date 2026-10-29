@@ -62,6 +62,7 @@ class MockServer:
             self.errors.append("only tool_choice auto is supported")
 
     def next_call(self, body: dict):
+        """Plays a short farm-scientist script, reading ids from earlier tool results."""
         msgs = body["messages"]
         tool_msgs = [m for m in msgs if m["role"] == "tool"]
         n = len(tool_msgs)
@@ -74,31 +75,31 @@ class MockServer:
 
         script = [
             ("observe", {}),
-            ("look_at_scene", {"reason": "record the reference layout"}),
-            ("record_hypothesis", {"statement": "Cooling rate rises with fan duty", "prediction": "fan off settles near 60 C",
-                                   "falsified_if": "first-order model misses by > 0.5 K"}),
-            ("evaluate_experiments", {"candidates": []}),
-            ("run_experiment", lambda: {"candidate_id": _first(last, "heat-up") or "C1", "hypothesis_id": last_id("H"),
-                                        "rationale": "need heat input and natural convection first"}),
-            ("fit_model", {"rationale": "learn k0 and b"}),
-            ("evaluate_experiments", {"candidates": [{"name": "staircase", "steps": [
-                {"fan_duty": 1.0, "heater_on": True, "duration_s": 150},
-                {"fan_duty": 0.5, "heater_on": True, "duration_s": 150},
-                {"fan_duty": 0.2, "heater_on": True, "duration_s": 150}]}]}),
-            ("run_experiment", lambda: {"candidate_id": last_id("C"), "hypothesis_id": last_id("H"),
-                                        "rationale": "three duties to identify the airflow curve"}),
-            ("fit_model", {"rationale": "compare airflow hypotheses"}),
-            ("conclude", lambda: {"hypothesis_id": last_id("H"), "verdict": "supported", "evidence": "fit error below 0.5 K"}),
-            ("plan_control", {"rationale": "cheapest robust plan"}),
-            ("execute_plan", lambda: {"plan_id": last_id("P"), "rationale": "go"}),
-            ("finish", {"summary": "mock run complete"}),
+            ("plan_season", {"rationale": "plan on published values"}),
+            ("record_hypothesis", {"statement": "local varieties differ", "prediction": "some trials miss",
+                                   "falsified_if": "all trials inside the bands"}),
+            ("evaluate_trials", {"candidates": [
+                {"crop": "wheat", "sow": 50, "plot": "normal"}, {"crop": "wheat", "sow": 50, "plot": "saline"},
+                {"crop": "maize", "sow": 20, "plot": "normal"}, {"crop": "sweet_potato", "sow": 20, "plot": "normal"}]}),
+            ("run_trials", lambda: {"candidate_ids": [o["candidate_id"] for o in last.get("options", []) if "candidate_id" in o],
+                                    "hypothesis_id": last_id("H"), "rationale": "expose salt and growth traits"}),
+            ("fit_crop_models", {"rationale": "learn"}),
+            ("conclude", lambda: {"hypothesis_id": last_id("H"), "verdict": "supported", "evidence": "see fits"}),
+            ("plan_season", {"rationale": "calibrated plan"}),
+            ("start_season", lambda: {"plan_id": last_id("P"), "rationale": "go"}),
         ]
-        if n >= len(script):
-            return None
-        name, args = script[n]
-        if callable(args):
-            args = args()
-        return name, args
+        if n < len(script):
+            name, args = script[n]
+            return name, (args() if callable(args) else args)
+        if isinstance(last, dict) and last.get("anomaly") and "dismiss" not in (tool_msgs[-1].get("content") or ""):
+            return "dismiss_anomaly", {"rationale": "mock ignores"}
+        if isinstance(last, dict) and (last.get("result") or last.get("summary")):
+            if "summary" in last:
+                return None
+            return "finish", {"summary": "mock run complete"}
+        if n > 60:
+            return "finish", {"summary": "mock run complete"}
+        return "advance", {"days": 60, "rationale": "keep going"}
 
     def _handler(self):
         srv = self

@@ -1,57 +1,76 @@
-# WorldLab
+# WorldLab Crops
 
-**An AI agent that learns how a physical system behaves by designing and running experiments, and notices when the world changes under it.**
+**An AI agronomist that learns a desert farm by experiment, then plans and runs a season to feed as many people as possible, and notices when something in the field goes wrong.**
 
-WorldLab runs a tabletop cooling rig: a heatsink warmed by a 10 W resistor (a stand-in for a chip), a PWM fan, temperature sensors and a top-down camera. The goal is ordinary engineering: *keep the heatsink at or below 42 °C for 20 minutes using as little fan energy as possible.* The agent starts knowing nothing about this particular rig. To meet the goal it has to:
+The farm is 12 hectares near Al Ain in the UAE: six fields with different soils, some already saline, irrigated by drip from brackish groundwater that can be blended with desalinated water. Water and energy are capped. The agent chooses among ten food-security crops: wheat, rice, maize, potatoes, cassava, soybeans, sorghum, millet, common beans and sweet potatoes.
 
-1. form testable hypotheses about how the rig behaves,
-2. choose experiments that are worth their energy cost,
-3. fit and compare competing physical models against the evidence,
-4. plan with honest uncertainty,
-5. detect when its predictions stop matching reality (someone moves the fan),
-6. work out *what* changed with a discriminating experiment, and recover.
+The local varieties don't behave quite like the published values, and the agent isn't told how. To do well it has to:
 
-Every hypothesis, prediction, experiment, result and decision is written to a hash-chained ledger and shown live on a dashboard.
+1. **Run trials.** Design trial plots that expose the traits that matter: a saline plot reveals salt tolerance, a late sowing reveals heat tolerance at flowering.
+2. **Calibrate.** Infer each crop's hidden traits from drone imagery and harvests.
+3. **Plan for a bad year.** Choose which crop goes on which field, with sowing date, irrigation, water blend and nitrogen, to maximise the people fed in a bad year. Someone counts as fed only when calories, protein *and* vitamin A are all covered.
+4. **Run the season and stay honest.** Run the season day by day against its own predictions. When a field drifts out of the predicted band, it forms hypotheses, runs the field test that tells them apart, fixes the cause, corrects its model and re-plans its water.
 
-![WorldLab dashboard after a run in which the fan was moved](docs/dashboard.png)
+Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live on a dashboard.
 
-*Blue is what the agent's model predicts; orange is what the sensor measures. At 35 min someone moves the fan (dotted line, hidden from the agent). The camera and the diverging measurement both flag it; the agent runs a fan-off / full-fan experiment, concludes that only the fan coupling changed, refits just that, and finishes the task at 100% compliance.*
+![WorldLab Crops dashboard at the end of a season in which a drip line clogged](docs/dashboard.png)
 
-Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier**.
+*Blue is what the agent's model predicts; orange is what the sensors and drone measure. In early January a drip line in field F2 clogs. The agent isn't told, and the water meter can't see it. Soil moisture falls out of the predicted band and the alarm fires. An emitter flow test reads 45% of design flow, so the agent concludes the drip line is clogged and rules out higher crop water use. It repairs the line, teaches its model what happened and re-plans irrigation. The harvest feeds 443 people within the water quota.*
+
+Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (agriculture, food security).
 
 ---
 
 ## How Meta's models are used
 
-| Model | Role in WorldLab |
+| Model | Role |
 |---|---|
-| **Muse Spark** (`muse-spark-1.3`, Meta Model API) | The scientist. It drives the whole loop through **tool calling**: it records hypotheses, picks experiments from predicted information gain and energy cost, decides when the model is good enough, investigates anomalies and concludes. Each tool call carries a written rationale that lands in the audit ledger. |
-| **SAM 3.1** (`sam-3.1`, Meta Model API) | The eyes. Finds the *fan* and *heat sink* in the camera frame by noun phrase, so the lab can tell whether the setup physically changed. |
-| **Muse Spark** image understanding + **structured output** | Judges whether the fan is aimed at the heatsink fins (a box can't show orientation), and falls back to perception grounding if SAM misses an object. |
-| **Muse Glimmer** (open weights, Apache 2.0) | A drop-in scientist that runs on your own GPU or any OpenAI-compatible host. Same tools, same prompt, so the two models can be compared head to head on the benchmark. |
+| **Muse Spark** (`muse-spark-1.3`, Meta Model API) | The scientist. It drives everything through **tool calling**: it records hypotheses, designs trials, decides when beliefs are good enough to plan, chooses which field test to run, interprets results, acts and concludes. Every call carries a written rationale that lands in the ledger. |
+| **SAM 3.1** (`sam-3.1`, Meta Model API) | Reads drone images. It counts plants (stand loss), finds white salt crust and spots brown leaf damage by noun phrase. |
+| **Muse Spark** vision + **structured output** | Gives a stress diagnosis for each drone image (healthy, water stress, pest damage, salt damage, sparse stand) with evidence. |
+| **Muse Glimmer** (open weights, Apache 2.0) | A drop-in scientist running on your own GPU or any OpenAI-compatible host. It gets the same tools and prompt, so the two can be benchmarked head to head. |
 
-The language model never touches hardware directly. It decides; numerical code does the physics and a safety governor bounds every action.
+The language model never acts on the farm directly. It decides, numerical code does the agronomy, and budgets bound every action: trial plots, field tests, the groundwater quota and the energy budget.
 
 ## The science inside
 
-The agent's tools are backed by real methods, so its decisions rest on numbers rather than vibes.
+- **Crop and soil model.** An AquaCrop-style daily model, vectorised over tens of thousands of field-seasons at once (40,000 seasons in about 3 s):
+  - growing-degree-day phenology,
+  - logistic canopy growth and senescence,
+  - normalised water productivity,
+  - harvest index cut by heat and drought during flowering,
+  - a three-layer soil (0–20, 20–50, 50–100 cm) with water, salt and nitrogen,
+  - leaching, deep percolation, soil evaporation (halved by mulch),
+  - Maas–Hoffman salinity response, stand loss.
+- **Weather.** FAO-56 Penman–Monteith reference evapotranspiration from a stochastic Al Ain climate, with spring heat waves and sparse winter rain.
+- **Learning the varieties.** Each crop has four hidden traits (water productivity, canopy growth rate, heat tolerance at flowering, salt tolerance). Trials update them by MAP fitting to weekly drone canopy cover and harvest weight, with a Laplace posterior. A trait only narrows if a plot exposed it, and the belief chart on the dashboard shows exactly that.
+- **Trial design.** Each candidate plot is scored by expected information (linearised Fisher information) and by how much it would shrink the uncertainty in that crop's yield *where the plan would actually grow it*.
+- **Robust planning.**
+  - Every field × crop × management option is simulated under paired samples of trait beliefs and weather years.
+  - A coordinate-ascent search maximises the 10th percentile of people fed, subject to the 90th-percentile groundwater use and energy staying within budget.
+  - The plan reports the **cost of uncertainty**: how many more people it would feed if the traits were known. Trials visibly shrink it, from 71 to 17 people on the default farm.
+- **In-season monitoring.** An ensemble of the model runs alongside the farm, fed the actual weather and the actual irrigation. Two-sided CUSUM on soil moisture, soil salinity and drone canopy cover flags sustained divergences that are large enough to matter.
+- **Diagnosis and repair.**
+  - Field tests separate competing causes: emitter flow, soil sample, water test, leaf inspection.
+  - The agent fixes the cause: it repairs the drip line, sprays, or blends in more desalinated water.
+  - It tells the model what happened: the delivered fraction, the pest damage rate or the new groundwater salinity, from the onset day. Then it re-optimises irrigation for the rest of the season within the remaining quota.
+- **Auditable.** The ledger is append-only and SHA-256 hash-chained, and `python -m worldlab verify` detects any edit. Each trial result stores a digest of its raw data.
 
-- **Grey-box physics.** `dT/dt = -k(u)(T - T_room) + b·q`, with four competing hypotheses for how airflow scales with fan duty `u`: linear, square-root (laminar), power law, and power law with a stall threshold. Fits are maximum a posteriori under a prior, integrated exactly between samples, with uncertainty corrected for autocorrelated residuals.
-- **Evidence-weighted belief.** Predictions average over all four hypotheses with Akaike weights. Where the hypotheses disagree (typically at fan duties never tested), prediction bands widen honestly instead of extrapolating with false confidence.
-- **Experiment design.** Every candidate experiment is scored by predicted outcome, energy cost, safety, expected information (linearised Fisher information, in bits) and, most usefully, *how much it shrinks the uncertainty that drives the energy decision*.
-- **Robust planning.** The planner picks the cheapest fan schedule whose 95th-percentile temperature stays under target, and reports the **cost of uncertainty**: the extra joules spent because the model is not certain. Learning visibly drives that number down.
-- **Trust region.** If a plan relies on a fan duty the model has never seen, it says so and proposes a short validation experiment first. Fans stall at low duty, and the benchmark showed this check matters.
-- **Change detection.** While a plan runs, an ensemble of the model is driven by the *measured* inputs, and a two-sided CUSUM flags sustained divergence that is large enough to matter (≥ 0.6 K). Measured changes, such as the room warming, are absorbed by feedback without false alarms.
-- **Diagnosis by experiment.** A fan-off step isolates natural convection and heat input from fan coupling. If the old model still explains the fan-off step but not the fan-on step, the fan moved. If both are off, the heat input changed. The refit then changes *only* what the supported hypothesis says changed.
-- **Auditable.** The ledger is append-only and SHA-256 hash-chained; `python -m worldlab verify` detects any edit or deletion. Each experiment result stores a digest of its raw data.
+## Which variables are modelled
 
-## Bounded hardware control
+Built from a checklist of variables for crop simulation:
 
-- Fan duty is clamped to 0–100%. Experiments have a duration limit and a separate exploration energy budget.
-- An experiment is refused if its median predicted temperature approaches the trip limit. Heater steps are *guarded*: they end early at 68 °C.
-- If the object reaches 75 °C, the heater turns off and the fan goes to full, and the run is marked as tripped.
-- When an anomaly fires, the fan goes to full ("fail toward cooling") while the agent investigates.
-- The firmware enforces its own limits independently of the host: an 80 °C latched trip, a 10 s watchdog, and refusing the heater on a sensor fault.
+| Group | Modelled | Simplified | Not modelled (yet) |
+|---|---|---|---|
+| **Climate** | daily max/min temperature, humidity, rain, solar radiation, wind, ET₀ (Penman–Monteith), heat waves and their duration, year-to-year variability, a 7-day forecast | VPD (inside ET₀), CO₂ (current level, in the normalised water productivity), day length (computed; no photoperiod response) | soil temperature, frost (rare in the UAE) |
+| **Soil** | texture per layer, 1 m depth in 3 layers, field capacity, wilting point, initial moisture, salinity (ECe) per layer with leaching, nitrogen | drainage rate standing in for hydraulic conductivity | bulk density, pH, organic matter, P, K, micronutrients, CEC, water table, erosion |
+| **Water** | quota, daily drip amount, application efficiency (hidden per field), water salinity (brackish/desal blend), deep percolation, pumping and desalination energy | drip only | other irrigation methods, runoff, capillary rise, storage, rainwater harvesting, water temperature |
+| **Crop** | 10 crops, base/upper temperatures, growing degree days, growth stages, canopy cover (for LAI), root depth and growth, water productivity, harvest index, water/heat/salt stress sensitivity, nitrogen need, planting density, cycle length | germination (an emergence threshold) | photoperiod, vernalisation |
+| **Practices** | sowing date, irrigation level, water blend, nitrogen, mulch, density, pest control, harvest at maturity | | seed quality, planting depth, tillage, rotation, cover crops, pruning |
+| **Biology** | pest outbreaks and control, stand loss | | diseases, weeds, pollination, soil pathogens, resistance |
+| **Infrastructure** | drip system faults, energy budget, reverse-osmosis desalination, sensor-driven irrigation control | | greenhouses, hydroponics, vertical farms, capital cost |
+
+Crop and nutrition values are approximate published figures (AquaCrop-style parameters; USDA FoodData Central nutrition). This is a demonstration of method, not agronomic advice.
 
 ---
 
@@ -65,18 +84,18 @@ cd WorldLab
 python -m worldlab serve --open
 ```
 
-Open http://127.0.0.1:8765, choose an agent and press **Start run**. While the agent holds the target, press **Move the fan** and watch it notice, investigate and recover. The simulator runs at 20× real time by default.
+Open http://127.0.0.1:8765, choose an agent and a farm, and press **Start run**. Once the season starts:
 
-Without an API key, the agent falls back to the **scripted baseline** and perception to **simulated perception**, both clearly labelled. Everything else is identical.
+1. Select a field.
+2. Choose **Change the farm** to clog its drip line, start a pest outbreak, make the groundwater salty or send a heat wave.
+3. Watch the agent notice, investigate and recover.
+
+Without an API key, the agent falls back to the **scripted baseline** and drone perception to a labelled **simulated perception**. Everything else is identical.
 
 ### Muse Spark (Meta Model API)
 
 ```bash
-# macOS / Linux
-export MODEL_API_KEY=...        # from https://dev.meta.ai
-# Windows PowerShell
-$env:MODEL_API_KEY="..."
-
+export MODEL_API_KEY=...                 # Windows PowerShell: $env:MODEL_API_KEY="..."
 python -m worldlab serve --agent spark --open
 ```
 
@@ -84,111 +103,88 @@ Optional settings: `WORLDLAB_SPARK_MODEL` (default `muse-spark-1.3`) and `WORLDL
 
 ### Muse Glimmer (open weights)
 
-Serve Glimmer behind any OpenAI-compatible endpoint, then point WorldLab at it:
+Serve Glimmer behind any OpenAI-compatible endpoint and point WorldLab at it:
 
 ```bash
-# llama.cpp (single consumer GPU, ~17 GB Q4 GGUF)
-llama serve -hf meta-models/Muse-Glimmer-30B-GGUF \
-  --hf-file Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf \
+llama serve -hf meta-models/Muse-Glimmer-30B-GGUF --hf-file Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf \
   -a muse-glimmer -ngl 99 -c 131072 -np 1 --host 127.0.0.1 --port 8080 --api-key local
-
-export WORLDLAB_GLIMMER_BASE_URL=http://127.0.0.1:8080/v1
-export WORLDLAB_GLIMMER_API_KEY=local
+export WORLDLAB_GLIMMER_BASE_URL=http://127.0.0.1:8080/v1 WORLDLAB_GLIMMER_API_KEY=local
 python -m worldlab serve --agent glimmer --open
 ```
 
 Other options:
 
-- **Ollama:** run `ollama run muse-glimmer`, then set the base URL to `http://localhost:11434/v1`.
+- **Ollama:** run `ollama run muse-glimmer`, then use `http://localhost:11434/v1`.
 - **vLLM:** use `--served-model-name muse-glimmer --enable-auto-tool-choice --tool-call-parser muse_glimmer`.
-- **A hosted endpoint** such as Fireworks, Baseten or Modal: the hackathon partners offer credits. Set `WORLDLAB_GLIMMER_BASE_URL`, `WORLDLAB_GLIMMER_API_KEY` and `WORLDLAB_GLIMMER_MODEL` to that provider's values.
+- **A hosted endpoint** (Fireworks, Baseten, Modal): set `WORLDLAB_GLIMMER_BASE_URL`, `WORLDLAB_GLIMMER_API_KEY` and `WORLDLAB_GLIMMER_MODEL`.
 
-SAM 3.1 camera perception always uses the Meta Model API when `MODEL_API_KEY` is set.
-
-### Headless runs and the benchmark
+### Headless runs, benchmark, tests
 
 ```bash
-python -m worldlab run --agent spark --perturb fan_moved@2400       # one run, printed as it goes
-python -m worldlab bench --worlds 10                                 # scripted agents, randomised worlds
-python -m worldlab bench --worlds 5 --agents spark,glimmer,scripted  # compare the LLM scientists
-python -m worldlab verify runs/<run>/ledger.jsonl                    # check the audit chain
-python -m unittest discover -s tests -v                              # tests, no network needed
+python -m worldlab run --agent spark --perturb clog@90:F2         # one run, printed as it goes (day 0 = 1 Oct)
+python -m worldlab bench --farms 5                                 # scripted agents across random farms
+python -m worldlab bench --farms 3 --agents spark,glimmer,scripted # compare the LLM scientists
+python -m worldlab verify runs/<run>/ledger.jsonl                  # check the audit chain
+python -m unittest discover -s tests -v                            # tests, no network needed
 ```
 
-Each run writes `runs/<time>-<agent>/` containing `ledger.jsonl` (hash-chained), `samples.csv` (every sensor reading) and `frames/` (the camera images the agent looked at).
+Each run writes `runs/<time>-<agent>/` containing `ledger.jsonl` (hash-chained) and `images/` (the drone images the agent looked at).
 
 ---
 
 ## Benchmark
 
-The simulator hides its physics from the agent. The agent only sees sensor readings and camera frames, exactly as on hardware. That makes it possible to score the agent against ground truth across many worlds, each with a random heat capacity, airflow curve, fan stall point, fan efficiency and room temperature.
+Each farm has its own hidden variety traits, drip efficiencies and weather year. The agent sees only sensors, drone images, harvests and test results, exactly as on a real farm. That makes it possible to score it against ground truth.
 
-In each scenario, a change is made 600 s into the agent's first control plan:
+On day 90 (early January), each scenario hides one change:
 
 - **none:** nothing changes.
-- **fan_moved:** the fan is moved and turned. The camera can see this.
-- **heater_drift:** the heater delivers 30% more than commanded. Nothing can see this except the physics.
-- **ambient_step:** the room warms by 3 K. The room sensor measures this, so it should not cause an alarm.
+- **clog:** a drip line clogs to 45% delivery.
+- **pest:** an outbreak eats 3% of the canopy a day.
+- **salinity:** the groundwater turns from 4.5 to 9 dS/m.
+- **heatwave:** a heat wave arrives, and it is in the forecast, so it should not cause an alarm.
 
-Results across 10 randomised worlds (`python -m worldlab bench --worlds 10`; raw runs in `docs/bench/runs.json`):
+Results across 5 random farms × 5 scenarios × 3 agents (`python -m worldlab bench --farms 5`; raw runs in `docs/bench/runs.json`). The oracle plans with the true traits and suffers no faults.
 
-| agent | scenario | goal_complete | compliance | detected | detect_s_median | false_alarms | diagnosis_ok | energy_overhead | exploration_J | model_error |
+| agent | scenario | runs | people_fed | pct_of_oracle | detected | detect_days_median | diagnosis_ok | false_alarms | within_limits | trait_error |
 |---|---|---|---|---|---|---|---|---|---|---|
-| scripted | none | 1.0 | 1.0 | - | – | 1 | 0.9 | 0.02 | 455.39 | 0.081 |
-| scripted | fan_moved | 0.9 | 0.993 | 10/10 | 5.0 | 1 | 0.9 | – | 1232.26 | 0.078 |
-| scripted | heater_drift | 0.9 | 0.93 | 9/10 | 60.0 | 1 | 0.5 | – | 1280.41 | 0.219 |
-| scripted | ambient_step | 1.0 | 0.975 | - | 422.5 | 6 | 0.9 | – | 681.46 | 0.082 |
-| scripted-noadapt | none | 0.8 | 0.8 | - | – | 12 | 1.0 | 0.016 | 353.09 | 0.099 |
-| scripted-noadapt | fan_moved | 0.0 | 0.8 | 10/10 | 5.0 | 8 | 0.0 | – | 353.09 | 0.438 |
-| scripted-noadapt | heater_drift | 0.0 | 0.754 | 10/10 | 62.5 | 8 | 0.0 | – | 353.09 | 0.099 |
-| scripted-noadapt | ambient_step | 0.9 | 0.889 | - | 252.5 | 11 | 1.0 | – | 353.09 | 0.099 |
+| scripted | none | 5 | 439.1 | 99.7 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted | clog | 5 | 429.1 | 97.2 | 5/5 | 20.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted | pest | 5 | 436.9 | 98.9 | 5/5 | 13.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted | salinity | 5 | 383.6 | 86.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.4 |
+| scripted | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | none | 5 | 439.1 | 99.7 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | clog | 5 | 421.4 | 95.5 | 5/5 | 20.0 | 0/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | pest | 5 | 419.7 | 95.2 | 5/5 | 13.0 | 0/5 | 0 | 5/5 | 0.4 |
+| scripted-noadapt | salinity | 5 | 370.8 | 83.4 | 5/5 | 14.0 | 0/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-notrials | none | 5 | 384.2 | 88.1 | – | – | 5/5 | 1 | 4/5 | 0.9 |
+| scripted-notrials | clog | 5 | 358.2 | 82.7 | 5/5 | 16.0 | 0/5 | 0 | 3/5 | 0.9 |
+| scripted-notrials | pest | 5 | 379.8 | 87.4 | 5/5 | 17.0 | 5/5 | 0 | 4/5 | 0.9 |
+| scripted-notrials | salinity | 5 | 343.7 | 78.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.9 |
+| scripted-notrials | heatwave | 5 | 374.1 | 85.9 | – | – | 5/5 | 0 | 4/5 | 0.9 |
 
-In plain terms:
+The three agents:
 
-- **When nothing changes**, every goal is met at 100% compliance, using 2% more fan energy than an oracle that knows the true physics, with one false alarm across 10 worlds.
-- **When the fan is moved**, the change is caught in 10/10 worlds and correctly attributed to the fan in 9/10. The learned model ends within 8% of the truth, against 44% for the agent that never revises; that agent completes 0 of 10 goals.
-- **A hidden heater drift** (invisible to the camera) is caught in 9/10 worlds, but attributed correctly in only half. Often the offset-free feedback absorbs it before a clean discriminating experiment is possible. This is the main open problem.
-- **A measured room-temperature change** is handled by feedback without investigation in most worlds. Most of its alarms come from one near-degenerate world.
+- **scripted:** the full protocol: trials, calibration, planning, monitoring, diagnosis and repair.
+- **scripted-noadapt:** the same, but it ignores alarms.
+- **scripted-notrials:** plans on published values and never experiments.
 
-These are the scripted agent's numbers. The same benchmark runs Muse Spark and Muse Glimmer (`--agents spark,glimmer,scripted`) when an API key or endpoint is configured.
+What the numbers say:
 
+- **Experimenting pays.** With trials, the harvest reaches 99.7% of the oracle; without them, 88.1%. That is about 55 more people fed for a year from the same land and water. Trait error halves (0.4 against 0.9 prior standard deviations).
+- **Every hidden fault was detected**, at a median of 13–20 days, with no false alarms during the season. The cause was named correctly in every case:
+  - a clogged line, by emitter flow test,
+  - pests, by leaf inspection,
+  - saltier groundwater, by water test.
+- **Acting on the diagnosis helps**: 429 vs 421 people with a clog, 437 vs 420 with pests, 384 vs 371 with salty groundwater.
+- **A forecast heat wave** raises no alarm. It is already in the forecast, so the model accounts for it.
+- **Water and energy limits held in 4 of 5 farms.** On farm 204 the actual year was drier than the planner's 90th-percentile assumption, and use overran by up to 2%. A hard quota cut-off is a natural next step.
 
-Columns:
+An earlier version of this benchmark caught a real gap. A clogged line first shows up as *rising soil salinity* (less water means less leaching), not as dry soil. The scripted agent only tested the groundwater, so it never found the clog. It now tests both causes, and clog diagnosis went from 2/5 to 5/5.
 
-- *goal_complete* and *compliance*: whether the 20-minute hold was finished, and the share of it spent at or below target.
-- *detected* and *detect_s_median*: hidden changes caught, and the median time to catch them.
-- *false_alarms*: alarms with no unexplained physical change behind them.
-- *diagnosis_ok*: the supported hypothesis names what actually changed.
-- *energy_overhead*: task fan energy per second versus an oracle that knows the true physics.
-- *exploration_J*: energy spent on experiments.
-- *model_error*: mean relative error of the learned cooling curve against the truth at the end.
+These are scripted-agent numbers. The same harness runs Muse Spark and Muse Glimmer (`--agents spark,glimmer,scripted`) once an API key or endpoint is set.
 
-`scripted-noadapt` is the same agent with anomaly handling switched off: it learns once and never revises. The gap between the two rows is what adapting is worth.
-
-**Honest limits.**
-
-- The hardware path (serial driver and firmware) is written and unit-tested against a fake port, but the benchmark is simulation only.
-- Without an API key, camera perception is simulated from the scene geometry, and the dashboard labels it as such.
-- A near-degenerate world (the target barely below the fan-off temperature, plus a fan that stalls at low duty) still produces occasional false alarms.
-
----
-
-## Hardware rig (optional)
-
-| Part | Notes |
-|---|---|
-| Arduino Uno or Nano | runs `firmware/worldlab_rig/worldlab_rig.ino` |
-| 2 × DS18B20 | one bonded to the heatsink, one in free air; 4.7 kΩ pull-up on pin 2 |
-| 120 mm 4-pin PWM fan, 12 V supply | PWM wire on pin 9 (25 kHz), common ground |
-| Finned aluminium heatsink + 10 W power resistor | thermal paste between them |
-| Logic-level N-MOSFET (e.g. IRLZ44N) | heater switch, gate on pin 7 via 100 Ω, 100 kΩ pull-down |
-| USB webcam (optional) | top-down view for SAM 3.1 |
-| INA219 (optional) | measures fan power; otherwise a fan power curve is used |
-
-```bash
-pip install pyserial opencv-python
-python -m worldlab serve --rig serial --port COM3 --camera 0 --agent spark
-```
 
 ---
 
@@ -196,18 +192,21 @@ python -m worldlab serve --rig serial --port COM3 --camera 0 --agent spark
 
 ```
 worldlab/
-  model.py        thermal model, MAP fitting, Akaike mixture, prediction, information gain
-  lab.py          the agent's tools: experiments, fitting, planning, monitoring, safety, energy accounting
-  agent.py        Muse Spark / Muse Glimmer tool-calling scientist, and the scripted baseline
-  llm.py          stdlib client for Meta Model API and OpenAI-compatible endpoints
-  perception.py   SAM 3.1 + Muse Spark scene analysis, and simulated perception
-  ledger.py       hash-chained audit ledger and verifier
-  bench.py        ground-truth benchmark across randomised worlds
-  server.py       dashboard server (standard library, server-sent events)
-  dashboard/      single-file live dashboard
-  rig/            simulator (hidden physics + camera renderer) and serial hardware driver
-firmware/         Arduino firmware with independent safety limits
-tests/            unit tests, including the agent loop against a mock OpenAI-compatible endpoint
+  farm/weather.py    Al Ain weather generator, FAO-56 Penman-Monteith ET0
+  farm/crops.py      the ten crops: growth parameters, nutrition, hidden-trait priors
+  farm/sim.py        vectorised daily crop + 3-layer soil model (water, salt, nitrogen)
+  farm/world.py      the hidden farm: true traits, sensors, drone imagery, field tests, faults
+  farm/belief.py     trait beliefs, MAP calibration from trials, trial information
+  farm/optimize.py   robust crop-mix planner (bad-year people fed under water and energy limits)
+  lab.py             the agent's tools: trials, planning, season execution, monitoring, tests, repairs
+  agent.py           Muse Spark / Muse Glimmer tool-calling scientist, and the scripted baseline
+  perception.py      SAM 3.1 + Muse Spark drone analysis, and simulated perception
+  llm.py             stdlib client for Meta Model API and OpenAI-compatible endpoints
+  ledger.py          hash-chained audit ledger and verifier
+  bench.py           ground-truth benchmark across random farms and scenarios
+  server.py          dashboard server (standard library, server-sent events)
+  dashboard/         single-file live dashboard
+tests/               unit tests, including the agent loop against a mock OpenAI-compatible endpoint
 ```
 
 ## License
