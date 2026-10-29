@@ -25,7 +25,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def common(sp, speed):
-        sp.add_argument("--agent", default="auto", choices=["auto", "spark", "glimmer", "scripted", "scripted-noadapt"],
+        sp.add_argument("--agent", default="auto", choices=["auto", "spark", "glimmer", "scripted", "scripted-rl", "scripted-noadapt"],
                         help="auto = Muse Spark if MODEL_API_KEY is set, else the scripted baseline")
         sp.add_argument("--seed", type=int, default=7, help="which farm: hidden variety traits, drip systems, weather year")
         sp.add_argument("--speed", type=float, default=speed, help="season pacing, simulated days per second (0 = flat out)")
@@ -54,6 +54,11 @@ def main(argv=None):
     v = sub.add_parser("verify", help="verify a ledger's hash chain")
     v.add_argument("ledger")
 
+    x = sub.add_parser("export-replay", help="turn a recorded run into a static replay for the web app")
+    x.add_argument("run_dir")
+    x.add_argument("--out", default="worldlab/dashboard/replay.json")
+    x.add_argument("--note", default=None, help="caption shown in the replay")
+
     a = p.parse_args(argv)
     if a.cmd == "serve":
         from .server import serve
@@ -77,6 +82,9 @@ def main(argv=None):
     elif a.cmd == "bench":
         from .bench import run_bench
         run_bench(a.farms, a.agents.split(","), a.scenarios.split(","), a.out, workers=a.workers)
+    elif a.cmd == "export-replay":
+        from .replay import export
+        print(json.dumps(export(a.run_dir, a.out, note=a.note)))
     elif a.cmd == "verify":
         from .ledger import verify
         ok, msg = verify(a.ledger)

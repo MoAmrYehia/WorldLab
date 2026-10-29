@@ -1,6 +1,6 @@
 """Dashboard server: standard library only.
 
-GET  /                 dashboard
+GET  /                 3D web app (classic.html: the 2D dashboard)
 GET  /api/state        snapshot of the current run
 GET  /api/stream       server-sent events for live updates
 POST /api/start        start a run      {agent, speed, seed}
@@ -25,6 +25,9 @@ from .ledger import verify
 from .session import Session, Settings
 
 STATIC = Path(__file__).parent / "dashboard"
+STATIC_FILES = {"index.html": "text/html; charset=utf-8", "classic.html": "text/html; charset=utf-8",
+                "app.js": "text/javascript; charset=utf-8", "scene.js": "text/javascript; charset=utf-8",
+                "style.css": "text/css; charset=utf-8"}
 
 
 def _clean(o):
@@ -96,11 +99,13 @@ def make_handler(app: App):
 
         def do_GET(self):
             path = self.path.split("?")[0]
-            if path in ("/", "/index.html"):
-                data = (STATIC / "index.html").read_bytes()
+            name = "index.html" if path in ("/", "") else path.lstrip("/")
+            if name in STATIC_FILES:
+                data = (STATIC / name).read_bytes()
                 self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Type", STATIC_FILES[name])
                 self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-cache")
                 self.end_headers()
                 self.wfile.write(data)
             elif path == "/api/state":

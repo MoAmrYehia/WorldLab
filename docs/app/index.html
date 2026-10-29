@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorldLab Farm</title>
+<meta name="description" content="An AI scientist runs a desert farm: it experiments, learns, trains an irrigation policy, and catches what its model gets wrong.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage" aria-label="3D view of the farm"></div>
+<div id="noGL" class="glass nogl" hidden>
+  <b>The 3D view could not start.</b>
+  <span>It needs WebGL and access to cdn.jsdelivr.net. The panels below still show the run.</span>
+</div>
+
+<div class="col left">
+<header class="glass brand" id="brand">
+  <div class="brand-row">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><path d="M6 20c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="11" r="3" fill="var(--belief)"/></svg>
+    <div>
+      <h1>WorldLab</h1>
+      <p class="sub">An AI scientist runs a 12-hectare farm near Al Ain</p>
+    </div>
+  </div>
+  <ol class="phases" id="phases">
+    <li data-p="trials">Trials</li><li data-p="planning">Plan</li><li data-p="season">Season</li><li data-p="harvested">Harvest</li>
+  </ol>
+  <div class="clock">
+    <span id="date" class="date">Before sowing</span>
+    <span id="weather" class="weather"></span>
+  </div>
+  <div class="timeline" id="timeline" aria-label="Season timeline"><div class="tl-fill" id="tlFill"></div></div>
+  <div class="controls" id="liveControls" hidden>
+    <select id="agentSel" aria-label="Agent">
+      <option value="scripted-rl">Scripted scientist with RL</option>
+      <option value="scripted">Scripted scientist</option>
+      <option value="spark">Muse Spark</option>
+      <option value="glimmer">Muse Glimmer</option>
+    </select>
+    <button id="startBtn" class="btn primary">Start run</button>
+    <label class="speed">Speed <input id="speed" type="range" min="1" max="30" value="12" aria-label="Season speed, days per second"></label>
+  </div>
+  <div class="controls" id="replayControls" hidden>
+    <button id="playBtn" class="btn primary" aria-label="Play">Play</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Replay position">
+    <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+  </div>
+  <p class="mode" id="modeNote"></p>
+</header>
+<aside class="glass side left" id="scientist">
+  <div class="side-head"><h2>Scientist</h2><span class="agent-name" id="agentName"></span></div>
+  <div class="hyps" id="hyps"></div>
+  <ol class="stream" id="stream"></ol>
+</aside>
+</div>
+
+<div class="col right">
+<section class="glass kpi" id="kpi" aria-live="polite">
+  <div class="fed">
+    <span class="fed-n" id="fedN">–</span>
+    <span class="fed-l" id="fedL">people fed in a bad year</span>
+  </div>
+  <p class="limit" id="fedLimit"></p>
+  <div class="meter"><div class="m-top"><span>Groundwater</span><span id="waterTxt">–</span></div><div class="bar"><i id="waterBar"></i></div></div>
+  <div class="meter"><div class="m-top"><span>Energy</span><span id="energyTxt">–</span></div><div class="bar"><i id="energyBar"></i></div></div>
+  <div class="ctrl-row"><span>Irrigation</span><span class="pill" id="ctrlPill">Fixed rule</span></div>
+</section>
+
+
+
+<aside class="glass side right" id="fieldPanel">
+  <div class="side-head">
+    <h2 id="fieldTitle">Fields</h2>
+    <div class="seg" id="fieldTabs" role="tablist"></div>
+  </div>
+  <p class="field-sub" id="fieldSub">Click a plot in the 3D view.</p>
+  <div class="legend"><span class="lg belief">Model, 90% band</span><span class="lg measured">Measured</span></div>
+  <figure class="chart"><figcaption>Soil moisture, top 50 cm</figcaption><svg id="chSw" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
+  <figure class="chart"><figcaption>Canopy cover, from drone</figcaption><svg id="chCc" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
+  <figure class="chart"><figcaption>Soil salinity, dS/m</figcaption><svg id="chEc" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
+  <figure class="chart short"><figcaption>Irrigation, mm per day</figcaption><svg id="chIrr" viewBox="0 0 300 44" preserveAspectRatio="none"></svg></figure>
+  <div class="tip" id="tip" hidden></div>
+  <figure class="drone" id="droneFig" hidden><img id="droneImg" alt="Drone image of the field"><figcaption id="droneCap"></figcaption></figure>
+  <div class="perturb" id="perturb" hidden>
+    <h3>Change the farm</h3>
+    <p>The scientist is not told. Watch whether its model notices.</p>
+    <div class="pbtns">
+      <button class="btn" data-kind="clog">Clog the drip line</button>
+      <button class="btn" data-kind="pest">Release pests</button>
+      <button class="btn" data-kind="salinity">Saltier groundwater</button>
+      <button class="btn" data-kind="heatwave">Heat wave</button>
+    </div>
+  </div>
+</aside>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<nav class="glass dock" id="dock" aria-label="Details">
+  <button data-tab="trials">Trials</button>
+  <button data-tab="beliefs">Beliefs</button>
+  <button data-tab="plan">Plan</button>
+  <button data-tab="rl">RL policy</button>
+  <button data-tab="ledger">Ledger</button>
+</nav>
+<section class="glass drawer" id="drawer" hidden>
+  <div class="drawer-head"><h2 id="drawerTitle"></h2><button class="x" id="drawerClose" aria-label="Close">×</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -16,7 +16,7 @@ from .farm.world import Farm
 
 @dataclass
 class Settings:
-    agent: str = "auto"            # auto | spark | glimmer | scripted | scripted-noadapt
+    agent: str = "auto"            # auto | spark | glimmer | scripted | scripted-rl | scripted-noadapt
     seed: int = 7                  # which farm (hidden variety traits, drip efficiencies, weather year)
     speed: float = 12.0            # season pacing for the dashboard, simulated days per second (0 = flat out)
     perturb: list = field(default_factory=list)   # ["clog@80", "pest@100:F2", "salinity@60", "heatwave@170"]
@@ -27,7 +27,7 @@ class Settings:
     def resolved_agent(self) -> str:
         if self.agent != "auto":
             return self.agent
-        return "spark" if os.environ.get("MODEL_API_KEY") else "scripted"
+        return "spark" if os.environ.get("MODEL_API_KEY") else "scripted-rl"
 
 
 def parse_perturb(spec: str):
@@ -51,6 +51,8 @@ class Session:
         self.agent_kind = settings.resolved_agent()
         stamp = time.strftime("%Y%m%d-%H%M%S")
         self.run_dir = Path(settings.runs_dir) / f"{stamp}-{self.agent_kind}"
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        self.bus.record_to(self.run_dir / "events.jsonl")
         self.farm = Farm(seed=settings.seed)
         self.farm.on_event = lambda info: self.bus.publish("perturbation", info)
         for spec in settings.perturb:
@@ -85,6 +87,8 @@ class Session:
                 self.result = LLMScientist(self.lab, LLMConfig.for_agent(self.agent_kind)).run()
             elif self.agent_kind == "scripted-noadapt":
                 self.result = ScriptedScientist(self.lab, adapt=False).run()
+            elif self.agent_kind == "scripted-rl":
+                self.result = ScriptedScientist(self.lab, rl=True).run()
             else:
                 self.result = ScriptedScientist(self.lab).run()
         except StopRequested:

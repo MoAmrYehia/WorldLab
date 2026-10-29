@@ -1,6 +1,6 @@
 # WorldLab Crops
 
-**An AI agronomist that learns a desert farm by experiment, then plans and runs a season to feed as many people as possible, and notices when something in the field goes wrong.**
+**An AI agronomist that learns a desert farm by experiment, trains its own irrigation policy by reinforcement learning, runs a season to feed as many people as possible, and notices when something in the field goes wrong. Watch it in a 3D web app.**
 
 The farm is 12 hectares near Al Ain in the UAE: six fields with different soils, some already saline, irrigated by drip from brackish groundwater that can be blended with desalinated water. Water and energy are capped. The agent chooses among ten food-security crops: wheat, rice, maize, potatoes, cassava, soybeans, sorghum, millet, common beans and sweet potatoes.
 
@@ -9,13 +9,16 @@ The local varieties don't behave quite like the published values, and the agent 
 1. **Run trials.** Design trial plots that expose the traits that matter: a saline plot reveals salt tolerance, a late sowing reveals heat tolerance at flowering.
 2. **Calibrate.** Infer each crop's hidden traits from drone imagery and harvests.
 3. **Plan for a bad year.** Choose which crop goes on which field, with sowing date, irrigation, water blend and nitrogen, to maximise the people fed in a bad year. Someone counts as fed only when calories, protein *and* vitamin A are all covered.
-4. **Run the season and stay honest.** Run the season day by day against its own predictions. When a field drifts out of the predicted band, it forms hypotheses, runs the field test that tells them apart, fixes the cause, corrects its model and re-plans its water.
+4. **Learn a policy.** Train a daily irrigation and water-blend policy by reinforcement learning inside its own calibrated model of the farm, and use it only if it beats the fixed rule on held-out imagined seasons.
+5. **Run the season and stay honest.** Run the season day by day against its own predictions. When a field drifts out of the predicted band, it forms hypotheses, runs the field test that tells them apart, fixes the cause, corrects its model and re-plans its water.
 
-Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live on a dashboard.
+Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live in the web app: a stylized low-poly 3D farm where plants grow with the simulation, soil darkens when wet and crusts white with salt, water glows through the drip lines (red when clogged), a drone flies out to inspect, and an alarm ring marks the field whose measurements left the model's predicted band.
 
-![WorldLab Crops dashboard at the end of a season in which a drip line clogged](docs/dashboard.png)
+![WorldLab web app: the scientist's notebook, field charts and RL policy panel at the end of a season](docs/app.png)
 
-*Blue is what the agent's model predicts; orange is what the sensors and drone measure. In early January a drip line in field F2 clogs. The agent isn't told, and the water meter can't see it. Soil moisture falls out of the predicted band and the alarm fires. An emitter flow test reads 45% of design flow, so the agent concludes the drip line is clogged and rules out higher crop water use. It repairs the line, teaches its model what happened and re-plans irrigation. The harvest feeds 443 people within the water quota.*
+*Violet is what the agent's model predicts; orange is what the sensors and drone measure. In late November a drip line in field F4 clogs. The agent isn't told, and the water meter can't see it. Two weeks later soil moisture has fallen below the predicted band and the alarm fires. An emitter flow test reads 45% of design flow, so the agent concludes the drip line is clogged and rules out higher crop water use. It repairs the line, teaches its model what happened and re-plans irrigation. The harvest feeds 465 people within the water and energy limits.*
+
+**No server needed to watch a run:** `docs/app/` is a static copy of the web app that replays a recorded run. Serve the folder from any static host (GitHub Pages works), or run `python -m http.server -d docs/app` and open http://localhost:8000.
 
 Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (agriculture, food security).
 
@@ -49,6 +52,12 @@ The language model never acts on the farm directly. It decides, numerical code d
   - Every field × crop × management option is simulated under paired samples of trait beliefs and weather years.
   - A coordinate-ascent search maximises the 10th percentile of people fed, subject to the 90th-percentile groundwater use and energy staying within budget.
   - The plan reports the **cost of uncertainty**: how many more people it would feed if the traits were known. Trials visibly shrink it, from 71 to 17 people on the default farm.
+- **Reinforcement learning, inside the agent's own model.** Before sowing, the agent can train a daily irrigation policy (`train_irrigation_policy`):
+  - A small neural network (17 sensor features → 16 hidden units → 2 actions, 322 parameters) reads only what the farm's sensors show: crop stage, drone canopy cover, soil moisture and salinity in the top 50 cm, yesterday's ET₀, water and energy used so far against the quota, and the crop's published characteristics. Each day it scales the plan's drip schedule (0.55× to 1.8×) and shifts the desalinated-water share.
+  - Training is **model-based**: every episode is a whole imagined farm season whose crop traits are drawn from the agent's calibrated beliefs and whose weather is drawn from the climate. The real farm stays hidden (domain randomisation over the posterior).
+  - The optimiser is **evolution strategies** (antithetic sampling, centred ranks, Adam): 32 perturbation pairs per iteration, 50 iterations, about 40,000 imagined farm seasons in about a minute on two CPU cores, vectorised through the same crop model.
+  - Reward per season: people fed (the scarcest nutrient across all fields), minus steep penalties for exceeding the water quota or energy budget, plus a small credit for what is left unused.
+  - The untrained network outputs exactly the plan's fixed rule, and the best checkpoint is chosen on held-out imagined seasons, so the result is never worse than the rule there. The agent compares rule and policy on 40 more held-out seasons and decides whether to deploy it. If a later diagnosis puts the farm outside what the policy was trained on (for example, much saltier groundwater), it hands irrigation back to the rule.
 - **In-season monitoring.** An ensemble of the model runs alongside the farm, fed the actual weather and the actual irrigation. Two-sided CUSUM on soil moisture, soil salinity and drone canopy cover flags sustained divergences that are large enough to matter.
 - **Diagnosis and repair.**
   - Field tests separate competing causes: emitter flow, soil sample, water test, leaf inspection.
@@ -68,7 +77,7 @@ Built from a checklist of variables for crop simulation:
 | **Crop** | 10 crops, base/upper temperatures, growing degree days, growth stages, canopy cover (for LAI), root depth and growth, water productivity, harvest index, water/heat/salt stress sensitivity, nitrogen need, planting density, cycle length | germination (an emergence threshold) | photoperiod, vernalisation |
 | **Practices** | sowing date, irrigation level, water blend, nitrogen, mulch, density, pest control, harvest at maturity | | seed quality, planting depth, tillage, rotation, cover crops, pruning |
 | **Biology** | pest outbreaks and control, stand loss | | diseases, weeds, pollination, soil pathogens, resistance |
-| **Infrastructure** | drip system faults, energy budget, reverse-osmosis desalination, sensor-driven irrigation control | | greenhouses, hydroponics, vertical farms, capital cost |
+| **Infrastructure** | drip system faults, energy budget, reverse-osmosis desalination, sensor-driven irrigation control (fixed rule or learned RL policy) | | greenhouses, hydroponics, vertical farms, capital cost |
 
 Crop and nutrition values are approximate published figures (AquaCrop-style parameters; USDA FoodData Central nutrition). This is a demonstration of method, not agronomic advice.
 
@@ -84,13 +93,33 @@ cd WorldLab
 python -m worldlab serve --open
 ```
 
-Open http://127.0.0.1:8765, choose an agent and a farm, and press **Start run**. Once the season starts:
+Open http://127.0.0.1:8765, choose an agent, and press **Start run**. Drag to orbit the farm, scroll to zoom, and click a plot to see its charts. Once the season starts:
 
 1. Select a field.
-2. Choose **Change the farm** to clog its drip line, start a pest outbreak, make the groundwater salty or send a heat wave.
+2. Choose **Change the farm** to clog its drip line, release pests, make the groundwater saltier or send a heat wave.
 3. Watch the agent notice, investigate and recover.
 
-Without an API key, the agent falls back to the **scripted baseline** and drone perception to a labelled **simulated perception**. Everything else is identical.
+The dock at the bottom opens the trial plots, beliefs, season plan, RL policy and audit ledger. The previous 2D dashboard is still at `/classic.html`.
+
+The 3D view loads three.js from cdn.jsdelivr.net, so the browser needs internet access; the panels work without it. Without an API key, the agent falls back to the **scripted scientist with RL** and drone perception to a labelled **simulated perception**. Everything else is identical.
+
+### Deploy to Hugging Face Spaces
+
+The repository includes a `Dockerfile` that serves the app on port 7860.
+
+1. Create a Space with the **Docker** SDK.
+2. Push this repository to it, replacing the Space's `README.md` with `deploy/huggingface/README.md` (the Space card).
+3. Optionally add `MODEL_API_KEY` as a Space secret so Muse Spark runs the farm.
+
+Everyone who opens the Space watches and controls the same run.
+
+### Record a replay
+
+```bash
+python -m worldlab run --agent scripted-rl --seed 7 --perturb clog@95 --perception sim
+python -m worldlab export-replay runs/<run> --out worldlab/dashboard/replay.json --note "What this run shows"
+python scripts/build_artifact.py docs/app                  # refresh the static copy
+```
 
 ### Muse Spark (Meta Model API)
 
@@ -204,8 +233,12 @@ worldlab/
   llm.py             stdlib client for Meta Model API and OpenAI-compatible endpoints
   ledger.py          hash-chained audit ledger and verifier
   bench.py           ground-truth benchmark across random farms and scenarios
-  server.py          dashboard server (standard library, server-sent events)
-  dashboard/         single-file live dashboard
+  farm/rl.py         reinforcement learning: evolution-strategies irrigation policy trained in the belief model
+  server.py          web app server (standard library, server-sent events)
+  replay.py          turns a recorded run into a static replay
+  dashboard/         3D web app (index.html, app.js, scene.js, style.css), replay.json, classic 2D dashboard
+docs/app/            static copy of the web app that plays a recorded run without a server
+Dockerfile           Hugging Face Spaces / container deployment
 tests/               unit tests, including the agent loop against a mock OpenAI-compatible endpoint
 ```
 

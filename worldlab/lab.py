@@ -25,6 +25,7 @@ from .farm.crops import CROPS, CROP_IDS, NUTRIENTS, NEEDS, TRAITS, TRAIT_IDS, nu
 from .farm.optimize import evaluate, optimise, MG_KEYS
 from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL
 from .farm.world import Farm, FIELDS, FIELD_HA, EC_GROUNDWATER
+from .farm import rl as RL
 from .ledger import Ledger
 
 D = WX.SEASON_DAYS
@@ -46,16 +47,26 @@ class Limits:
 
 class Bus:
     """Fan-out of live events to dashboard clients, plus a snapshot for late joiners."""
-    LISTS = ("days", "events", "agent", "perturbations", "beliefs_hist", "projections", "trials")
+    LISTS = ("days", "events", "agent", "perturbations", "beliefs_hist", "projections", "trials", "rl_train")
 
     def __init__(self):
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
+        self._rec = None
         self.reset()
 
+    def record_to(self, path: str | Path | None):
+        """Append every published message, with its time, to a JSON-lines file for replay."""
+        with self._lock:
+            if self._rec:
+                self._rec.close()
+            self._rec = open(path, "a", encoding="utf-8") if path else None
+            self._t0 = time.time()
+
     def reset(self):
+        self._t0 = time.time()
         self.snapshot = {k: [] for k in self.LISTS}
-        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None})
+        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None, "rl": None})
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=5000)
@@ -85,12 +96,21 @@ class Bus:
             s["projections"].append(payload)
         elif kind == "trials":
             s["trials"].append(payload)
+        elif kind == "rl_train":
+            s["rl_train"].append(payload)
         elif kind == "scene":
             s["scene"][payload.get("field", "?")] = payload
-        elif kind in ("plan", "status", "fields"):
+        elif kind in ("plan", "status", "fields", "rl"):
             s[kind] = payload
         msg = {"kind": kind, "data": payload}
         with self._lock:
+            if self._rec:
+                try:
+                    from .server import dumps
+                    self._rec.write(dumps({"t": round(time.time() - self._t0, 3), **msg}) + "\n")
+                    self._rec.flush()
+                except (OSError, ValueError):
+                    pass
             for q in list(self._subs):
                 try:
                     q.put_nowait(msg)
@@ -136,6 +156,10 @@ class Lab:
         self.harvest: dict[str, dict] = {}
         self.season_plan = None
         self.result = None
+        self.policy: dict | None = None            # trained irrigation policy (RL), for one plan
+        self.controller = "rule"
+        self.run_plan_id = None
+        self.policy_trace: list[dict] = []
         self._log("run_start", {"limits": asdict(self.limits), "fields": [
             {k: f[k] for k in ("id", "name", "layers", "ece", "soil_n")} for f in FIELDS],
             "goal": "maximise people fed (scarcest of calories, protein, vitamin A) in a bad year (P10), "
@@ -170,7 +194,7 @@ class Lab:
             "water_used_m3": round(self.water_used), "water_quota_m3": self.limits.water_quota_m3,
             "energy_used_kwh": round(self.energy_used), "energy_kwh": self.limits.energy_kwh,
             "anomaly": self.anomaly, "done": self.done, "hypotheses": list(self.hyps.values()),
-            "harvest": self.harvest, "result": self.result,
+            "harvest": self.harvest, "result": self.result, "controller": self.controller,
         })
 
     def _publish_beliefs(self):
@@ -389,12 +413,18 @@ class Lab:
         return rec
 
     # ============================================================ season
-    def start_season(self, plan_id: str, rationale: str) -> dict:
+    def start_season(self, plan_id: str, rationale: str, controller: str = "rule") -> dict:
         p = self.plans.get(plan_id)
         if not p:
             return {"refused": f"unknown plan {plan_id}"}
         if self.phase in ("season", "harvested"):
             return {"refused": "already started"}
+        if controller not in ("rule", "rl_policy"):
+            return {"refused": "controller must be rule or rl_policy"}
+        if controller == "rl_policy" and not (self.policy and self.policy["plan_id"] == plan_id):
+            return {"refused": f"no irrigation policy trained for {plan_id}; call train_irrigation_policy first"}
+        self.controller = controller
+        self.run_plan_id = plan_id
         fields = []
         for f in p["fields"]:
             if f.get("crop"):
@@ -418,14 +448,15 @@ class Lab:
         self.cc_obs = {i: [] for i in range(NF)}
         self.cc_last = np.zeros(NF)
         self.harvested = np.zeros(NF, bool)
+        self.policy_trace = []
         self.S_mon = 30
         self._build_ensemble()
         self._reset_monitor()
-        self._log("season_start", {"plan_id": plan_id, "fields": fields, "rationale": rationale})
+        self._log("season_start", {"plan_id": plan_id, "fields": fields, "controller": controller, "rationale": rationale})
         self.bus.publish("fields", self._fields_static())
         self._status()
         self.project()
-        return {"started": True, "date": WX.day_label(0), "fields": [
+        return {"started": True, "date": WX.day_label(0), "controller": controller, "fields": [
             {"field": FIELDS[i]["id"], "crop": f["crop"], "sow_date": WX.day_label(int(f["sow"])) if f["crop"] else None}
             for i, f in enumerate(fields)]}
 
@@ -476,7 +507,101 @@ class Lab:
             g[i] = self.irr_hist[i, d] * etc * (1 + LEACH_FRACTION) / DRIP_EFF_NOMINAL
             if d == f["sow"]:
                 g[i] += PRE_IRRIGATION_MM
+        if self.controller == "rl_policy" and self.policy:
+            g = self._policy_adjust(d, g)
         return g
+
+    def _policy_adjust(self, d: int, g: np.ndarray) -> np.ndarray:
+        """The trained policy scales the rule's drip schedule and sets today's
+        water blend, from the same sensor readings the agent sees."""
+        pol: RL.Policy = self.policy["policy"]
+        rows = pol.rows
+        S = self.S_mon
+        frac = self.ens.frac().reshape(NF, S).mean(1)[rows]
+        ens_th = (self.ens.W / self.ens.th)[:, :2].reshape(NF, S, 2).mean(1)[rows]
+        th = self.theta_obs[rows, d - 1, :2] if d > 0 else ens_th
+        th = np.where(np.isnan(th), ens_th, th)
+        et0 = self.wx_obs["et0"][0, d - 1] if d > 0 else 5.0
+        mult, desal = pol.act(d, frac, self.cc_last[rows], th, self.ec_last[rows], et0,
+                              self.water_used / self.limits.water_quota_m3, self.energy_used / self.limits.energy_kwh)
+        out = g.copy()
+        for j, i in enumerate(rows):
+            if g[i] <= 0 or self.harvested[i]:
+                continue
+            out[i] = g[i] * float(mult[j])
+            dz = round(float(desal[j]), 3)
+            if dz != self.desal_hist[i, d]:
+                self.desal_hist[i, d:] = dz
+                self.farm.set_management(i, desal=dz)
+                self.ens.m["desal"][i * S:(i + 1) * S, d:] = dz
+        self.policy_trace.append({"day": d, "mult": [round(float(m), 3) for m in mult],
+                                  "desal": [round(float(x), 3) for x in desal]})
+        return out
+
+    # ------------------------------------------------------------ RL
+    def train_irrigation_policy(self, plan_id: str, rationale: str, iterations: int = 50) -> dict:
+        """Train a daily irrigation and water-blend policy for a plan, by
+        evolution strategies inside the agent's own calibrated model: crop
+        traits are drawn from the current beliefs, weather from the climate.
+        Returns the trained policy against the plan's rule on held-out
+        imagined seasons."""
+        self._check_stop()
+        p = self.plans.get(plan_id)
+        if not p:
+            return {"refused": f"unknown plan {plan_id}"}
+        if self.phase in ("season", "harvested"):
+            return {"refused": "train before the season starts; switch controllers with set_irrigation_controller"}
+        iterations = int(max(10, min(iterations, 120)))
+        fp, rows = [], []
+        for i, f in enumerate(p["fields"]):
+            if f.get("crop"):
+                fp.append({"crop": f["crop"], **f["mgmt"]})
+                rows.append(i)
+        L = self.limits
+        seed = 300 + self._ids["P"]
+        mk = lambda E, s: RL.Envs(fp, rows, self.beliefs, E, seed=s, quota_m3=L.water_quota_m3, energy_kwh=L.energy_kwh)
+        envs, val, test = mk(12, seed), mk(16, seed + 1), mk(40, seed + 2)
+        self._log("rl_train_start", {"plan_id": plan_id, "iterations": iterations, "rationale": rationale,
+                                     "method": "evolution strategies (32 antithetic pairs, Adam) inside the belief model"})
+        self.bus.publish("rl_train", {"plan_id": plan_id, "iter": -1, "reset": True})
+
+        def cb(rec):
+            self._check_stop()
+            self.bus.publish("rl_train", {"plan_id": plan_id, **rec})
+
+        t0 = time.time()
+        tr = RL.train(envs, iters=iterations, seed=seed, callback=cb, val_envs=val)
+        cmp = RL.compare(test, tr["theta"])
+        better = tr["best_iter"] > 0 and cmp["policy"]["reward"] > cmp["rule"]["reward"]
+        meta = RL.crop_meta(fp, self.beliefs, EC_GROUNDWATER)
+        self.policy = {"plan_id": plan_id, "policy": RL.Policy(tr["theta"], meta, rows), "best_iter": tr["best_iter"],
+                       "comparison": cmp, "recommended": better}
+        rec = {"plan_id": plan_id, "trained_seconds": round(time.time() - t0, 1), "iterations": iterations,
+               "best_checkpoint_iter": tr["best_iter"], "policy_parameters": RL.N_PARAMS,
+               "imagined_farm_seasons": iterations * (2 * 32 + 1) * envs.E,
+               "held_out_comparison": {k: v for k, v in cmp.items() if not k.endswith("_by_week")},
+               "policy_irrigation_multiplier_by_week": cmp["irrigation_multiplier_by_week"],
+               "policy_desal_fraction_by_week": cmp["desal_fraction_by_week"],
+               "recommend": "rl_policy" if better else "rule",
+               "note": ("held-out seasons come from the agent's own model of the farm; the real farm may differ, "
+                        "and the monitoring keeps checking" if better else
+                        "the policy did not beat the plan's rule on held-out seasons; keep the rule")}
+        self.bus.publish("rl", {**rec, "history": tr["history"], "validation": tr["validation"]})
+        self._log("rl_policy", rec)
+        return rec
+
+    def set_irrigation_controller(self, controller: str, rationale: str) -> dict:
+        if controller not in ("rule", "rl_policy"):
+            return {"refused": "controller must be rule or rl_policy"}
+        if controller == "rl_policy":
+            if not self.policy:
+                return {"refused": "no policy trained"}
+            if self.phase == "season" and self.policy["plan_id"] != self.run_plan_id:
+                return {"refused": "the trained policy belongs to a different plan"}
+        self.controller = controller
+        self._log("controller", {"controller": controller, "day": self.day, "rationale": rationale})
+        self._status()
+        return {"controller": controller, "from_day": self.day}
 
     def advance(self, days: int, rationale: str = "") -> dict:
         """Run the season forward day by day; stops early on an anomaly or at season end."""
@@ -537,7 +662,7 @@ class Lab:
         ens_cc = self.ens.cc.reshape(NF, S)
         ens_ec = self.ens.ece_layers()[:, :2].mean(1).reshape(NF, S)
         for i, f in enumerate(self.run_plan):
-            fr = {"irr_mm": round(float(g[i]), 2)}
+            fr = {"irr_mm": round(float(g[i]), 2), "desal": round(float(self.desal_hist[i, d]), 2)}
             th_o = float(np.mean(obs["theta"][i, :2]))
             mu, sd_e = float(ens_theta[i].mean()), float(ens_theta[i].std())
             fr.update({"sw_obs": round(th_o, 4), "sw_pred": round(mu, 4),
@@ -569,6 +694,10 @@ class Lab:
                 if a and not alarm:
                     alarm = a
             rec["fields"].append(fr)
+        rec["world"] = self.farm.world_state()
+        rec["controller"] = self.controller
+        rec["water_used_m3"] = round(self.water_used)
+        rec["energy_used_kwh"] = round(self.energy_used)
         self.bus.publish("day", rec)
         if alarm:
             self.anomaly = alarm
@@ -761,7 +890,13 @@ class Lab:
         self._log("model_update", {"rationale": rationale, "finding": finding, "field": fid,
                                    "value": value, "since_day": since, "resolved_anomaly": resolved})
         self._status()
-        return {"ok": True, "resolved_anomaly": resolved, "note": "monitoring ensemble rebuilt with the finding"}
+        out = {"ok": True, "resolved_anomaly": resolved, "note": "monitoring ensemble rebuilt with the finding"}
+        if self.policy and finding == "groundwater_ec":
+            self.policy["policy"].meta["ecgw"][:] = float(value)
+            if self.controller == "rl_policy" and abs(float(value) - EC_GROUNDWATER) > 1.0:
+                out["rl_policy_warning"] = (f"the irrigation policy was trained with groundwater at {EC_GROUNDWATER} dS/m; "
+                                            f"{value} dS/m is outside what it has seen. Consider set_irrigation_controller rule.")
+        return out
 
     def dismiss_anomaly(self, rationale: str) -> dict:
         resolved = self.anomaly

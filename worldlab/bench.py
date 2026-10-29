@@ -76,6 +76,8 @@ def one(args) -> dict:
             ScriptedScientist(lab, adapt=False).run()
         elif agent == "scripted-notrials":
             ScriptedScientist(lab, trials=False).run()
+        elif agent == "scripted-rl":
+            ScriptedScientist(lab, rl=True).run()
         else:
             LLMScientist(lab, LLMConfig.for_agent(agent), max_turns=140).run()
     except Exception as e:
@@ -105,6 +107,7 @@ def one(args) -> dict:
             "within_limits": bool(res.get("within_quota") and res.get("within_energy")),
             "detect_days": detect, "detected": detect is not None, "false_alarms": false_alarms,
             "diagnosis_ok": diag, "trait_error": round(float(np.mean(terr)), 3) if terr else None,
+            "controller": lab.controller, "rl_recommended": bool(lab.policy and lab.policy.get("recommended")),
             "crops": planted, "plots": lab.plots_used, "tests": lab.tests_used, "wall_s": round(time.time() - t0, 1)}
 
 

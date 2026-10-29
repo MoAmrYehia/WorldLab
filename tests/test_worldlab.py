@@ -149,6 +149,51 @@ class LLMLoopTests(unittest.TestCase):
             srv.stop()
 
 
+class RLTests(unittest.TestCase):
+    PLAN = [dict(crop="maize", sow=40, density=1, irr=0.9, desal=0.0, nfert=200, mulch=1),
+            dict(crop="sweet_potato", sow=0, density=1, irr=0.9, desal=0.5, nfert=90, mulch=1)]
+
+    def envs(self, E, seed):
+        from worldlab.farm import rl
+        b = {c: CropBelief(c) for c in CROPS}
+        return rl.Envs(self.PLAN, [0, 1], b, E, seed=seed, quota_m3=20000, energy_kwh=30000)
+
+    def test_untrained_policy_is_exactly_the_rule(self):
+        from worldlab.farm import rl
+        e = self.envs(3, 1)
+        r = rl.rollout(e, np.vstack([np.zeros(rl.N_PARAMS), rl.init_params(5)]), seed=3)
+        np.testing.assert_allclose(r["people"][0], r["people"][1])
+        np.testing.assert_allclose(r["water"][0], r["water"][1])
+
+    def test_training_never_returns_worse_than_the_rule_on_validation(self):
+        from worldlab.farm import rl
+        tr = rl.train(self.envs(4, 2), iters=6, pairs=4, val_envs=self.envs(4, 3), val_every=3)
+        rv = rl.rollout(self.envs(4, 3), np.vstack([np.zeros(rl.N_PARAMS), tr["theta"]]), seed=99)
+        self.assertGreaterEqual(rv["reward"][1].mean() + 1e-9, rv["reward"][0].mean())
+        pol = rl.Policy(tr["theta"], rl.crop_meta(self.PLAN, None, 4.5), [0, 1])
+        mult, desal = pol.act(60, np.array([0.3, 0.4]), np.array([0.4, 0.5]), np.array([[0.15, 0.14]] * 2),
+                              np.array([3.0, 4.0]), 6.0, 0.3, 0.3)
+        self.assertTrue(np.all((mult >= 0.54) & (mult <= 1.83)) and np.all((desal >= 0) & (desal <= 1)))
+
+    def test_lab_trains_and_deploys_a_policy(self):
+        lab = Lab(Farm(seed=11), perception=None)
+        p = lab.plan_season("plan")
+        self.assertIn("refused", lab.start_season(p["plan_id"], "x", controller="rl_policy"))
+        t = lab.train_irrigation_policy(p["plan_id"], "learn irrigation", iterations=10)
+        self.assertIn(t["recommend"], ("rule", "rl_policy"))
+        self.assertTrue(lab.bus.snapshot["rl_train"] and lab.bus.snapshot["rl"])
+        lab.start_season(p["plan_id"], "go", controller="rl_policy")
+        while lab.phase == "season":
+            r = lab.advance(60)
+            if r.get("anomaly"):
+                lab.dismiss_anomaly("test")
+        self.assertEqual(lab.controller, "rl_policy")
+        self.assertTrue(lab.policy_trace)
+        day = lab.bus.snapshot["days"][-1]
+        self.assertEqual(len(day["world"]), len(FIELDS))
+        self.assertLessEqual(lab.water_used, lab.limits.water_quota_m3 * 1.05)
+
+
 class PerceptionTests(unittest.TestCase):
     def test_parse_sam_output(self):
         text = ("<0f>0<|box;x1=211;y1=228;x2=270;y2=254;w=320;h=334;c=0.96|><|mask;x=0;y=0;data=27,60,!!!!M|>"
