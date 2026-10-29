@@ -81,6 +81,7 @@ class SimRig(Rig):
         self._lock = threading.RLock()
         self.perturbations: list[dict] = []
         self._scheduled: list[tuple[float, str]] = []
+        self.on_perturb = None  # callback(info), set by the session for the dashboard
         self._initial_geometry = (self.w.fan_xy, self.w.fan_aim_deg)
 
     # ------------------------------------------------------------ controls
@@ -173,7 +174,9 @@ class SimRig(Rig):
                 raise ValueError(f"unknown perturbation {kind}")
             info["t"] = round(self._t, 1)
             self.perturbations.append(info)
-            return info
+        if self.on_perturb:
+            self.on_perturb(info)
+        return info
 
     def schedule(self, kind: str, at_t: float) -> None:
         """Apply a perturbation when rig time reaches at_t (benchmarks, tests)."""

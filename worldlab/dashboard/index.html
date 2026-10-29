@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorldLab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --page: #eef2f5;
+  --surface: #fbfcfd;
+  --ink: #142033;
+  --ink-2: #485569;
+  --ink-3: #7d8899;
+  --grid: #e1e7ec;
+  --axis: #c2cbd4;
+  --rule: rgba(20, 32, 51, 0.10);
+  /* the two voices of the page */
+  --belief: #2a78d6;        /* what the agent's model predicts */
+  --belief-band: rgba(42, 120, 214, 0.16);
+  --belief-ahead: rgba(42, 120, 214, 0.08);
+  --world: #eb6834;         /* what the sensors measure */
+  --room: #898781;
+  --control: #6250d6;       /* fan duty, a command */
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --good-ink: #006300; --critical-ink: #b42626;
+  --span: rgba(20, 32, 51, 0.035);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0f141a; --surface: #161c23; --ink: #e9eef3; --ink-2: #b6c0cb; --ink-3: #87919c;
+    --grid: #252d36; --axis: #36404b; --rule: rgba(255,255,255,0.09);
+    --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-ahead: rgba(57,135,229,0.10);
+    --world: #f07a47; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b;
+    --span: rgba(255,255,255,0.035);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0f141a; --surface: #161c23; --ink: #e9eef3; --ink-2: #b6c0cb; --ink-3: #87919c;
+  --grid: #252d36; --axis: #36404b; --rule: rgba(255,255,255,0.09);
+  --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-ahead: rgba(57,135,229,0.10);
+  --world: #f07a47; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b;
+  --span: rgba(255,255,255,0.035);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 15px/1.45 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, select { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* header ------------------------------------------------------------- */
+header {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center;
+  padding: 14px 24px; border-bottom: 1px solid var(--rule); background: var(--surface);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { font-weight: 600; font-size: 19px; letter-spacing: -0.01em; display: flex; gap: 10px; align-items: center; }
+.brand svg { flex: none; }
+#statusline { font-size: 16px; color: var(--ink); min-width: 0; }
+#statusline .when { color: var(--ink-3); margin-left: 6px; }
+#statusline.alert { color: var(--critical-ink); }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.btn {
+  border: 1px solid var(--axis); background: var(--surface); border-radius: 8px; padding: 7px 12px;
+  cursor: pointer; white-space: nowrap;
+}
+.btn:hover { background: var(--page); }
+.btn:focus-visible, select:focus-visible { outline: 2px solid var(--belief); outline-offset: 2px; }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.primary:hover { opacity: 0.88; }
+.btn.change { border-color: var(--world); color: var(--world); font-weight: 500; }
+.btn.change:hover { background: color-mix(in srgb, var(--world) 10%, transparent); }
+.btn[disabled] { opacity: 0.45; cursor: default; }
+select { border: 1px solid var(--axis); background: var(--surface); border-radius: 8px; padding: 7px 8px; }
+.menu { position: relative; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--axis);
+  border-radius: 10px; padding: 6px; display: none; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+.menu.open .menu-list { display: block; }
+.menu-list button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.menu-list button:hover { background: var(--page); }
+.menu-list small { display: block; color: var(--ink-3); }
+
+/* layout -------------------------------------------------------------- */
+main { padding: 20px 24px 40px; display: grid; gap: 20px; max-width: 1600px; margin: 0 auto; }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.panel h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+.panel .sub { color: var(--ink-2); font-size: 13.5px; margin: 0 0 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.band { height: 10px; background: var(--belief-band); border-top: 2px solid var(--belief); }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis);
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; display: none; z-index: 3;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12); min-width: 170px;
+}
+.tip b { font-weight: 600; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; }
+.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+
+/* figures row ---------------------------------------------------------- */
+.figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
+.figure .label { color: var(--ink-2); font-size: 13.5px; }
+.figure .value { font-size: 28px; font-weight: 500; letter-spacing: -0.015em; margin: 2px 0 4px; }
+.figure .value small { font-size: 15px; color: var(--ink-2); font-weight: 400; margin-left: 3px; }
+.figure .note { color: var(--ink-3); font-size: 12.5px; }
+.meter { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin: 6px 0 4px; display: flex; gap: 2px; }
+.meter span { display: block; height: 100%; border-radius: 3px; }
+
+/* side panels ----------------------------------------------------------- */
+.side { display: grid; gap: 20px; align-content: start; }
+.cam { position: relative; border-radius: 10px; overflow: hidden; background: var(--page); aspect-ratio: 16 / 10; }
+.cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cam .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 13.5px; text-align: center; padding: 20px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--axis); color: var(--ink-2); }
+.badge.alert { border-color: var(--critical); color: var(--critical-ink); }
+.badge.ok { border-color: var(--good); color: var(--good-ink); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; margin-top: 8px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; text-align: right; }
+table.rank { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
+table.rank td, table.rank th { padding: 4px 0; border-top: 1px solid var(--rule); text-align: right; font-weight: 400; }
+table.rank th { color: var(--ink-3); border-top: 0; }
+table.rank td:first-child, table.rank th:first-child { text-align: left; }
+table.rank tr.best td { font-weight: 600; }
+
+/* notebook ---------------------------------------------------------------- */
+.notebook { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+.hyp { border-top: 1px solid var(--rule); padding: 12px 0; }
+.hyp:first-of-type { border-top: 0; }
+.hyp .head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.hyp .id { color: var(--ink-3); font-size: 12.5px; }
+.hyp p { margin: 4px 0 0; font-size: 13.5px; }
+.hyp .pred { color: var(--belief); }
+.hyp .evidence { color: var(--ink-2); }
+.state { font-size: 12px; border-radius: 999px; padding: 1px 9px; border: 1px solid var(--axis); color: var(--ink-2); white-space: nowrap; }
+.state.supported { border-color: var(--good); color: var(--good-ink); }
+.state.refuted { border-color: var(--critical); color: var(--critical-ink); }
+.state.open { border-color: var(--belief); color: var(--belief); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.filters button { border: 1px solid var(--axis); background: none; border-radius: 999px; padding: 3px 11px; font-size: 13px; cursor: pointer; color: var(--ink-2); }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+#timeline { max-height: 640px; overflow: auto; }
+.entry { display: grid; grid-template-columns: 58px 132px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+.entry .t { color: var(--ink-3); }
+.entry .k { color: var(--ink-2); }
+.entry .k b { font-weight: 600; color: var(--ink); }
+.entry .why { color: var(--ink-2); margin-top: 2px; }
+.entry .hash { color: var(--ink-3); font-size: 11.5px; margin-top: 2px; }
+.entry.belief .k b { color: var(--belief); }
+.entry.world .k b { color: var(--world); }
+.entry.alarm .k b { color: var(--critical-ink); }
+.entry.agent { background: color-mix(in srgb, var(--belief) 5%, transparent); }
+.cmp { display: flex; gap: 4px 14px; margin-top: 3px; flex-wrap: wrap; }
+.cmp span { white-space: nowrap; }
+.cmp .p { color: var(--belief); }
+.cmp .m { color: var(--world); }
+.verify { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.foot { color: var(--ink-3); font-size: 12.5px; text-align: center; }
+.hidden { display: none !important; }
+
+@media (max-width: 1180px) {
+  .top, .notebook { grid-template-columns: minmax(0, 1fr); }
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  header { grid-template-columns: 1fr; gap: 10px; padding: 12px 16px; position: static; }
+  .controls { justify-content: flex-start; }
+  main { padding: 16px; }
+  .figures { grid-template-columns: minmax(0, 1fr); }
+  .entry { grid-template-columns: 48px minmax(0, 1fr); }
+  .entry .k { grid-column: 2; }
+  .entry .body { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <path d="M2 15 C6 15 7 6 11 6 S16 13 20 13" fill="none" stroke="var(--belief)" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M2 17 C6 17 8 9 11 10 S15 16 20 16" fill="none" stroke="var(--world)" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+    WorldLab
+  </div>
+  <div id="statusline" aria-live="polite">Loading…</div>
+  <div class="controls">
+    <select id="agentSel" aria-label="Agent">
+      <option value="spark">Muse Spark</option>
+      <option value="glimmer">Muse Glimmer (open weights)</option>
+      <option value="scripted">Scripted baseline</option>
+      <option value="scripted-noadapt">Baseline that ignores anomalies</option>
+    </select>
+    <button class="btn primary" id="startBtn">Start run</button>
+    <div class="menu" id="changeMenu">
+      <button class="btn change" id="moveFanBtn" aria-haspopup="true">Move the fan</button>
+      <div class="menu-list" role="menu">
+        <button data-kind="fan_moved" role="menuitem">Move and turn the fan<small>Airflow no longer hits the fins squarely</small></button>
+        <button data-kind="fan_restored" role="menuitem">Put the fan back<small>Return it to the original position</small></button>
+        <button data-kind="heater_drift" role="menuitem">Heater runs 30% hot<small>Hidden from the sensors and camera</small></button>
+        <button data-kind="ambient_step" role="menuitem">Warm the room by 3 °C<small>The room sensor sees this one</small></button>
+      </div>
+    </div>
+    <select id="speedSel" aria-label="Simulation speed">
+      <option value="5">5× speed</option>
+      <option value="20" selected>20× speed</option>
+      <option value="60">60× speed</option>
+      <option value="1">Real time</option>
+    </select>
+    <button class="btn" id="stopBtn">Stop</button>
+    <button class="btn" id="themeBtn" aria-label="Switch between light and dark">Theme</button>
+  </div>
+</header>
+
+<main>
+  <section class="top">
+    <div class="panel">
+      <h2>Heatsink temperature: the model's prediction against the measurement</h2>
+      <p class="sub" id="chartSub">The blue band is what the agent's model expects, given the fan and heater settings it chose. Orange is what the sensor reads.</p>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--world)"></i>Measured</span>
+        <span><i class="band"></i>Model prediction, 90% band</span>
+        <span><i style="background:var(--room)"></i>Room</span>
+        <span><i style="background:var(--ink); height:0; border-top:2px dashed var(--ink)"></i>Target</span>
+      </div>
+      <div class="chart" id="tempChart"><svg id="tempSvg" role="img" aria-label="Temperature chart"></svg><div class="tip" id="tempTip"></div></div>
+      <h2 style="margin-top:14px">Fan duty</h2>
+      <div class="chart" id="fanChart"><svg id="fanSvg" role="img" aria-label="Fan duty chart"></svg></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h2>Camera</h2>
+        <p class="sub" id="camSub">Objects found by SAM 3.1; fan aim judged by Muse Spark.</p>
+        <div class="cam" id="cam"><div class="empty">The agent hasn't looked at the bench yet.</div></div>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap" id="camBadges"></div>
+        <p class="sub" style="margin:8px 0 0" id="camAim"></p>
+      </div>
+      <div class="panel">
+        <h2>How the fan cools the heatsink</h2>
+        <p class="sub" id="modelSub">Cooling rate against fan duty, as currently believed.</p>
+        <div class="chart" id="kChart"><svg id="kSvg" role="img" aria-label="Cooling rate against fan duty"></svg></div>
+        <table class="rank" id="rankTbl"></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel figures" id="figures">
+    <div class="figure"><div class="label">Heatsink now</div><div class="value num" id="fNow">–</div><div class="note" id="fNowNote"></div></div>
+    <div class="figure"><div class="label">Time held at or below target</div><div class="value num" id="fHold">–</div><div class="meter"><span id="mHold" style="background:var(--good); width:0"></span></div><div class="note" id="fHoldNote"></div></div>
+    <div class="figure"><div class="label">Fan energy for the task</div><div class="value num" id="fTask">–</div><div class="meter"><span id="mTask" style="background:var(--world); width:0"></span></div><div class="note" id="fTaskNote"></div></div>
+    <div class="figure"><div class="label">Fan energy spent learning</div><div class="value num" id="fExp">–</div><div class="meter"><span id="mExp" style="background:var(--belief); width:0"></span></div><div class="note" id="fExpNote"></div></div>
+    <div class="figure"><div class="label">Cost of uncertainty in the current plan</div><div class="value num" id="fPrem">–</div><div class="note" id="fPremNote">Extra fan energy the plan spends because the model is not certain.</div></div>
+  </section>
+
+  <section class="notebook">
+    <div class="panel">
+      <h2>Hypotheses</h2>
+      <p class="sub">Each one is recorded with a prediction before any experiment runs.</p>
+      <div id="hyps"><p class="sub">None yet.</p></div>
+    </div>
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap">
+        <div>
+          <h2>Lab notebook</h2>
+          <p class="sub">Every decision, prediction and result, in an append-only ledger. Each entry carries the hash of the one before it.</p>
+        </div>
+        <button class="btn" id="verifyBtn">Verify ledger</button>
+      </div>
+      <div class="verify" id="verifyOut"></div>
+      <div class="filters" role="group" aria-label="Filter notebook">
+        <button data-f="all" aria-pressed="true">All</button>
+        <button data-f="science" aria-pressed="false">Science</button>
+        <button data-f="agent" aria-pressed="false">Agent reasoning</button>
+        <button data-f="alarm" aria-pressed="false">Anomalies and safety</button>
+      </div>
+      <div id="timeline"></div>
+    </div>
+  </section>
+  <p class="foot" id="foot"></p>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const S = { samples: [], events: [], forecasts: [], scene: null, model: null, plan: null, status: {},
+            agent: [], fits: [], perturbations: [], info: {} };
+let dirty = true, filter = "all";
+
+// ---------------------------------------------------------------- data
+async function load() {
+  const r = await fetch("/api/state"); const d = await r.json();
+  Object.assign(S, d); S.info = d.info || {};
+  $("agentSel").value = S.info.agent && S.info.agent !== "auto" ? S.info.agent : (S.info.has_api_key ? "spark" : "scripted");
+  dirty = true;
+}
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.onmessage = (ev) => {
+    for (const m of JSON.parse(ev.data)) apply(m);
+    dirty = true;
+  };
+  es.onerror = () => { es.close(); setTimeout(() => { load().then(connect); }, 2000); };
+}
+function apply(m) {
+  const d = m.data;
+  switch (m.kind) {
+    case "reset": Object.assign(S, { samples: [], events: [], forecasts: [], scene: null, model: null, plan: null,
+                                    status: {}, agent: [], fits: [], perturbations: [] }); S.info.running = true; break;
+    case "sample": S.samples.push(d); break;
+    case "ledger": S.events.push(d); break;
+    case "forecast": S.forecasts.push(d); break;
+    case "fit": S.fits.push(d); S.model = d; break;
+    case "agent": S.agent.push(d); break;
+    case "perturbation": S.perturbations.push(d); break;
+    case "scene": S.scene = d; break;
+    case "plan": S.plan = d; break;
+    case "status": S.status = d; break;
+  }
+}
+setInterval(async () => { try { const r = await fetch("/api/state"); const d = await r.json(); S.info = d.info; dirty = true; } catch (e) {} }, 4000);
+
+// ---------------------------------------------------------------- helpers
+const mmss = (t) => { t = Math.max(0, Math.round(t)); const m = Math.floor(t / 60), s = t % 60; return `${m}:${String(s).padStart(2, "0")}`; };
+const fmt = (v, d = 1) => (v == null || !isFinite(v)) ? "–" : Number(v).toFixed(d);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function nice(lo, hi, n = 5) {
+  const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((s) => s >= step0);
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(+v.toFixed(6));
+  return ticks;
+}
+function decimate(arr, max) { if (arr.length <= max) return arr; const k = Math.ceil(arr.length / max); return arr.filter((_, i) => i % k === 0 || i === arr.length - 1); }
+function lastEvent(kinds) { for (let i = S.events.length - 1; i >= 0; i--) if (kinds.includes(S.events[i].kind)) return S.events[i]; return null; }
+
+// ---------------------------------------------------------------- temperature chart
+const TH = 470, FH = 110, PAD = { l: 44, r: 16, t: 26, b: 26 };
+let xScale = null;
+function drawTemp() {
+  const svg = $("tempSvg"); const W = svg.clientWidth || 800; svg.setAttribute("viewBox", `0 0 ${W} ${TH}`); svg.setAttribute("height", TH);
+  svg.innerHTML = "";
+  const samples = S.samples;
+  if (!samples.length) { const t = el("text", { x: W / 2, y: TH / 2, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 14 }, svg); t.textContent = "Start a run to watch the agent learn the rig."; xScale = null; return; }
+  const t0 = samples[0].t; let t1 = samples[samples.length - 1].t;
+  const fc = S.forecasts.length ? S.forecasts[S.forecasts.length - 1] : null;
+  const showAhead = fc && fc.t[fc.t.length - 1] > t1;
+  const tEnd = Math.max(t1 + 60, showAhead ? Math.min(fc.t[fc.t.length - 1], t1 + 900) : t1 + 60);
+  let lo = Infinity, hi = -Infinity;
+  for (const s of samples) { lo = Math.min(lo, s.T_obj, s.T_amb); hi = Math.max(hi, s.T_obj); if (s.hi != null) hi = Math.max(hi, s.hi); }
+  const target = S.status.goal ? S.status.goal.target_C : null;
+  if (target) { lo = Math.min(lo, target); hi = Math.max(hi, target); }
+  if (showAhead) for (let i = 0; i < fc.t.length; i++) if (fc.t[i] >= t1 && fc.t[i] <= tEnd) { hi = Math.max(hi, fc.hi[i]); lo = Math.min(lo, fc.lo[i]); }
+  lo = Math.floor(lo - 1); hi = Math.ceil(hi + 1);
+  const x = (t) => PAD.l + (t - t0) / (tEnd - t0) * (W - PAD.l - PAD.r);
+  const y = (v) => PAD.t + (hi - v) / (hi - lo) * (TH - PAD.t - PAD.b);
+  xScale = { x, t0, tEnd, W };
+  // experiment spans
+  const starts = {};
+  for (const e of S.events) {
+    if (e.kind === "experiment_start") starts[e.data.experiment_id] = e;
+    if (e.kind === "experiment_result" && starts[e.data.experiment_id]) {
+      const a = e.data.t_start, b = e.data.t_end;
+      el("rect", { x: x(a), y: PAD.t, width: Math.max(1, x(b) - x(a)), height: TH - PAD.t - PAD.b, fill: "var(--span)" }, svg);
+      const lab = el("text", { x: x(a) + 4, y: PAD.t - 8, fill: "var(--ink-3)", "font-size": 11.5 }, svg);
+      lab.textContent = `${e.data.experiment_id} ${e.data.name}`.slice(0, Math.max(4, Math.floor((x(b) - x(a)) / 6.5)));
+    }
+  }
+  // grid + axes
+  for (const v of nice(lo, hi, 5)) {
+    el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: PAD.l - 8, y: y(v) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = v + "°";
+  }
+  const xt = nice(t0 / 60, tEnd / 60, Math.max(3, Math.floor(W / 110)));
+  for (const m of xt) { const t = el("text", { x: x(m * 60), y: TH - 6, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = m + " min"; }
+  el("line", { x1: PAD.l, x2: W - PAD.r, y1: TH - PAD.b, y2: TH - PAD.b, stroke: "var(--axis)" }, svg);
+  // forecast ahead
+  if (showAhead) {
+    const idx = []; for (let i = 0; i < fc.t.length; i++) if (fc.t[i] >= t1 - 5 && fc.t[i] <= tEnd) idx.push(i);
+    if (idx.length > 1) {
+      let d = idx.map((i, k) => `${k ? "L" : "M"}${x(fc.t[i])},${y(fc.hi[i])}`).join("") + idx.slice().reverse().map((i) => `L${x(fc.t[i])},${y(fc.lo[i])}`).join("") + "Z";
+      el("path", { d, fill: "var(--belief-ahead)" }, svg);
+      el("path", { d: idx.map((i, k) => `${k ? "L" : "M"}${x(fc.t[i])},${y(fc.mean[i])}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 1.5, "stroke-dasharray": "4 4", opacity: 0.8 }, svg);
+      const iL = idx[idx.length - 1];
+      const lab = el("text", { x: Math.min(x(fc.t[iL]) - 4, W - PAD.r - 4), y: Math.min(y(fc.lo[iL]) + 16, TH - PAD.b - 6), "text-anchor": "end", fill: "var(--belief)", "font-size": 11.5 }, svg);
+      lab.textContent = "forecast for " + fc.label;
+    }
+  }
+  // live model band
+  const ds = decimate(samples, 1600);
+  const runs = []; let cur = [];
+  for (const s of ds) { if (s.pred != null) cur.push(s); else if (cur.length) { runs.push(cur); cur = []; } }
+  if (cur.length) runs.push(cur);
+  for (const r of runs) {
+    if (r.length < 2) continue;
+    const d = r.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.hi)}`).join("") + r.slice().reverse().map((s) => `L${x(s.t)},${y(s.lo)}`).join("") + "Z";
+    el("path", { d, fill: "var(--belief-band)" }, svg);
+    el("path", { d: r.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.pred)}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 1.5 }, svg);
+  }
+  // target
+  if (target) {
+    el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(target), y2: y(target), stroke: "var(--ink)", "stroke-width": 1.2, "stroke-dasharray": "6 5", opacity: 0.7 }, svg);
+    const t = el("text", { x: PAD.l + 6, y: y(target) - 6, fill: "var(--ink-2)", "font-size": 11.5 }, svg); t.textContent = `target ${target} °C`;
+  }
+  // room and measured
+  el("path", { d: ds.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.T_amb)}`).join(""), fill: "none", stroke: "var(--room)", "stroke-width": 1.5 }, svg);
+  el("path", { d: ds.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.T_obj)}`).join(""), fill: "none", stroke: "var(--world)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  const last = samples[samples.length - 1];
+  el("circle", { cx: x(last.t), cy: y(last.T_obj), r: 4, fill: "var(--world)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  // markers: hidden changes (sim) and detected anomalies
+  for (const p of S.perturbations) markerLine(svg, x(p.t), "var(--ink-2)", "4 3", changeLabel(p.kind) + " (hidden from agent)", TH, 0);
+  for (const e of S.events) if (e.kind === "anomaly") markerLine(svg, x(e.data.t_detected), "var(--critical)", null, "⚠ " + (e.data.kind === "scene_change" ? "camera saw a change" : "prediction failed"), TH, 1);
+}
+function markerLine(svg, X, color, dash, text, H, row) {
+  const a = { x1: X, x2: X, y1: PAD.t, y2: H - PAD.b, stroke: color, "stroke-width": 1.5 }; if (dash) a["stroke-dasharray"] = dash;
+  el("line", a, svg);
+  const t = el("text", { x: X + 5, y: PAD.t + 14 + row * 15, fill: color === "var(--critical)" ? "var(--critical-ink)" : "var(--ink-2)", "font-size": 11.5 }, svg); t.textContent = text;
+}
+function changeLabel(k) { return { fan_moved: "fan moved", fan_restored: "fan put back", heater_drift: "heater drift", ambient_step: "room warmed" }[k] || k; }
+
+// hover on temperature chart
+$("tempChart").addEventListener("mousemove", (ev) => {
+  if (!xScale || !S.samples.length) return;
+  const svg = $("tempSvg"), rect = svg.getBoundingClientRect();
+  const px = (ev.clientX - rect.left) * (xScale.W / rect.width);
+  const t = xScale.t0 + (px - PAD.l) / (xScale.W - PAD.l - PAD.r) * (xScale.tEnd - xScale.t0);
+  let best = null, bd = Infinity;
+  for (let i = S.samples.length - 1; i >= 0; i -= Math.max(1, Math.floor(S.samples.length / 3000))) { const d = Math.abs(S.samples[i].t - t); if (d < bd) { bd = d; best = S.samples[i]; } }
+  if (!best || bd > 120) { $("tempTip").style.display = "none"; return; }
+  const tip = $("tempTip");
+  tip.innerHTML = `<b class="num">${mmss(best.t)}</b>` +
+    `<div class="row"><span><span class="sw" style="background:var(--world)"></span>Measured</span><span class="num">${fmt(best.T_obj, 2)} °C</span></div>` +
+    (best.pred != null ? `<div class="row"><span><span class="sw" style="background:var(--belief)"></span>Predicted</span><span class="num">${fmt(best.pred, 2)} °C</span></div><div class="row"><span style="color:var(--ink-3)">90% band</span><span class="num">${fmt(best.lo, 1)}–${fmt(best.hi, 1)}</span></div>` : "") +
+    `<div class="row"><span><span class="sw" style="background:var(--room)"></span>Room</span><span class="num">${fmt(best.T_amb, 2)} °C</span></div>` +
+    `<div class="row"><span><span class="sw" style="background:var(--control)"></span>Fan</span><span class="num">${Math.round(best.fan_duty * 100)}%</span></div>` +
+    `<div class="row"><span style="color:var(--ink-3)">Heater</span><span class="num">${best.heater_w} W</span></div>`;
+  tip.style.display = "block";
+  const cx = ev.clientX - rect.left;
+  tip.style.left = (cx > rect.width - 200 ? cx - 190 : cx + 14) + "px"; tip.style.top = "30px";
+  let cross = svg.querySelector(".cross"); if (!cross) cross = el("line", { class: "cross", stroke: "var(--ink-3)", "stroke-width": 1 }, svg);
+  const X = xScale.x(best.t); cross.setAttribute("x1", X); cross.setAttribute("x2", X); cross.setAttribute("y1", PAD.t); cross.setAttribute("y2", TH - PAD.b);
+});
+$("tempChart").addEventListener("mouseleave", () => { $("tempTip").style.display = "none"; const c = $("tempSvg").querySelector(".cross"); if (c) c.remove(); });
+
+// ---------------------------------------------------------------- fan chart
+function drawFan() {
+  const svg = $("fanSvg"); const W = svg.clientWidth || 800; svg.setAttribute("viewBox", `0 0 ${W} ${FH}`); svg.setAttribute("height", FH);
+  svg.innerHTML = ""; if (!xScale || !S.samples.length) return;
+  const x = xScale.x, y = (v) => 8 + (1 - v) * (FH - 26);
+  for (const v of [0, 0.5, 1]) {
+    el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v), stroke: "var(--grid)" }, svg);
+    const t = el("text", { x: PAD.l - 8, y: y(v) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = v * 100 + "%";
+  }
+  const ds = decimate(S.samples, 1600);
+  let d = ""; let prev = null;
+  for (const s of ds) { d += prev == null ? `M${x(s.t)},${y(s.fan_duty)}` : `L${x(s.t)},${y(prev)}L${x(s.t)},${y(s.fan_duty)}`; prev = s.fan_duty; }
+  el("path", { d: d + `L${x(ds[ds.length - 1].t)},${y(0)}L${x(ds[0].t)},${y(0)}Z`, fill: "color-mix(in srgb, var(--control) 14%, transparent)" }, svg);
+  el("path", { d, fill: "none", stroke: "var(--control)", "stroke-width": 1.5 }, svg);
+}
+
+// ---------------------------------------------------------------- k(u) chart
+function drawK() {
+  const svg = $("kSvg"); const W = svg.clientWidth || 340, H = 170; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+  svg.innerHTML = "";
+  const fits = S.fits;
+  if (!fits.length) { const t = el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 13 }, svg); t.textContent = "No model fitted yet."; $("rankTbl").innerHTML = ""; return; }
+  const f = fits[fits.length - 1], c = f.k_curve;
+  // the model trusted before the latest anomaly, for comparison
+  let prev = null; const an = lastEvent(["anomaly"]);
+  if (an) for (let i = fits.length - 1; i >= 0; i--) if (fits[i].t < an.data.t_detected) { prev = fits[i]; break; }
+  const P = { l: 46, r: 10, t: 10, b: 24 };
+  let hi = Math.max(...c.k_hi); if (prev) hi = Math.max(hi, ...prev.k_curve.k_med); hi *= 1.08;
+  const x = (u) => P.l + u * (W - P.l - P.r), y = (k) => P.t + (1 - k / hi) * (H - P.t - P.b);
+  for (const v of nice(0, hi * 1000, 4)) {
+    el("line", { x1: P.l, x2: W - P.r, y1: y(v / 1000), y2: y(v / 1000), stroke: "var(--grid)" }, svg);
+    const t = el("text", { x: P.l - 6, y: y(v / 1000) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11, class: "num" }, svg); t.textContent = v;
+  }
+  for (const u of [0, 0.25, 0.5, 0.75, 1]) { const t = el("text", { x: x(u), y: H - 6, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11, class: "num" }, svg); t.textContent = u * 100 + "%"; }
+  const yl = el("text", { x: 4, y: 10, fill: "var(--ink-3)", "font-size": 11 }, svg); yl.textContent = "×10⁻³/s";
+  const band = c.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(c.k_hi[i])}`).join("") + c.u.slice().reverse().map((u, i) => `L${x(u)},${y(c.k_lo[c.u.length - 1 - i])}`).join("") + "Z";
+  el("path", { d: band, fill: "var(--belief-band)" }, svg);
+  if (prev) {
+    el("path", { d: prev.k_curve.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(prev.k_curve.k_med[i])}`).join(""), fill: "none", stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+    const n = prev.k_curve.u.length - 1;
+    const t = el("text", { x: x(1) - 2, y: y(prev.k_curve.k_med[n]) - 6, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11 }, svg); t.textContent = "before the change";
+  }
+  el("path", { d: c.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(c.k_med[i])}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 2 }, svg);
+  // measured operating points: steady stretches would be ideal; mark experiment duties as ticks
+  $("modelSub").textContent = `Best explanation: ${f.about}. Fit error ${fmt(f.rmse_K, 2)} K over ${f.n_points} points.`;
+  const rk = f.ranking || [];
+  $("rankTbl").innerHTML = `<tr><th>Hypothesis for airflow</th><th>Fit error</th><th>Evidence against (ΔAIC)</th></tr>` +
+    rk.map((r, i) => `<tr class="${i ? "" : "best"}"><td>${esc(r.structure.replace("_", " "))}</td><td class="num">${fmt(r.rmse_K, 2)} K</td><td class="num">${i ? fmt(r.delta_aic, 1) : "best"}</td></tr>`).join("");
+}
+
+// ---------------------------------------------------------------- camera
+function drawCam() {
+  const sc = S.scene; const box = $("cam");
+  if (!sc || !sc.image) { box.innerHTML = `<div class="empty">The agent hasn't looked at the bench yet.</div>`; $("camBadges").innerHTML = ""; $("camAim").textContent = ""; return; }
+  const [W, H] = sc.image_size || [640, 400];
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">`;
+  for (const o of sc.objects || []) {
+    const [x1, y1, x2, y2] = o.box; const col = o.label === "fan" ? "var(--control)" : "var(--belief)";
+    svg += `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${col}" stroke-width="3" rx="4"/>`;
+    svg += `<rect x="${x1}" y="${y1 - 22}" width="${o.label.length * 9 + 16}" height="20" rx="4" fill="${col}"/><text x="${x1 + 8}" y="${y1 - 7}" fill="#fff" font-size="14" font-family="IBM Plex Sans, system-ui">${esc(o.label)}</text>`;
+  }
+  svg += "</svg>";
+  box.innerHTML = `<img alt="Top-down camera view of the bench" src="${sc.image}">` + svg;
+  const b = [];
+  b.push(`<span class="badge">${esc(sc.source || "")}</span>`);
+  if (sc.changed_vs_reference) b.push(`<span class="badge alert">⚠ Layout changed: ${esc((sc.changes || []).join("; "))}</span>`);
+  else if (sc.reference) b.push(`<span class="badge ok">Reference layout recorded</span>`);
+  else b.push(`<span class="badge ok">Matches the reference layout</span>`);
+  $("camBadges").innerHTML = b.join("");
+  $("camAim").textContent = sc.aim ? `Seen at ${mmss(sc.t)}: ${sc.aim.description}` : `Seen at ${mmss(sc.t)}`;
+  $("camSub").textContent = (sc.source || "").includes("simulated") ? "Simulated perception: boxes come from the simulator's geometry because no API key is set." : "Objects found by SAM 3.1; fan aim judged by Muse Spark.";
+}
+
+// ---------------------------------------------------------------- figures
+function drawFigures() {
+  const st = S.status, last = S.samples[S.samples.length - 1];
+  $("fNow").innerHTML = last ? `${fmt(last.T_obj, 1)}<small>°C</small>` : "–";
+  $("fNowNote").textContent = last ? `room ${fmt(last.T_amb, 1)} °C · fan ${Math.round(last.fan_duty * 100)}% · heater ${last.heater_w} W` : "";
+  if (st.goal) {
+    const done = st.hold_done_s || 0, ok = st.hold_ok_s || 0, need = st.goal.hold_s;
+    $("fHold").innerHTML = `${Math.round(ok / 60 * 10) / 10}<small>of ${Math.round(need / 60)} min</small>`;
+    $("mHold").style.width = Math.min(100, ok / need * 100) + "%";
+    $("fHoldNote").textContent = done ? `${Math.round(ok / done * 100)}% of hold time within ${st.goal.tolerance_K} K of the ${st.goal.target_C} °C target` : `target ${st.goal.target_C} °C`;
+    const e = st.energy_J || {};
+    $("fTask").innerHTML = `${Math.round(e.task || 0)}<small>J of ${Math.round(st.task_budget_J)}</small>`;
+    $("mTask").style.width = Math.min(100, (e.task || 0) / st.task_budget_J * 100) + "%";
+    $("fTaskNote").textContent = "Fan energy while holding the target";
+    $("fExp").innerHTML = `${Math.round(e.exploration || 0)}<small>J of ${Math.round(st.exploration_budget_J)}</small>`;
+    $("mExp").style.width = Math.min(100, (e.exploration || 0) / st.exploration_budget_J * 100) + "%";
+    $("fExpNote").textContent = `${S.events.filter((x) => x.kind === "experiment_result").length} experiments so far`;
+  }
+  const p = S.plan;
+  $("fPrem").innerHTML = p ? `${Math.round(p.uncertainty_premium_J)}<small>J</small>` : "–";
+  $("fPremNote").textContent = p ? `Plan ${p.plan_id} needs ${Math.round(p.predicted_energy_J)} J; with a perfectly known model it would need ${Math.round(p.certainty_equivalent_energy_J)} J.` : "Extra fan energy a plan spends because the model is not certain.";
+}
+
+// ---------------------------------------------------------------- status sentence
+function drawStatus() {
+  const st = S.status, line = $("statusline"); line.classList.remove("alert");
+  const info = S.info || {};
+  const at = st.t != null ? `<span class="when num">at ${mmss(st.t)}</span>` : "";
+  let msg;
+  if (!S.events.length) msg = info.running ? "Starting…" : "Ready. Choose an agent and start a run.";
+  else if (st.done) {
+    const end = lastEvent(["run_end"]); const d = end ? end.data : {};
+    msg = `Finished. Held the target for ${Math.round((d.hold_compliant_s || 0) / 60)} of ${Math.round((d.hold_done_s || 0) / 60)} min, using ${Math.round((d.energy_J || {}).task || 0)} J for the task and ${Math.round((d.energy_J || {}).exploration || 0)} J learning.`;
+  } else if (st.tripped) { msg = "Safety trip: heater off and fan at full."; line.classList.add("alert"); }
+  else if (st.anomaly) {
+    msg = st.anomaly.kind === "scene_change" ? "Investigating: the camera saw the setup change." : `Investigating: the heatsink ran ${st.anomaly.direction}.`;
+    line.classList.add("alert");
+  } else {
+    const e = lastEvent(["experiment_start", "experiment_result", "plan_execute", "plan_result", "model_update", "hypothesis", "plan", "conclusion"]);
+    if (!e) msg = "Getting oriented.";
+    else if (e.kind === "experiment_start") msg = `Running ${e.data.experiment_id}: ${esc(e.data.name)}, testing ${e.data.hypothesis_id}.`;
+    else if (e.kind === "plan_execute") { const p = S.plan; msg = `Holding the target with plan ${e.data.plan_id}` + (p ? `, fan at ${Math.round(p.phases[p.phases.length - 1].fan_duty * 100)}%.` : "."); }
+    else if (e.kind === "model_update") msg = `Updated the model: ${esc(e.data.adopted.structure.replace("_", " "))} fits best.`;
+    else if (e.kind === "hypothesis") msg = `New hypothesis ${e.data.id}: ${esc(e.data.statement)}`;
+    else if (e.kind === "plan") msg = `Planned ${e.data.plan_id}: ${Math.round(e.data.predicted_energy_J)} J predicted.`;
+    else msg = "Thinking about the next step…";
+  }
+  line.innerHTML = msg + " " + at;
+  const sim = info.simulated !== false;
+  $("moveFanBtn").disabled = !(info.running && sim);
+  $("speedSel").disabled = !sim;
+  $("foot").textContent = info.run_dir ? `Run folder: ${info.run_dir} · agent: ${info.agent}${sim ? " · simulated rig" : " · hardware rig"}` : "";
+}
+
+// ---------------------------------------------------------------- notebook
+function drawHyps() {
+  const hs = (S.status.hypotheses || []);
+  if (!hs.length) { $("hyps").innerHTML = `<p class="sub">None yet.</p>`; return; }
+  $("hyps").innerHTML = hs.slice().reverse().map((h) => `
+    <div class="hyp"><div class="head"><span><span class="id">${h.id}</span> ${esc(h.statement)}</span><span class="state ${h.status}">${h.status}</span></div>
+    <p class="pred">Predicts: ${esc(h.prediction)}</p>
+    ${h.evidence.length ? `<p class="evidence">${esc(h.evidence[h.evidence.length - 1].text)}</p>` : `<p class="evidence">Refuted if: ${esc(h.falsified_if)}</p>`}</div>`).join("");
+}
+const KIND = {
+  hypothesis: ["Hypothesis", "science", "belief"], prediction: ["Prediction", "science", "belief"], experiment_start: ["Experiment", "science", ""],
+  experiment_result: ["Result", "science", "world"], model_update: ["Model update", "science", "belief"], conclusion: ["Conclusion", "science", ""],
+  plan: ["Plan", "science", "belief"], plan_execute: ["Plan started", "science", ""], plan_result: ["Plan result", "science", "world"],
+  plan_adjust: ["Plan adjusted", "science", ""], anomaly: ["Anomaly", "alarm", "alarm"], safety_trip: ["Safety trip", "alarm", "alarm"],
+  safety_block: ["Refused", "alarm", "alarm"], safety_guard: ["Guard stop", "alarm", "alarm"], scene: ["Camera", "science", ""],
+  agent_step: ["Agent", "agent", ""], run_start: ["Run started", "science", ""], run_end: ["Run ended", "science", ""],
+  scene_reference: ["Camera", "science", ""], experiment_options: ["Options", "science", ""], session: ["Session", "science", ""], idle: ["Hold", "science", ""],
+};
+function summary(e) {
+  const d = e.data;
+  switch (e.kind) {
+    case "hypothesis": return `<b>${d.id}</b> ${esc(d.statement)}`;
+    case "prediction": return `${d.experiment_id}: expects ${fmt(d.final_C, 2)} °C at the end (90%: ${fmt(d.final_90pct[0], 1)}–${fmt(d.final_90pct[1], 1)})`;
+    case "experiment_start": return `${d.experiment_id} ${esc(d.name)} for ${d.hypothesis_id}<div class="why">${esc(d.rationale)}</div>`;
+    case "experiment_result": return `${d.experiment_id} ${esc(d.name)}<div class="cmp"><span class="p">predicted ${fmt(d.predicted_final_C, 2)} °C</span><span class="m">measured ${fmt(d.measured_final_C, 2)} °C</span><span>${Math.round(d.coverage_90pct_band * 100)}% inside the band</span><span>${d.prediction_held ? "prediction held" : "prediction failed"}</span></div>`;
+    case "model_update": return `Adopted ${esc(d.adopted.structure.replace("_", " "))} (fit error ${fmt(d.adopted.rmse_K, 2)} K)${Object.keys(d.held || {}).length ? `, holding ${Object.keys(d.held).join(", ")} at their earlier values` : ""}${d.since_t != null ? `, using data since ${mmss(d.since_t)}` : ""}<div class="why">${esc(d.rationale)}</div>`;
+    case "conclusion": return `<b>${d.hypothesis_id}</b> ${d.verdict}<div class="why">${esc(d.evidence)}</div>`;
+    case "plan": return `${d.plan_id}: ${d.phases.map((p) => `fan ${Math.round(p.fan_duty * 100)}% for ${Math.round(p.duration_s)} s`).join(", then ")}<div class="cmp"><span class="p">predicts ${Math.round(d.predicted_energy_J)} J</span><span>uncertainty costs ${Math.round(d.uncertainty_premium_J)} J</span></div>`;
+    case "plan_execute": return `${d.plan_id}<div class="why">${esc(d.rationale)}</div>`;
+    case "plan_result": return `${d.plan_id} ${d.status === "ok" ? "completed" : "interrupted"}: held ${Math.round(d.hold_compliant_s)} of ${Math.round(d.hold_done_s)} s, ${Math.round(d.task_energy_used_J)} J used${d.goal_complete ? ", goal complete" : ""}`;
+    case "plan_adjust": return `Fan ${Math.round(d.was * 100)}% → ${Math.round(d.fan_duty * 100)}% <div class="why">${esc(d.why)} (${fmt(d.measured_ambient_C, 1)} °C)</div>`;
+    case "anomaly": return `${d.kind === "scene_change" ? "Camera saw the layout change" : "Measurements left the model's band: " + esc(d.direction)} at ${mmss(d.t_detected)}, onset about ${mmss(d.onset_estimate_t)}`;
+    case "safety_trip": return `Heatsink reached ${fmt(d.T_obj, 1)} °C (limit ${d.limit}). ${esc(d.action)}`;
+    case "safety_block": return esc(d.why);
+    case "safety_guard": return `${d.experiment_id}: heatsink reached ${fmt(d.T_obj, 1)} °C, ${esc(d.action)}`;
+    case "scene": return `${esc(d.reason)}${d.changed_vs_reference ? ` — <b>changed</b>: ${esc((d.changes || []).join("; "))}` : ""}`;
+    case "scene_reference": return esc(d.note);
+    case "agent_step":
+      if (d.role === "agent") return `<b>${esc(d.text)}</b>`;
+      if (d.role === "tool_call") return `calls ${esc(d.text)}${d.args && (d.args.rationale || d.args.reason) ? `<div class="why">${esc(d.args.rationale || d.args.reason)}</div>` : ""}`;
+      if (d.role === "tool_result") return `${esc(d.text)} returned`;
+      return esc(d.text);
+    case "run_end": return `${esc(d.summary)}`;
+    case "run_start": return `Goal: keep ≤ ${d.goal.target_C} °C for ${Math.round(d.goal.hold_s / 60)} min within ${d.goal.task_budget_J} J`;
+    case "experiment_options": return `${d.options.length} candidate experiments compared`;
+    case "idle": return `fan ${Math.round(d.fan_duty * 100)}% for ${d.seconds} s`;
+    default: return esc(JSON.stringify(d).slice(0, 160));
+  }
+}
+function drawTimeline() {
+  const rows = [];
+  for (let i = S.events.length - 1; i >= 0 && rows.length < 250; i--) {
+    const e = S.events[i]; const k = KIND[e.kind] || [e.kind, "science", ""];
+    if (e.kind === "agent_step" && e.data.role === "tool_result") continue;
+    if (e.kind === "scene" && !e.data.changed_vs_reference && String(e.data.reason || "").startsWith("periodic")) continue;
+    if (e.kind === "experiment_options" || e.kind === "session") continue;
+    if (e.kind === "agent_step" && e.data.role === "tool_call" && filter !== "agent") continue;
+    if (filter !== "all" && k[1] !== filter) continue;
+    if (filter === "all" && e.kind === "agent_step" && e.data.role !== "agent") continue;
+    const cls = e.kind === "agent_step" ? "agent" : k[2];
+    rows.push(`<div class="entry ${cls}"><div class="t num">${e.t != null ? mmss(e.t) : ""}</div><div class="k"><b>${k[0]}</b></div><div class="body">${summary(e)}<div class="hash num">#${e.seq} · ${e.hash.slice(0, 12)}</div></div></div>`);
+  }
+  $("timeline").innerHTML = rows.join("") || `<p class="sub">Nothing recorded yet.</p>`;
+}
+
+// ---------------------------------------------------------------- render loop
+let lastEvents = -1, lastFits = -1, lastScene = null;
+function render() {
+  if (dirty) {
+    dirty = false;
+    drawTemp(); drawFan(); drawFigures(); drawStatus();
+    if (S.fits.length !== lastFits || lastEvents === -1) { drawK(); lastFits = S.fits.length; }
+    if (S.scene !== lastScene) { drawCam(); lastScene = S.scene; }
+    if (S.events.length !== lastEvents) { drawHyps(); drawTimeline(); lastEvents = S.events.length; }
+  }
+  setTimeout(() => requestAnimationFrame(render), 250);
+}
+window.addEventListener("resize", () => { dirty = true; lastFits = -1; });
+
+// ---------------------------------------------------------------- controls
+async function post(path, body) { const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) }); return r.json(); }
+$("startBtn").onclick = async () => {
+  const r = await post("/api/start", { agent: $("agentSel").value, speed: +$("speedSel").value });
+  if (!r.ok) alert("Couldn't start the run: " + r.error);
+  lastFits = -1; lastScene = null; lastEvents = -1; $("verifyOut").textContent = "";
+};
+$("stopBtn").onclick = () => post("/api/stop");
+$("speedSel").onchange = () => post("/api/speed", { speed: +$("speedSel").value });
+$("moveFanBtn").onclick = (e) => { e.stopPropagation(); $("changeMenu").classList.toggle("open"); };
+document.addEventListener("click", () => $("changeMenu").classList.remove("open"));
+for (const b of document.querySelectorAll(".menu-list button")) b.onclick = async () => {
+  $("changeMenu").classList.remove("open");
+  const r = await post("/api/perturb", { kind: b.dataset.kind }); if (!r.ok) alert(r.error);
+};
+for (const b of document.querySelectorAll(".filters button")) b.onclick = () => {
+  filter = b.dataset.f; for (const o of document.querySelectorAll(".filters button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+  drawTimeline();
+};
+$("verifyBtn").onclick = async () => {
+  const r = await (await fetch("/api/verify")).json();
+  $("verifyOut").innerHTML = r.ok ? `<span class="badge ok">✓ ${esc(r.message)}</span>` : `<span class="badge alert">${esc(r.message)}</span>`;
+};
+$("themeBtn").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); dirty = true; lastFits = -1;
+};
+
+load().then(() => { connect(); render(); });
+</script>
+</body>
+</html>
