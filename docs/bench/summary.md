@@ -1,10 +1,17 @@
-| agent | scenario | goal_complete | compliance | detected | detect_s_median | false_alarms | diagnosis_ok | energy_overhead | exploration_J | model_error |
+| agent | scenario | runs | people_fed | pct_of_oracle | detected | detect_days_median | diagnosis_ok | false_alarms | within_limits | trait_error |
 |---|---|---|---|---|---|---|---|---|---|---|
-| scripted | none | 1.0 | 1.0 | - | – | 1 | 0.9 | 0.02 | 455.39 | 0.081 |
-| scripted | fan_moved | 0.9 | 0.993 | 10/10 | 5.0 | 1 | 0.9 | – | 1232.26 | 0.078 |
-| scripted | heater_drift | 0.9 | 0.93 | 9/10 | 60.0 | 1 | 0.5 | – | 1280.41 | 0.219 |
-| scripted | ambient_step | 1.0 | 0.975 | - | 422.5 | 6 | 0.9 | – | 681.46 | 0.082 |
-| scripted-noadapt | none | 0.8 | 0.8 | - | – | 12 | 1.0 | 0.016 | 353.09 | 0.099 |
-| scripted-noadapt | fan_moved | 0.0 | 0.8 | 10/10 | 5.0 | 8 | 0.0 | – | 353.09 | 0.438 |
-| scripted-noadapt | heater_drift | 0.0 | 0.754 | 10/10 | 62.5 | 8 | 0.0 | – | 353.09 | 0.099 |
-| scripted-noadapt | ambient_step | 0.9 | 0.889 | - | 252.5 | 11 | 1.0 | – | 353.09 | 0.099 |
+| scripted | none | 5 | 439.1 | 99.7 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted | clog | 5 | 429.1 | 97.2 | 5/5 | 20.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted | pest | 5 | 436.9 | 98.9 | 5/5 | 13.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted | salinity | 5 | 383.6 | 86.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.4 |
+| scripted | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | none | 5 | 439.1 | 99.7 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | clog | 5 | 421.4 | 95.5 | 5/5 | 20.0 | 0/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | pest | 5 | 419.7 | 95.2 | 5/5 | 13.0 | 0/5 | 0 | 5/5 | 0.4 |
+| scripted-noadapt | salinity | 5 | 370.8 | 83.4 | 5/5 | 14.0 | 0/5 | 0 | 4/5 | 0.4 |
+| scripted-noadapt | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-notrials | none | 5 | 384.2 | 88.1 | – | – | 5/5 | 1 | 4/5 | 0.9 |
+| scripted-notrials | clog | 5 | 358.2 | 82.7 | 5/5 | 16.0 | 0/5 | 0 | 3/5 | 0.9 |
+| scripted-notrials | pest | 5 | 379.8 | 87.4 | 5/5 | 17.0 | 5/5 | 0 | 4/5 | 0.9 |
+| scripted-notrials | salinity | 5 | 343.7 | 78.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.9 |
+| scripted-notrials | heatwave | 5 | 374.1 | 85.9 | – | – | 5/5 | 0 | 4/5 | 0.9 |

@@ -3,124 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WorldLab</title>
+<title>WorldLab Crops</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
   color-scheme: light;
-  --page: #eef2f5;
-  --surface: #fbfcfd;
-  --ink: #142033;
-  --ink-2: #485569;
-  --ink-3: #7d8899;
-  --grid: #e1e7ec;
-  --axis: #c2cbd4;
-  --rule: rgba(20, 32, 51, 0.10);
-  /* the two voices of the page */
-  --belief: #2a78d6;        /* what the agent's model predicts */
-  --belief-band: rgba(42, 120, 214, 0.16);
-  --belief-ahead: rgba(42, 120, 214, 0.08);
-  --world: #eb6834;         /* what the sensors measure */
-  --room: #898781;
-  --control: #6250d6;       /* fan duty, a command */
+  --page: #eef1ee; --surface: #fbfcfa; --ink: #18221c; --ink-2: #4a564e; --ink-3: #7f8a82;
+  --grid: #e1e6e1; --axis: #c2cbc4; --rule: rgba(24, 34, 28, 0.10);
+  --belief: #2a78d6; --belief-band: rgba(42, 120, 214, 0.16); --belief-soft: rgba(42, 120, 214, 0.08);
+  --world: #eb6834; --room: #898781; --water: #1baf7a; --control: #6250d6;
   --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
-  --good-ink: #006300; --critical-ink: #b42626;
-  --span: rgba(20, 32, 51, 0.035);
+  --good-ink: #006300; --critical-ink: #b42626; --span: rgba(24, 34, 28, 0.04);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --page: #0f141a; --surface: #161c23; --ink: #e9eef3; --ink-2: #b6c0cb; --ink-3: #87919c;
-    --grid: #252d36; --axis: #36404b; --rule: rgba(255,255,255,0.09);
-    --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-ahead: rgba(57,135,229,0.10);
-    --world: #f07a47; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b;
-    --span: rgba(255,255,255,0.035);
+    color-scheme: dark; --page: #0f1411; --surface: #161d18; --ink: #e8eee9; --ink-2: #b5c0b8; --ink-3: #87918a;
+    --grid: #232b25; --axis: #37413a; --rule: rgba(255,255,255,0.09);
+    --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-soft: rgba(57,135,229,0.10);
+    --world: #f07a47; --water: #199e70; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b; --span: rgba(255,255,255,0.035);
   }
 }
 :root[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #0f141a; --surface: #161c23; --ink: #e9eef3; --ink-2: #b6c0cb; --ink-3: #87919c;
-  --grid: #252d36; --axis: #36404b; --rule: rgba(255,255,255,0.09);
-  --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-ahead: rgba(57,135,229,0.10);
-  --world: #f07a47; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b;
-  --span: rgba(255,255,255,0.035);
+  color-scheme: dark; --page: #0f1411; --surface: #161d18; --ink: #e8eee9; --ink-2: #b5c0b8; --ink-3: #87918a;
+  --grid: #232b25; --axis: #37413a; --rule: rgba(255,255,255,0.09);
+  --belief: #3987e5; --belief-band: rgba(57,135,229,0.22); --belief-soft: rgba(57,135,229,0.10);
+  --world: #f07a47; --water: #199e70; --control: #9085e9; --good-ink: #2fbf2f; --critical-ink: #ef6b6b; --span: rgba(255,255,255,0.035);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body {
-  background: var(--page); color: var(--ink);
-  font: 15px/1.45 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+body { background: var(--page); color: var(--ink); font: 15px/1.45 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
 button, select { font: inherit; color: inherit; }
 .num { font-variant-numeric: tabular-nums; }
-
-/* header ------------------------------------------------------------- */
-header {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center;
-  padding: 14px 24px; border-bottom: 1px solid var(--rule); background: var(--surface);
-  position: sticky; top: 0; z-index: 5;
-}
-.brand { font-weight: 600; font-size: 19px; letter-spacing: -0.01em; display: flex; gap: 10px; align-items: center; }
-.brand svg { flex: none; }
-#statusline { font-size: 16px; color: var(--ink); min-width: 0; }
+header { display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; padding: 14px 24px;
+  border-bottom: 1px solid var(--rule); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+.brand { font-weight: 600; font-size: 19px; letter-spacing: -0.01em; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+#statusline { font-size: 16px; min-width: 0; }
 #statusline .when { color: var(--ink-3); margin-left: 6px; }
 #statusline.alert { color: var(--critical-ink); }
 .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.btn {
-  border: 1px solid var(--axis); background: var(--surface); border-radius: 8px; padding: 7px 12px;
-  cursor: pointer; white-space: nowrap;
-}
+.btn { border: 1px solid var(--axis); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
 .btn:hover { background: var(--page); }
-.btn:focus-visible, select:focus-visible { outline: 2px solid var(--belief); outline-offset: 2px; }
+.btn:focus-visible, select:focus-visible, .tile:focus-visible { outline: 2px solid var(--belief); outline-offset: 2px; }
 .btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
-.btn.primary:hover { opacity: 0.88; }
 .btn.change { border-color: var(--world); color: var(--world); font-weight: 500; }
-.btn.change:hover { background: color-mix(in srgb, var(--world) 10%, transparent); }
 .btn[disabled] { opacity: 0.45; cursor: default; }
 select { border: 1px solid var(--axis); background: var(--surface); border-radius: 8px; padding: 7px 8px; }
 .menu { position: relative; }
-.menu-list {
-  position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--axis);
-  border-radius: 10px; padding: 6px; display: none; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-}
+.menu-list { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--axis);
+  border-radius: 10px; padding: 6px; display: none; min-width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.14); }
 .menu.open .menu-list { display: block; }
 .menu-list button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .menu-list button:hover { background: var(--page); }
 .menu-list small { display: block; color: var(--ink-3); }
-
-/* layout -------------------------------------------------------------- */
-main { padding: 20px 24px 40px; display: grid; gap: 20px; max-width: 1600px; margin: 0 auto; }
-.top { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+main { padding: 20px 24px 40px; display: grid; gap: 20px; max-width: 1640px; margin: 0 auto; }
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px; min-width: 0; }
 .panel h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
-.panel .sub { color: var(--ink-2); font-size: 13.5px; margin: 0 0 10px; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin: 4px 0 6px; }
-.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
-.legend i.band { height: 10px; background: var(--belief-band); border-top: 2px solid var(--belief); }
+.sub { color: var(--ink-2); font-size: 13.5px; margin: 0 0 10px; }
+.row { display: grid; gap: 20px; }
+.r1 { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.r2 { grid-template-columns: minmax(0, 1fr) 400px; align-items: start; }
+.r3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.r4 { grid-template-columns: 380px minmax(0, 1fr); align-items: start; }
+
+/* farm map */
+.farm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--rule); border-radius: 12px; padding: 10px 12px 12px; cursor: pointer; background: var(--surface); position: relative; text-align: left; }
+.tile:hover { border-color: var(--axis); }
+.tile.sel { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.tile.alarm { border-color: var(--critical); box-shadow: inset 0 0 0 1px var(--critical); }
+.tile .top { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--ink-3); }
+.tile .crop { font-size: 17px; font-weight: 500; margin: 2px 0 6px; }
+.tile .bars { display: grid; gap: 4px; }
+.tile .bar { display: grid; grid-template-columns: 62px 1fr 42px; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.tile .track { height: 6px; border-radius: 3px; background: var(--grid); position: relative; overflow: visible; }
+.tile .track span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--world); }
+.tile .track i { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--belief); border-radius: 1px; }
+.tile .note { font-size: 12px; color: var(--ink-3); margin-top: 6px; min-height: 17px; }
+.tile .note.bad { color: var(--critical-ink); }
+.tile .note.good { color: var(--good-ink); }
+
+/* people fed */
+.fed { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; align-items: end; }
+.fed .big { font-size: 46px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; }
+.fed .big small { font-size: 16px; color: var(--ink-2); font-weight: 400; margin-left: 4px; letter-spacing: 0; }
+.nutr { display: grid; gap: 6px; margin-top: 12px; }
+.nutr .n { display: grid; grid-template-columns: 82px 1fr 64px; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); }
+.nutr .t { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+.nutr .t span { display: block; height: 100%; border-radius: 4px; background: var(--ink-3); }
+.nutr .n.lim .t span { background: var(--ink); }
+.meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.meter .label { font-size: 12.5px; color: var(--ink-2); }
+.meter .v { font-size: 15px; font-weight: 500; }
+.meter .t { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; margin-top: 4px; }
+.meter .t span { display: block; height: 100%; border-radius: 3px; }
+
+/* charts */
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; overflow: visible; }
-.tip {
-  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis);
-  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; display: none; z-index: 3;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12); min-width: 170px;
-}
-.tip b { font-weight: 600; }
-.tip .row { display: flex; justify-content: space-between; gap: 14px; }
-.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
-
-/* figures row ---------------------------------------------------------- */
-.figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
-.figure .label { color: var(--ink-2); font-size: 13.5px; }
-.figure .value { font-size: 28px; font-weight: 500; letter-spacing: -0.015em; margin: 2px 0 4px; }
-.figure .value small { font-size: 15px; color: var(--ink-2); font-weight: 400; margin-left: 3px; }
-.figure .note { color: var(--ink-3); font-size: 12.5px; }
-.meter { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin: 6px 0 4px; display: flex; gap: 2px; }
-.meter span { display: block; height: 100%; border-radius: 3px; }
-
-/* side panels ----------------------------------------------------------- */
-.side { display: grid; gap: 20px; align-content: start; }
+.charts { display: grid; gap: 8px; }
+.chart h3 { font-size: 13px; font-weight: 500; margin: 6px 0 0; color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin: 2px 0 4px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.band { height: 10px; background: var(--belief-band); border-top: 2px solid var(--belief); }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 7px 10px;
+  font-size: 12.5px; line-height: 1.5; display: none; z-index: 3; box-shadow: 0 6px 18px rgba(0,0,0,0.12); min-width: 160px; }
+.tip .row2 { display: flex; justify-content: space-between; gap: 12px; }
 .cam { position: relative; border-radius: 10px; overflow: hidden; background: var(--page); aspect-ratio: 16 / 10; }
 .cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cam svg { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -128,17 +116,26 @@ main { padding: 20px 24px 40px; display: grid; gap: 20px; max-width: 1600px; mar
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--axis); color: var(--ink-2); }
 .badge.alert { border-color: var(--critical); color: var(--critical-ink); }
 .badge.ok { border-color: var(--good); color: var(--good-ink); }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; margin-top: 8px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; margin-top: 10px; }
 .kv dt { color: var(--ink-2); }
 .kv dd { margin: 0; text-align: right; }
-table.rank { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
-table.rank td, table.rank th { padding: 4px 0; border-top: 1px solid var(--rule); text-align: right; font-weight: 400; }
-table.rank th { color: var(--ink-3); border-top: 0; }
-table.rank td:first-child, table.rank th:first-child { text-align: left; }
-table.rank tr.best td { font-weight: 600; }
 
-/* notebook ---------------------------------------------------------------- */
-.notebook { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+/* tables */
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { color: var(--ink-3); font-weight: 400; text-align: right; padding: 4px 6px; }
+table.t td { border-top: 1px solid var(--rule); padding: 6px; text-align: right; }
+table.t td:first-child, table.t th:first-child, table.t td.l, table.t th.l { text-align: left; }
+.trials { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.plot { border: 1px solid var(--rule); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.plot .h { display: flex; justify-content: space-between; gap: 6px; }
+.plot .h b { font-weight: 500; font-size: 13px; }
+.plot svg { width: 100%; display: block; margin: 4px 0; }
+.ok-t { color: var(--good-ink); }
+.bad-t { color: var(--critical-ink); }
+.forest td.f { width: 46%; }
+.forest svg { width: 100%; height: 16px; display: block; }
+
+/* notebook */
 .hyp { border-top: 1px solid var(--rule); padding: 12px 0; }
 .hyp:first-of-type { border-top: 0; }
 .hyp .head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
@@ -153,36 +150,28 @@ table.rank tr.best td { font-weight: 600; }
 .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .filters button { border: 1px solid var(--axis); background: none; border-radius: 999px; padding: 3px 11px; font-size: 13px; cursor: pointer; color: var(--ink-2); }
 .filters button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
-#timeline { max-height: 640px; overflow: auto; }
-.entry { display: grid; grid-template-columns: 58px 132px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+#timeline, #hyps { max-height: 620px; overflow: auto; }
+.entry { display: grid; grid-template-columns: 62px 122px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
 .entry .t { color: var(--ink-3); }
-.entry .k { color: var(--ink-2); }
-.entry .k b { font-weight: 600; color: var(--ink); }
+.entry .k { color: var(--ink-2); font-weight: 600; }
 .entry .why { color: var(--ink-2); margin-top: 2px; }
 .entry .hash { color: var(--ink-3); font-size: 11.5px; margin-top: 2px; }
-.entry.belief .k b { color: var(--belief); }
-.entry.world .k b { color: var(--world); }
-.entry.alarm .k b { color: var(--critical-ink); }
+.entry.belief .k { color: var(--belief); }
+.entry.world .k { color: var(--world); }
+.entry.alarm .k { color: var(--critical-ink); }
 .entry.agent { background: color-mix(in srgb, var(--belief) 5%, transparent); }
 .cmp { display: flex; gap: 4px 14px; margin-top: 3px; flex-wrap: wrap; }
-.cmp span { white-space: nowrap; }
 .cmp .p { color: var(--belief); }
 .cmp .m { color: var(--world); }
-.verify { margin-top: 8px; font-size: 13px; color: var(--ink-2); }
 .foot { color: var(--ink-3); font-size: 12.5px; text-align: center; }
-.hidden { display: none !important; }
-
-@media (max-width: 1180px) {
-  .top, .notebook { grid-template-columns: minmax(0, 1fr); }
-  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+@media (max-width: 1200px) { .r1, .r2, .r3, .r4 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 720px) {
   header { grid-template-columns: 1fr; gap: 10px; padding: 12px 16px; position: static; }
   .controls { justify-content: flex-start; }
   main { padding: 16px; }
-  .figures { grid-template-columns: minmax(0, 1fr); }
-  .entry { grid-template-columns: 48px minmax(0, 1fr); }
-  .entry .k { grid-column: 2; }
+  .farm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .entry { grid-template-columns: 52px minmax(0, 1fr); }
   .entry .body { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -192,10 +181,11 @@ table.rank tr.best td { font-weight: 600; }
 <header>
   <div class="brand">
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <path d="M2 15 C6 15 7 6 11 6 S16 13 20 13" fill="none" stroke="var(--belief)" stroke-width="2.2" stroke-linecap="round"/>
-      <path d="M2 17 C6 17 8 9 11 10 S15 16 20 16" fill="none" stroke="var(--world)" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M11 20 V9" stroke="var(--ink-2)" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M11 12 C6 12 4 9 4 5 C8 5 11 7 11 12Z" fill="var(--belief)"/>
+      <path d="M11 10 C16 10 18 7 18 3 C14 3 11 5 11 10Z" fill="var(--world)"/>
     </svg>
-    WorldLab
+    WorldLab Crops
   </div>
   <div id="statusline" aria-live="polite">Loading…</div>
   <div class="controls">
@@ -205,21 +195,21 @@ table.rank tr.best td { font-weight: 600; }
       <option value="scripted">Scripted baseline</option>
       <option value="scripted-noadapt">Baseline that ignores anomalies</option>
     </select>
+    <select id="seedSel" aria-label="Farm">
+      <option value="7">Farm A</option><option value="11">Farm B</option><option value="23">Farm C</option>
+    </select>
     <button class="btn primary" id="startBtn">Start run</button>
     <div class="menu" id="changeMenu">
-      <button class="btn change" id="moveFanBtn" aria-haspopup="true">Move the fan</button>
+      <button class="btn change" id="changeBtn" aria-haspopup="true">Change the farm</button>
       <div class="menu-list" role="menu">
-        <button data-kind="fan_moved" role="menuitem">Move and turn the fan<small>Airflow no longer hits the fins squarely</small></button>
-        <button data-kind="fan_restored" role="menuitem">Put the fan back<small>Return it to the original position</small></button>
-        <button data-kind="heater_drift" role="menuitem">Heater runs 30% hot<small>Hidden from the sensors and camera</small></button>
-        <button data-kind="ambient_step" role="menuitem">Warm the room by 3 °C<small>The room sensor sees this one</small></button>
+        <button data-kind="clog" role="menuitem">Clog a drip line<small>The selected field gets 45% of its water; the meter can't tell</small></button>
+        <button data-kind="pest" role="menuitem">Start a pest outbreak<small>Eats 3% of the selected field's canopy a day</small></button>
+        <button data-kind="salinity" role="menuitem">Make the groundwater salty<small>4.5 to 9 dS/m on every field, without warning</small></button>
+        <button data-kind="heatwave" role="menuitem">Send a heat wave<small>Arrives in 3 days; it is in the forecast</small></button>
       </div>
     </div>
-    <select id="speedSel" aria-label="Simulation speed">
-      <option value="5">5× speed</option>
-      <option value="20" selected>20× speed</option>
-      <option value="60">60× speed</option>
-      <option value="1">Real time</option>
+    <select id="speedSel" aria-label="Season speed">
+      <option value="4">4 days/s</option><option value="12" selected>12 days/s</option><option value="30">30 days/s</option>
     </select>
     <button class="btn" id="stopBtn">Stop</button>
     <button class="btn" id="themeBtn" aria-label="Switch between light and dark">Theme</button>
@@ -227,65 +217,87 @@ table.rank tr.best td { font-weight: 600; }
 </header>
 
 <main>
-  <section class="top">
+  <section class="row r1">
     <div class="panel">
-      <h2>Heatsink temperature: the model's prediction against the measurement</h2>
-      <p class="sub" id="chartSub">The blue band is what the agent's model expects, given the fan and heater settings it chose. Orange is what the sensor reads.</p>
+      <h2>The farm</h2>
+      <p class="sub" id="farmSub">Six 2-hectare fields near Al Ain. Orange bars are measured, blue ticks are what the model expects. Select a field to see its detail.</p>
+      <div class="farm" id="farm"></div>
+    </div>
+    <div class="panel">
+      <h2>People fed for a year</h2>
+      <p class="sub" id="fedSub">In a bad year (10th percentile): the scarcest of calories, protein and vitamin A.</p>
+      <div class="fed">
+        <div class="big num" id="fedBig">–</div>
+        <div class="chart" id="fedChart"><svg id="fedSvg" role="img" aria-label="Projection of people fed over the season"></svg></div>
+      </div>
+      <div class="nutr" id="nutr"></div>
+      <div class="meters">
+        <div class="meter"><div class="label">Groundwater</div><div class="v num" id="mW">–</div><div class="t"><span id="mWb" style="background:var(--water);width:0"></span></div></div>
+        <div class="meter"><div class="label">Energy</div><div class="v num" id="mE">–</div><div class="t"><span id="mEb" style="background:var(--control);width:0"></span></div></div>
+        <div class="meter"><div class="label">Trial plots</div><div class="v num" id="mP">–</div><div class="t"><span id="mPb" style="background:var(--belief);width:0"></span></div></div>
+        <div class="meter"><div class="label">Field tests</div><div class="v num" id="mT">–</div><div class="t"><span id="mTb" style="background:var(--ink-3);width:0"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="row r2">
+    <div class="panel">
+      <h2 id="fieldTitle">Field detail</h2>
+      <p class="sub" id="fieldSub">Prediction from the agent's model (blue band) against the field's sensors and drone (orange).</p>
       <div class="legend" aria-hidden="true">
-        <span><i style="background:var(--world)"></i>Measured</span>
-        <span><i class="band"></i>Model prediction, 90% band</span>
-        <span><i style="background:var(--room)"></i>Room</span>
-        <span><i style="background:var(--ink); height:0; border-top:2px dashed var(--ink)"></i>Target</span>
+        <span><i style="background:var(--world)"></i>Measured</span><span><i class="band"></i>Model prediction, 90% band</span>
+        <span><i style="background:var(--critical);height:2px"></i>Alarm</span><span><i style="background:var(--ink-2);height:0;border-top:2px dashed var(--ink-2)"></i>Hidden change</span>
       </div>
-      <div class="chart" id="tempChart"><svg id="tempSvg" role="img" aria-label="Temperature chart"></svg><div class="tip" id="tempTip"></div></div>
-      <h2 style="margin-top:14px">Fan duty</h2>
-      <div class="chart" id="fanChart"><svg id="fanSvg" role="img" aria-label="Fan duty chart"></svg></div>
+      <div class="charts">
+        <div class="chart"><h3>Canopy cover (drone)</h3><svg id="ccSvg"></svg><div class="tip" id="ccTip"></div></div>
+        <div class="chart"><h3>Soil moisture, 0–50 cm (m³/m³)</h3><svg id="swSvg"></svg></div>
+        <div class="chart"><h3>Soil salinity, 0–50 cm (ECe, dS/m)</h3><svg id="ecSvg"></svg></div>
+        <div class="chart"><h3>Irrigation applied (mm/day) and daily maximum temperature</h3><svg id="irrSvg"></svg></div>
+      </div>
     </div>
-    <div class="side">
-      <div class="panel">
-        <h2>Camera</h2>
-        <p class="sub" id="camSub">Objects found by SAM 3.1; fan aim judged by Muse Spark.</p>
-        <div class="cam" id="cam"><div class="empty">The agent hasn't looked at the bench yet.</div></div>
-        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap" id="camBadges"></div>
-        <p class="sub" style="margin:8px 0 0" id="camAim"></p>
-      </div>
-      <div class="panel">
-        <h2>How the fan cools the heatsink</h2>
-        <p class="sub" id="modelSub">Cooling rate against fan duty, as currently believed.</p>
-        <div class="chart" id="kChart"><svg id="kSvg" role="img" aria-label="Cooling rate against fan duty"></svg></div>
-        <table class="rank" id="rankTbl"></table>
-      </div>
+    <div class="panel">
+      <h2>Drone view</h2>
+      <p class="sub" id="camSub">Plants, salt crust and leaf damage found by SAM 3.1; stress judged by Muse Spark.</p>
+      <div class="cam" id="cam"><div class="empty">The agent hasn't looked at this field yet.</div></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap" id="camBadges"></div>
+      <dl class="kv" id="camKv"></dl>
     </div>
   </section>
 
-  <section class="panel figures" id="figures">
-    <div class="figure"><div class="label">Heatsink now</div><div class="value num" id="fNow">–</div><div class="note" id="fNowNote"></div></div>
-    <div class="figure"><div class="label">Time held at or below target</div><div class="value num" id="fHold">–</div><div class="meter"><span id="mHold" style="background:var(--good); width:0"></span></div><div class="note" id="fHoldNote"></div></div>
-    <div class="figure"><div class="label">Fan energy for the task</div><div class="value num" id="fTask">–</div><div class="meter"><span id="mTask" style="background:var(--world); width:0"></span></div><div class="note" id="fTaskNote"></div></div>
-    <div class="figure"><div class="label">Fan energy spent learning</div><div class="value num" id="fExp">–</div><div class="meter"><span id="mExp" style="background:var(--belief); width:0"></span></div><div class="note" id="fExpNote"></div></div>
-    <div class="figure"><div class="label">Cost of uncertainty in the current plan</div><div class="value num" id="fPrem">–</div><div class="note" id="fPremNote">Extra fan energy the plan spends because the model is not certain.</div></div>
+  <section class="row r3">
+    <div class="panel">
+      <h2>Trial plots</h2>
+      <p class="sub">Each plot was predicted before it was grown. Blue: the predicted canopy band; orange: the drone measurements; the line below compares harvest with prediction.</p>
+      <div class="trials" id="trials"><p class="sub">No trials yet.</p></div>
+    </div>
+    <div class="panel">
+      <h2>What the agent believes about the local varieties</h2>
+      <p class="sub">Each trait as a shift from the published value. Grey: the prior range; blue: the current belief (90%). Narrower means learned.</p>
+      <table class="t forest" id="forest"></table>
+    </div>
   </section>
 
-  <section class="notebook">
+  <section class="panel">
+    <h2>Season plan</h2>
+    <p class="sub" id="planSub">No plan yet.</p>
+    <table class="t" id="planTbl"></table>
+  </section>
+
+  <section class="row r4">
     <div class="panel">
       <h2>Hypotheses</h2>
-      <p class="sub">Each one is recorded with a prediction before any experiment runs.</p>
+      <p class="sub">Each recorded with a prediction before it is tested.</p>
       <div id="hyps"><p class="sub">None yet.</p></div>
     </div>
     <div class="panel">
       <div style="display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap">
-        <div>
-          <h2>Lab notebook</h2>
-          <p class="sub">Every decision, prediction and result, in an append-only ledger. Each entry carries the hash of the one before it.</p>
-        </div>
+        <div><h2>Lab notebook</h2><p class="sub">Every decision, prediction and result, in an append-only ledger. Each entry carries the hash of the one before it.</p></div>
         <button class="btn" id="verifyBtn">Verify ledger</button>
       </div>
-      <div class="verify" id="verifyOut"></div>
+      <div class="sub" id="verifyOut"></div>
       <div class="filters" role="group" aria-label="Filter notebook">
-        <button data-f="all" aria-pressed="true">All</button>
-        <button data-f="science" aria-pressed="false">Science</button>
-        <button data-f="agent" aria-pressed="false">Agent reasoning</button>
-        <button data-f="alarm" aria-pressed="false">Anomalies and safety</button>
+        <button data-f="all" aria-pressed="true">All</button><button data-f="science" aria-pressed="false">Science</button>
+        <button data-f="agent" aria-pressed="false">Agent reasoning</button><button data-f="alarm" aria-pressed="false">Anomalies</button>
       </div>
       <div id="timeline"></div>
     </div>
@@ -297,389 +309,384 @@ table.rank tr.best td { font-weight: 600; }
 "use strict";
 const $ = (id) => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
-const S = { samples: [], events: [], forecasts: [], scene: null, model: null, plan: null, status: {},
-            agent: [], fits: [], perturbations: [], info: {} };
-let dirty = true, filter = "all";
+const S = { days: [], events: [], agent: [], perturbations: [], beliefs_hist: [], projections: [], trials: [],
+            scene: {}, plan: null, status: {}, beliefs: null, fields: null, info: {} };
+let dirty = true, filter = "all", sel = 0;
+const FIELD_IDS = ["F1", "F2", "F3", "F4", "F5", "F6"];
+const FIELD_NAMES = ["North", "Palm edge", "Dune", "Old wadi", "Loam block", "Sabkha rim"];
+const SOILS = ["loamy sand", "sandy loam", "sand", "sandy loam / loam", "loam", "loamy sand, saline"];
+const CROP_LABEL = { wheat: "Wheat", rice: "Rice", maize: "Maize", potato: "Potato", cassava: "Cassava", soybean: "Soybeans",
+  sorghum: "Sorghum", millet: "Millet", beans: "Common beans", sweet_potato: "Sweet potatoes" };
+const TRAITS = [["wp", "Water productivity", "×"], ["cgc", "Canopy growth", "×"], ["heat", "Heat tolerance", "°C"], ["salt", "Salt tolerance", "dS/m"]];
+const MONTH_STARTS = [[0, "Oct"], [31, "Nov"], [61, "Dec"], [92, "Jan"], [123, "Feb"], [151, "Mar"], [182, "Apr"], [212, "May"], [243, "Jun"]];
 
-// ---------------------------------------------------------------- data
 async function load() {
-  const r = await fetch("/api/state"); const d = await r.json();
+  const d = await (await fetch("/api/state")).json();
   Object.assign(S, d); S.info = d.info || {};
-  $("agentSel").value = S.info.agent && S.info.agent !== "auto" ? S.info.agent : (S.info.has_api_key ? "spark" : "scripted");
+  if (S.info.agent) $("agentSel").value = S.info.agent === "auto" ? (S.info.has_api_key ? "spark" : "scripted") : S.info.agent;
+  if (S.info.farm_seed) $("seedSel").value = String(S.info.farm_seed);
   dirty = true;
 }
 function connect() {
   const es = new EventSource("/api/stream");
-  es.onmessage = (ev) => {
-    for (const m of JSON.parse(ev.data)) apply(m);
-    dirty = true;
-  };
-  es.onerror = () => { es.close(); setTimeout(() => { load().then(connect); }, 2000); };
+  es.onmessage = (ev) => { for (const m of JSON.parse(ev.data)) apply(m); dirty = true; };
+  es.onerror = () => { es.close(); setTimeout(() => load().then(connect), 2000); };
 }
 function apply(m) {
   const d = m.data;
   switch (m.kind) {
-    case "reset": Object.assign(S, { samples: [], events: [], forecasts: [], scene: null, model: null, plan: null,
-                                    status: {}, agent: [], fits: [], perturbations: [] }); S.info.running = true; break;
-    case "sample": S.samples.push(d); break;
+    case "reset": Object.assign(S, { days: [], events: [], agent: [], perturbations: [], beliefs_hist: [], projections: [], trials: [],
+                                    scene: {}, plan: null, status: {}, beliefs: null, fields: null }); S.info.running = true; break;
+    case "day": S.days.push(d); break;
     case "ledger": S.events.push(d); break;
-    case "forecast": S.forecasts.push(d); break;
-    case "fit": S.fits.push(d); S.model = d; break;
     case "agent": S.agent.push(d); break;
     case "perturbation": S.perturbations.push(d); break;
-    case "scene": S.scene = d; break;
+    case "beliefs": S.beliefs = d; S.beliefs_hist.push(d); break;
+    case "projection": S.projections.push(d); break;
+    case "trials": S.trials.push(d); break;
+    case "scene": S.scene[d.field] = d; break;
     case "plan": S.plan = d; break;
     case "status": S.status = d; break;
+    case "fields": S.fields = d; break;
   }
 }
-setInterval(async () => { try { const r = await fetch("/api/state"); const d = await r.json(); S.info = d.info; dirty = true; } catch (e) {} }, 4000);
+setInterval(async () => { try { const d = await (await fetch("/api/state")).json(); S.info = d.info; dirty = true; } catch (e) {} }, 4000);
 
-// ---------------------------------------------------------------- helpers
-const mmss = (t) => { t = Math.max(0, Math.round(t)); const m = Math.floor(t / 60), s = t % 60; return `${m}:${String(s).padStart(2, "0")}`; };
 const fmt = (v, d = 1) => (v == null || !isFinite(v)) ? "–" : Number(v).toFixed(d);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
-function nice(lo, hi, n = 5) {
+function nice(lo, hi, n = 4) {
   const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
   const step = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((s) => s >= step0);
-  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(+v.toFixed(6));
-  return ticks;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6)); return out;
 }
-function decimate(arr, max) { if (arr.length <= max) return arr; const k = Math.ceil(arr.length / max); return arr.filter((_, i) => i % k === 0 || i === arr.length - 1); }
+function dayLabel(d) { const dt = new Date(Date.UTC(2026, 9, 1) + d * 864e5); return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }); }
 function lastEvent(kinds) { for (let i = S.events.length - 1; i >= 0; i--) if (kinds.includes(S.events[i].kind)) return S.events[i]; return null; }
+function fieldCrop(i) { return S.fields ? S.fields[i].crop : (S.plan && S.plan.fields ? S.plan.fields[i].crop : null); }
 
-// ---------------------------------------------------------------- temperature chart
-const TH = 470, FH = 110, PAD = { l: 44, r: 16, t: 26, b: 26 };
-let xScale = null;
-function drawTemp() {
-  const svg = $("tempSvg"); const W = svg.clientWidth || 800; svg.setAttribute("viewBox", `0 0 ${W} ${TH}`); svg.setAttribute("height", TH);
-  svg.innerHTML = "";
-  const samples = S.samples;
-  if (!samples.length) { const t = el("text", { x: W / 2, y: TH / 2, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 14 }, svg); t.textContent = "Start a run to watch the agent learn the rig."; xScale = null; return; }
-  const t0 = samples[0].t; let t1 = samples[samples.length - 1].t;
-  const fc = S.forecasts.length ? S.forecasts[S.forecasts.length - 1] : null;
-  const showAhead = fc && fc.t[fc.t.length - 1] > t1;
-  const tEnd = Math.max(t1 + 60, showAhead ? Math.min(fc.t[fc.t.length - 1], t1 + 900) : t1 + 60);
-  let lo = Infinity, hi = -Infinity;
-  for (const s of samples) { lo = Math.min(lo, s.T_obj, s.T_amb); hi = Math.max(hi, s.T_obj); if (s.hi != null) hi = Math.max(hi, s.hi); }
-  const target = S.status.goal ? S.status.goal.target_C : null;
-  if (target) { lo = Math.min(lo, target); hi = Math.max(hi, target); }
-  if (showAhead) for (let i = 0; i < fc.t.length; i++) if (fc.t[i] >= t1 && fc.t[i] <= tEnd) { hi = Math.max(hi, fc.hi[i]); lo = Math.min(lo, fc.lo[i]); }
-  lo = Math.floor(lo - 1); hi = Math.ceil(hi + 1);
-  const x = (t) => PAD.l + (t - t0) / (tEnd - t0) * (W - PAD.l - PAD.r);
-  const y = (v) => PAD.t + (hi - v) / (hi - lo) * (TH - PAD.t - PAD.b);
-  xScale = { x, t0, tEnd, W };
-  // experiment spans
-  const starts = {};
-  for (const e of S.events) {
-    if (e.kind === "experiment_start") starts[e.data.experiment_id] = e;
-    if (e.kind === "experiment_result" && starts[e.data.experiment_id]) {
-      const a = e.data.t_start, b = e.data.t_end;
-      el("rect", { x: x(a), y: PAD.t, width: Math.max(1, x(b) - x(a)), height: TH - PAD.t - PAD.b, fill: "var(--span)" }, svg);
-      const lab = el("text", { x: x(a) + 4, y: PAD.t - 8, fill: "var(--ink-3)", "font-size": 11.5 }, svg);
-      lab.textContent = `${e.data.experiment_id} ${e.data.name}`.slice(0, Math.max(4, Math.floor((x(b) - x(a)) / 6.5)));
-    }
+// ------------------------------------------------------------------ farm tiles
+function drawFarm() {
+  const last = S.days[S.days.length - 1];
+  const harvest = S.status.harvest || {};
+  const anomaly = S.status.anomaly;
+  const html = FIELD_IDS.map((id, i) => {
+    const crop = fieldCrop(i);
+    const fr = last ? last.fields[i] : null;
+    const h = harvest[id];
+    let note = "", cls = "";
+    if (anomaly && anomaly.field === id) { note = `⚠ ${anomaly.signal_label} ${anomaly.direction}`; cls = "bad"; }
+    else if (h) { note = `Harvested ${fmt(h.yield_t_ha, 1)} t/ha`; cls = "good"; }
+    else if (crop && S.fields && last && last.day < S.fields[i].sow) note = `Sowing ${dayLabel(S.fields[i].sow)}`;
+    const ccObs = lastCc(i);
+    const bar = (lab, obs, pred, max, unit, digits) => `<div class="bar"><span>${lab}</span><div class="track">` +
+      (obs != null ? `<span style="width:${Math.min(100, obs / max * 100)}%"></span>` : "") +
+      (pred != null ? `<i style="left:calc(${Math.min(100, pred / max * 100)}% - 1px)"></i>` : "") +
+      `</div><span class="num">${obs != null ? fmt(obs, digits) + unit : "–"}</span></div>`;
+    const bars = fr ? bar("Canopy", ccObs, fr.cc_pred, 1, "", 2) + bar("Moisture", fr.sw_obs, fr.sw_pred, 0.35, "", 2) + bar("Salinity", fr.ec_obs, fr.ec_pred, 16, "", 1) :
+      `<div class="bar"><span>Soil</span><span style="grid-column: 2 / 4">${SOILS[i]}</span></div>`;
+    return `<div class="tile ${i === sel ? "sel" : ""} ${anomaly && anomaly.field === id ? "alarm" : ""}" tabindex="0" role="button" data-i="${i}" aria-pressed="${i === sel}">
+      <div class="top"><span>${id} · ${FIELD_NAMES[i]}</span><span>${S.fields ? "" : ""}</span></div>
+      <div class="crop">${crop ? CROP_LABEL[crop] : (S.fields ? "Fallow" : "–")}</div>
+      <div class="bars">${bars}</div><div class="note ${cls}">${esc(note)}</div></div>`;
+  }).join("");
+  $("farm").innerHTML = html;
+  for (const t of document.querySelectorAll(".tile")) {
+    t.onclick = () => { sel = +t.dataset.i; dirty = true; lastScene = null; };
+    t.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.click(); } };
   }
-  // grid + axes
-  for (const v of nice(lo, hi, 5)) {
-    el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }, svg);
-    const t = el("text", { x: PAD.l - 8, y: y(v) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = v + "°";
-  }
-  const xt = nice(t0 / 60, tEnd / 60, Math.max(3, Math.floor(W / 110)));
-  for (const m of xt) { const t = el("text", { x: x(m * 60), y: TH - 6, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = m + " min"; }
-  el("line", { x1: PAD.l, x2: W - PAD.r, y1: TH - PAD.b, y2: TH - PAD.b, stroke: "var(--axis)" }, svg);
-  // forecast ahead
-  if (showAhead) {
-    const idx = []; for (let i = 0; i < fc.t.length; i++) if (fc.t[i] >= t1 - 5 && fc.t[i] <= tEnd) idx.push(i);
-    if (idx.length > 1) {
-      let d = idx.map((i, k) => `${k ? "L" : "M"}${x(fc.t[i])},${y(fc.hi[i])}`).join("") + idx.slice().reverse().map((i) => `L${x(fc.t[i])},${y(fc.lo[i])}`).join("") + "Z";
-      el("path", { d, fill: "var(--belief-ahead)" }, svg);
-      el("path", { d: idx.map((i, k) => `${k ? "L" : "M"}${x(fc.t[i])},${y(fc.mean[i])}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 1.5, "stroke-dasharray": "4 4", opacity: 0.8 }, svg);
-      const iL = idx[idx.length - 1];
-      const lab = el("text", { x: Math.min(x(fc.t[iL]) - 4, W - PAD.r - 4), y: Math.min(y(fc.lo[iL]) + 16, TH - PAD.b - 6), "text-anchor": "end", fill: "var(--belief)", "font-size": 11.5 }, svg);
-      lab.textContent = "forecast for " + fc.label;
-    }
-  }
-  // live model band
-  const ds = decimate(samples, 1600);
-  const runs = []; let cur = [];
-  for (const s of ds) { if (s.pred != null) cur.push(s); else if (cur.length) { runs.push(cur); cur = []; } }
-  if (cur.length) runs.push(cur);
-  for (const r of runs) {
-    if (r.length < 2) continue;
-    const d = r.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.hi)}`).join("") + r.slice().reverse().map((s) => `L${x(s.t)},${y(s.lo)}`).join("") + "Z";
-    el("path", { d, fill: "var(--belief-band)" }, svg);
-    el("path", { d: r.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.pred)}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 1.5 }, svg);
-  }
-  // target
-  if (target) {
-    el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(target), y2: y(target), stroke: "var(--ink)", "stroke-width": 1.2, "stroke-dasharray": "6 5", opacity: 0.7 }, svg);
-    const t = el("text", { x: PAD.l + 6, y: y(target) - 6, fill: "var(--ink-2)", "font-size": 11.5 }, svg); t.textContent = `target ${target} °C`;
-  }
-  // room and measured
-  el("path", { d: ds.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.T_amb)}`).join(""), fill: "none", stroke: "var(--room)", "stroke-width": 1.5 }, svg);
-  el("path", { d: ds.map((s, k) => `${k ? "L" : "M"}${x(s.t)},${y(s.T_obj)}`).join(""), fill: "none", stroke: "var(--world)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
-  const last = samples[samples.length - 1];
-  el("circle", { cx: x(last.t), cy: y(last.T_obj), r: 4, fill: "var(--world)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
-  // markers: hidden changes (sim) and detected anomalies
-  for (const p of S.perturbations) markerLine(svg, x(p.t), "var(--ink-2)", "4 3", changeLabel(p.kind) + " (hidden from agent)", TH, 0);
-  for (const e of S.events) if (e.kind === "anomaly") markerLine(svg, x(e.data.t_detected), "var(--critical)", null, "⚠ " + (e.data.kind === "scene_change" ? "camera saw a change" : "prediction failed"), TH, 1);
 }
-function markerLine(svg, X, color, dash, text, H, row) {
-  const a = { x1: X, x2: X, y1: PAD.t, y2: H - PAD.b, stroke: color, "stroke-width": 1.5 }; if (dash) a["stroke-dasharray"] = dash;
-  el("line", a, svg);
-  const t = el("text", { x: X + 5, y: PAD.t + 14 + row * 15, fill: color === "var(--critical)" ? "var(--critical-ink)" : "var(--ink-2)", "font-size": 11.5 }, svg); t.textContent = text;
+function lastCc(i) { for (let k = S.days.length - 1; k >= 0; k--) if (S.days[k].fields[i].cc_obs != null) return S.days[k].fields[i].cc_obs; return null; }
+
+// ------------------------------------------------------------------ people fed
+function drawFed() {
+  const st = S.status, res = st.result, proj = S.projections, plan = S.plan;
+  let p10 = null, p50 = null, by = null, lim = null, label = "";
+  if (res) { p10 = res.people_fed; by = res.by_nutrient; lim = res.limiting; label = "harvested"; }
+  else if (proj.length) { const p = proj[proj.length - 1]; p10 = p.people_p10; p50 = p.people_p50; by = p.by_nutrient_p50; label = "bad-year projection"; }
+  else if (plan) { p10 = plan.people_p10; p50 = plan.people_p50; by = plan.by_nutrient_p50; lim = plan.limiting; label = "plan, bad year"; }
+  $("fedBig").innerHTML = p10 != null ? `${Math.round(p10)}<small>people</small>` : "–";
+  $("fedSub").textContent = res ? "Fed for a year by this season's harvest (the scarcest of calories, protein and vitamin A)." :
+    (p10 != null ? `${label}: 10th percentile ${Math.round(p10)}, median ${Math.round(p50 ?? p10)}. The scarcest of calories, protein and vitamin A counts.` :
+      "In a bad year (10th percentile): the scarcest of calories, protein and vitamin A.");
+  if (by) {
+    if (!lim) lim = Object.entries(by).sort((a, b) => a[1] - b[1])[0][0];
+    const mx = Math.max(...Object.values(by));
+    const names = { kcal: "Calories", protein_g: "Protein", vitA_ug: "Vitamin A" };
+    $("nutr").innerHTML = Object.entries(by).map(([k, v]) => `<div class="n ${k === lim ? "lim" : ""}"><span>${names[k]}${k === lim ? " ·" : ""}</span>
+      <div class="t"><span style="width:${Math.min(100, v / mx * 100)}%"></span></div><span class="num">${Math.round(v)}</span></div>`).join("") +
+      `<div class="sub" style="margin:2px 0 0">People each nutrient alone could feed; the darkest bar is the limit.</div>`;
+  } else $("nutr").innerHTML = "";
+  // sparkline of projections
+  const svg = $("fedSvg"); const W = svg.clientWidth || 300, H = 70; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = "";
+  if (proj.length > 1) {
+    const lo = Math.min(...proj.map((p) => p.people_p10)) * 0.97, hi = Math.max(...proj.map((p) => p.people_p50)) * 1.02;
+    const x = (d) => 4 + d / 272 * (W - 40), y = (v) => 6 + (hi - v) / (hi - lo) * (H - 18);
+    el("path", { d: proj.map((p, k) => `${k ? "L" : "M"}${x(p.day)},${y(p.people_p50)}`).join("") + proj.slice().reverse().map((p) => `L${x(p.day)},${y(p.people_p10)}`).join("") + "Z", fill: "var(--belief-band)" }, svg);
+    el("path", { d: proj.map((p, k) => `${k ? "L" : "M"}${x(p.day)},${y(p.people_p10)}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 2 }, svg);
+    const t = el("text", { x: W - 34, y: y(proj[proj.length - 1].people_p10) + 4, fill: "var(--ink-3)", "font-size": 11 }, svg); t.textContent = "P10";
+    for (const e of S.events) if (e.kind === "anomaly") el("line", { x1: x(e.data.detected_day), x2: x(e.data.detected_day), y1: 4, y2: H - 10, stroke: "var(--critical)", "stroke-width": 1.5 }, svg);
+  }
+  const m = (id, used, tot, unit, digits = 0) => {
+    $(id).textContent = tot ? `${Number(used || 0).toLocaleString(undefined, { maximumFractionDigits: digits })} of ${Number(tot).toLocaleString()} ${unit}` : "–";
+    $(id + "b").style.width = tot ? Math.min(100, (used || 0) / tot * 100) + "%" : "0";
+  };
+  m("mW", st.water_used_m3, st.water_quota_m3, "m³"); m("mE", st.energy_used_kwh, st.energy_kwh, "kWh");
+  m("mP", st.plots_used, st.plots_budget, ""); m("mT", st.tests_used, st.tests_budget, "");
 }
-function changeLabel(k) { return { fan_moved: "fan moved", fan_restored: "fan put back", heater_drift: "heater drift", ambient_step: "room warmed" }[k] || k; }
 
-// hover on temperature chart
-$("tempChart").addEventListener("mousemove", (ev) => {
-  if (!xScale || !S.samples.length) return;
-  const svg = $("tempSvg"), rect = svg.getBoundingClientRect();
-  const px = (ev.clientX - rect.left) * (xScale.W / rect.width);
-  const t = xScale.t0 + (px - PAD.l) / (xScale.W - PAD.l - PAD.r) * (xScale.tEnd - xScale.t0);
-  let best = null, bd = Infinity;
-  for (let i = S.samples.length - 1; i >= 0; i -= Math.max(1, Math.floor(S.samples.length / 3000))) { const d = Math.abs(S.samples[i].t - t); if (d < bd) { bd = d; best = S.samples[i]; } }
-  if (!best || bd > 120) { $("tempTip").style.display = "none"; return; }
-  const tip = $("tempTip");
-  tip.innerHTML = `<b class="num">${mmss(best.t)}</b>` +
-    `<div class="row"><span><span class="sw" style="background:var(--world)"></span>Measured</span><span class="num">${fmt(best.T_obj, 2)} °C</span></div>` +
-    (best.pred != null ? `<div class="row"><span><span class="sw" style="background:var(--belief)"></span>Predicted</span><span class="num">${fmt(best.pred, 2)} °C</span></div><div class="row"><span style="color:var(--ink-3)">90% band</span><span class="num">${fmt(best.lo, 1)}–${fmt(best.hi, 1)}</span></div>` : "") +
-    `<div class="row"><span><span class="sw" style="background:var(--room)"></span>Room</span><span class="num">${fmt(best.T_amb, 2)} °C</span></div>` +
-    `<div class="row"><span><span class="sw" style="background:var(--control)"></span>Fan</span><span class="num">${Math.round(best.fan_duty * 100)}%</span></div>` +
-    `<div class="row"><span style="color:var(--ink-3)">Heater</span><span class="num">${best.heater_w} W</span></div>`;
-  tip.style.display = "block";
-  const cx = ev.clientX - rect.left;
-  tip.style.left = (cx > rect.width - 200 ? cx - 190 : cx + 14) + "px"; tip.style.top = "30px";
-  let cross = svg.querySelector(".cross"); if (!cross) cross = el("line", { class: "cross", stroke: "var(--ink-3)", "stroke-width": 1 }, svg);
-  const X = xScale.x(best.t); cross.setAttribute("x1", X); cross.setAttribute("x2", X); cross.setAttribute("y1", PAD.t); cross.setAttribute("y2", TH - PAD.b);
-});
-$("tempChart").addEventListener("mouseleave", () => { $("tempTip").style.display = "none"; const c = $("tempSvg").querySelector(".cross"); if (c) c.remove(); });
-
-// ---------------------------------------------------------------- fan chart
-function drawFan() {
-  const svg = $("fanSvg"); const W = svg.clientWidth || 800; svg.setAttribute("viewBox", `0 0 ${W} ${FH}`); svg.setAttribute("height", FH);
-  svg.innerHTML = ""; if (!xScale || !S.samples.length) return;
-  const x = xScale.x, y = (v) => 8 + (1 - v) * (FH - 26);
-  for (const v of [0, 0.5, 1]) {
+// ------------------------------------------------------------------ field charts
+const PAD = { l: 42, r: 12, t: 8, b: 20 };
+let xs = null;
+function series(key) { return S.days.map((d) => ({ day: d.day, f: d.fields[sel] })); }
+function bandChart(svgId, H, keyObs, keyPred, keyLo, keyHi, opts = {}) {
+  const svg = $(svgId); const W = svg.clientWidth || 700; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = "";
+  const rows = S.days.map((d) => ({ day: d.day, f: d.fields[sel] }));
+  const x = (d) => PAD.l + d / 272 * (W - PAD.l - PAD.r);
+  if (!rows.length) { const t = el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 13 }, svg); t.textContent = S.fields ? "Waiting for the first day." : "The season hasn't started."; return null; }
+  let lo = opts.min ?? Infinity, hi = opts.max ?? -Infinity;
+  for (const r of rows) { for (const k of [keyObs, keyLo, keyHi]) { const v = r.f[k]; if (v != null) { if (opts.min == null) lo = Math.min(lo, v); if (opts.max == null) hi = Math.max(hi, v); } } }
+  if (!isFinite(lo)) lo = 0; if (!isFinite(hi) || hi <= lo) hi = lo + 1;
+  const pad = (hi - lo) * 0.08; if (opts.min == null) lo -= pad; if (opts.max == null) hi += pad;
+  const y = (v) => PAD.t + (hi - v) / (hi - lo) * (H - PAD.t - PAD.b);
+  for (const v of nice(lo, hi, 3)) {
     el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v), stroke: "var(--grid)" }, svg);
-    const t = el("text", { x: PAD.l - 8, y: y(v) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11.5, class: "num" }, svg); t.textContent = v * 100 + "%";
+    const t = el("text", { x: PAD.l - 6, y: y(v) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11, class: "num" }, svg); t.textContent = v;
   }
-  const ds = decimate(S.samples, 1600);
-  let d = ""; let prev = null;
-  for (const s of ds) { d += prev == null ? `M${x(s.t)},${y(s.fan_duty)}` : `L${x(s.t)},${y(prev)}L${x(s.t)},${y(s.fan_duty)}`; prev = s.fan_duty; }
-  el("path", { d: d + `L${x(ds[ds.length - 1].t)},${y(0)}L${x(ds[0].t)},${y(0)}Z`, fill: "color-mix(in srgb, var(--control) 14%, transparent)" }, svg);
-  el("path", { d, fill: "none", stroke: "var(--control)", "stroke-width": 1.5 }, svg);
+  for (const [d, m] of MONTH_STARTS) { const t = el("text", { x: x(d) + 2, y: H - 5, fill: "var(--ink-3)", "font-size": 11 }, svg); t.textContent = m; el("line", { x1: x(d), x2: x(d), y1: H - PAD.b, y2: H - PAD.b + 4, stroke: "var(--axis)" }, svg); }
+  el("line", { x1: PAD.l, x2: W - PAD.r, y1: H - PAD.b, y2: H - PAD.b, stroke: "var(--axis)" }, svg);
+  if (S.fields && S.fields[sel].crop) { const s0 = S.fields[sel].sow; el("rect", { x: x(s0), y: PAD.t, width: Math.max(0, x(272) - x(s0)), height: H - PAD.t - PAD.b, fill: "var(--span)" }, svg); }
+  if (keyLo) {
+    const pts = rows.filter((r) => r.f[keyLo] != null);
+    if (pts.length > 1) {
+      el("path", { d: pts.map((r, k) => `${k ? "L" : "M"}${x(r.day)},${y(r.f[keyHi])}`).join("") + pts.slice().reverse().map((r) => `L${x(r.day)},${y(r.f[keyLo])}`).join("") + "Z", fill: "var(--belief-band)" }, svg);
+      el("path", { d: pts.map((r, k) => `${k ? "L" : "M"}${x(r.day)},${y(r.f[keyPred])}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 1.5 }, svg);
+    }
+  }
+  if (opts.points) {
+    for (const r of rows) if (r.f[keyObs] != null) el("circle", { cx: x(r.day), cy: y(r.f[keyObs]), r: 3, fill: "var(--world)", stroke: "var(--surface)", "stroke-width": 1 }, svg);
+  } else {
+    const pts = rows.filter((r) => r.f[keyObs] != null);
+    el("path", { d: pts.map((r, k) => `${k ? "L" : "M"}${x(r.day)},${y(r.f[keyObs])}`).join(""), fill: "none", stroke: "var(--world)", "stroke-width": 1.6 }, svg);
+  }
+  markers(svg, x, H);
+  return { x, y, W, lo, hi };
 }
-
-// ---------------------------------------------------------------- k(u) chart
-function drawK() {
-  const svg = $("kSvg"); const W = svg.clientWidth || 340, H = 170; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
-  svg.innerHTML = "";
-  const fits = S.fits;
-  if (!fits.length) { const t = el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 13 }, svg); t.textContent = "No model fitted yet."; $("rankTbl").innerHTML = ""; return; }
-  const f = fits[fits.length - 1], c = f.k_curve;
-  // the model trusted before the latest anomaly, for comparison
-  let prev = null; const an = lastEvent(["anomaly"]);
-  if (an) for (let i = fits.length - 1; i >= 0; i--) if (fits[i].t < an.data.t_detected) { prev = fits[i]; break; }
-  const P = { l: 46, r: 10, t: 10, b: 24 };
-  let hi = Math.max(...c.k_hi); if (prev) hi = Math.max(hi, ...prev.k_curve.k_med); hi *= 1.08;
-  const x = (u) => P.l + u * (W - P.l - P.r), y = (k) => P.t + (1 - k / hi) * (H - P.t - P.b);
-  for (const v of nice(0, hi * 1000, 4)) {
-    el("line", { x1: P.l, x2: W - P.r, y1: y(v / 1000), y2: y(v / 1000), stroke: "var(--grid)" }, svg);
-    const t = el("text", { x: P.l - 6, y: y(v / 1000) + 4, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11, class: "num" }, svg); t.textContent = v;
-  }
-  for (const u of [0, 0.25, 0.5, 0.75, 1]) { const t = el("text", { x: x(u), y: H - 6, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11, class: "num" }, svg); t.textContent = u * 100 + "%"; }
-  const yl = el("text", { x: 4, y: 10, fill: "var(--ink-3)", "font-size": 11 }, svg); yl.textContent = "×10⁻³/s";
-  const band = c.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(c.k_hi[i])}`).join("") + c.u.slice().reverse().map((u, i) => `L${x(u)},${y(c.k_lo[c.u.length - 1 - i])}`).join("") + "Z";
-  el("path", { d: band, fill: "var(--belief-band)" }, svg);
-  if (prev) {
-    el("path", { d: prev.k_curve.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(prev.k_curve.k_med[i])}`).join(""), fill: "none", stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
-    const n = prev.k_curve.u.length - 1;
-    const t = el("text", { x: x(1) - 2, y: y(prev.k_curve.k_med[n]) - 6, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11 }, svg); t.textContent = "before the change";
-  }
-  el("path", { d: c.u.map((u, i) => `${i ? "L" : "M"}${x(u)},${y(c.k_med[i])}`).join(""), fill: "none", stroke: "var(--belief)", "stroke-width": 2 }, svg);
-  // measured operating points: steady stretches would be ideal; mark experiment duties as ticks
-  $("modelSub").textContent = `Best explanation: ${f.about}. Fit error ${fmt(f.rmse_K, 2)} K over ${f.n_points} points.`;
-  const rk = f.ranking || [];
-  $("rankTbl").innerHTML = `<tr><th>Hypothesis for airflow</th><th>Fit error</th><th>Evidence against (ΔAIC)</th></tr>` +
-    rk.map((r, i) => `<tr class="${i ? "" : "best"}"><td>${esc(r.structure.replace("_", " "))}</td><td class="num">${fmt(r.rmse_K, 2)} K</td><td class="num">${i ? fmt(r.delta_aic, 1) : "best"}</td></tr>`).join("");
+function markers(svg, x, H) {
+  const id = FIELD_IDS[sel];
+  for (const p of S.perturbations) if (p.field === id || p.field === "all") el("line", { x1: x(p.day), x2: x(p.day), y1: PAD.t, y2: H - PAD.b, stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }, svg);
+  for (const e of S.events) if (e.kind === "anomaly" && e.data.field === id) el("line", { x1: x(e.data.detected_day), x2: x(e.data.detected_day), y1: PAD.t, y2: H - PAD.b, stroke: "var(--critical)", "stroke-width": 1.8 }, svg);
 }
+function drawIrr() {
+  const svg = $("irrSvg"); const W = svg.clientWidth || 700, H = 92; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = "";
+  if (!S.days.length) return;
+  const x = (d) => PAD.l + d / 272 * (W - PAD.l - PAD.r);
+  const mx = Math.max(12, ...S.days.map((d) => d.fields[sel].irr_mm));
+  const y = (v) => PAD.t + (1 - v / mx) * (H - PAD.t - PAD.b);
+  const bw = Math.max(1, (W - PAD.l - PAD.r) / 273 - 0.6);
+  for (const d of S.days) { const v = d.fields[sel].irr_mm; if (v > 0) el("rect", { x: x(d.day), y: y(Math.min(v, mx)), width: bw, height: Math.max(0, H - PAD.b - y(Math.min(v, mx))), fill: "var(--water)", opacity: 0.75 }, svg); }
+  const tmin = 10, tmax = 52, yt = (t) => PAD.t + (tmax - t) / (tmax - tmin) * (H - PAD.t - PAD.b);
+  el("path", { d: S.days.map((d, k) => `${k ? "L" : "M"}${x(d.day)},${yt(d.tmax)}`).join(""), fill: "none", stroke: "var(--room)", "stroke-width": 1.2 }, svg);
+  const t1 = el("text", { x: PAD.l - 6, y: y(mx) + 9, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 11 }, svg); t1.textContent = Math.round(mx) + " mm";
+  const t2 = el("text", { x: W - PAD.r, y: yt(45) - 3, "text-anchor": "end", fill: "var(--room)", "font-size": 11 }, svg); t2.textContent = "max temp (10–52 °C)";
+  for (const [d, m] of MONTH_STARTS) { const t = el("text", { x: x(d) + 2, y: H - 5, fill: "var(--ink-3)", "font-size": 11 }, svg); t.textContent = m; }
+  markers(svg, x, H);
+}
+function drawField() {
+  const id = FIELD_IDS[sel], crop = fieldCrop(sel);
+  $("fieldTitle").textContent = `${id} · ${FIELD_NAMES[sel]} · ${crop ? CROP_LABEL[crop] : "Fallow"}`;
+  let sub = "Prediction from the agent's model (blue band) against the field's sensors and drone (orange).";
+  if (S.fields) { const f = S.fields[sel]; if (f.crop) sub = `Sown ${dayLabel(f.sow)}, irrigation at ${Math.round(f.irr * 100)}% of crop demand, ${Math.round(f.desal * 100)}% desalinated water, ${Math.round(f.nfert)} kg N/ha. Soil: ${SOILS[sel]}. ` + sub; }
+  $("fieldSub").textContent = sub;
+  xs = bandChart("ccSvg", 150, "cc_obs", "cc_pred", "cc_lo", "cc_hi", { min: 0, max: 1, points: true });
+  bandChart("swSvg", 120, "sw_obs", "sw_pred", "sw_lo", "sw_hi");
+  bandChart("ecSvg", 120, "ec_obs", "ec_pred", "ec_lo", "ec_hi", { min: 0 });
+  drawIrr();
+}
+$("ccSvg").parentElement.addEventListener("mousemove", (ev) => {
+  if (!xs || !S.days.length) return;
+  const svg = $("ccSvg"), r = svg.getBoundingClientRect();
+  const px = (ev.clientX - r.left) * (xs.W / r.width);
+  const day = Math.round((px - PAD.l) / (xs.W - PAD.l - PAD.r) * 272);
+  const d = S.days.find((q) => q.day === day); if (!d) { $("ccTip").style.display = "none"; return; }
+  const f = d.fields[sel];
+  $("ccTip").innerHTML = `<b>${d.date}</b><div class="row2"><span>Canopy predicted</span><span class="num">${fmt(f.cc_pred, 2)}</span></div>` +
+    (f.cc_obs != null ? `<div class="row2"><span>Canopy measured</span><span class="num">${fmt(f.cc_obs, 2)}</span></div>` : "") +
+    `<div class="row2"><span>Moisture</span><span class="num">${fmt(f.sw_obs, 3)} / ${fmt(f.sw_pred, 3)}</span></div>` +
+    `<div class="row2"><span>Salinity</span><span class="num">${fmt(f.ec_obs, 1)} / ${fmt(f.ec_pred, 1)}</span></div>` +
+    `<div class="row2"><span>Irrigation</span><span class="num">${fmt(f.irr_mm, 1)} mm</span></div><div class="row2"><span>Max temp</span><span class="num">${d.tmax} °C</span></div>`;
+  const cx = ev.clientX - r.left; $("ccTip").style.display = "block"; $("ccTip").style.left = (cx > r.width - 190 ? cx - 180 : cx + 12) + "px"; $("ccTip").style.top = "24px";
+});
+$("ccSvg").parentElement.addEventListener("mouseleave", () => { $("ccTip").style.display = "none"; });
 
-// ---------------------------------------------------------------- camera
+// ------------------------------------------------------------------ drone view
+let lastScene = null;
 function drawCam() {
-  const sc = S.scene; const box = $("cam");
-  if (!sc || !sc.image) { box.innerHTML = `<div class="empty">The agent hasn't looked at the bench yet.</div>`; $("camBadges").innerHTML = ""; $("camAim").textContent = ""; return; }
+  const sc = S.scene[FIELD_IDS[sel]];
+  if (sc === lastScene) return; lastScene = sc;
+  if (!sc) { $("cam").innerHTML = `<div class="empty">The agent hasn't looked at ${FIELD_IDS[sel]} yet.</div>`; $("camBadges").innerHTML = ""; $("camKv").innerHTML = ""; return; }
   const [W, H] = sc.image_size || [640, 400];
+  const col = { plant: "var(--good)", salt: "#d9d4c4", damage: "var(--critical)" };
   let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">`;
-  for (const o of sc.objects || []) {
-    const [x1, y1, x2, y2] = o.box; const col = o.label === "fan" ? "var(--control)" : "var(--belief)";
-    svg += `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${col}" stroke-width="3" rx="4"/>`;
-    svg += `<rect x="${x1}" y="${y1 - 22}" width="${o.label.length * 9 + 16}" height="20" rx="4" fill="${col}"/><text x="${x1 + 8}" y="${y1 - 7}" fill="#fff" font-size="14" font-family="IBM Plex Sans, system-ui">${esc(o.label)}</text>`;
-  }
-  svg += "</svg>";
-  box.innerHTML = `<img alt="Top-down camera view of the bench" src="${sc.image}">` + svg;
-  const b = [];
-  b.push(`<span class="badge">${esc(sc.source || "")}</span>`);
-  if (sc.changed_vs_reference) b.push(`<span class="badge alert">⚠ Layout changed: ${esc((sc.changes || []).join("; "))}</span>`);
-  else if (sc.reference) b.push(`<span class="badge ok">Reference layout recorded</span>`);
-  else b.push(`<span class="badge ok">Matches the reference layout</span>`);
+  for (const o of sc.objects || []) { const [x1, y1, x2, y2] = o.box; svg += `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${col[o.label] || "white"}" stroke-width="2" rx="3"/>`; }
+  $("cam").innerHTML = `<img alt="Drone view of field ${FIELD_IDS[sel]}" src="${sc.image}">` + svg + "</svg>";
+  const dg = sc.diagnosis || {};
+  const b = [`<span class="badge">${esc(sc.source || "")}</span>`];
+  if (dg.condition) b.push(`<span class="badge ${dg.condition === "healthy" ? "ok" : "alert"}">${esc(dg.condition.replace(/_/g, " "))}</span>`);
   $("camBadges").innerHTML = b.join("");
-  $("camAim").textContent = sc.aim ? `Seen at ${mmss(sc.t)}: ${sc.aim.description}` : `Seen at ${mmss(sc.t)}`;
-  $("camSub").textContent = (sc.source || "").includes("simulated") ? "Simulated perception: boxes come from the simulator's geometry because no API key is set." : "Objects found by SAM 3.1; fan aim judged by Muse Spark.";
+  $("camKv").innerHTML = `<dt>Seen</dt><dd>${dayLabel(sc.day)}</dd>` +
+    `<dt>Canopy, measured</dt><dd class="num" style="color:var(--world)">${fmt(sc.canopy_cover_measured, 2)}</dd>` +
+    `<dt>Canopy, predicted</dt><dd class="num" style="color:var(--belief)">${fmt(sc.canopy_cover_predicted, 2)} (${fmt(sc.canopy_cover_predicted_90pct?.[0], 2)}–${fmt(sc.canopy_cover_predicted_90pct?.[1], 2)})</dd>` +
+    `<dt>Plants counted</dt><dd class="num">${sc.plants_counted ?? "–"}</dd><dt>Salt crust patches</dt><dd class="num">${sc.salt_crust_patches ?? "–"}</dd>` +
+    `<dt>Damaged leaf spots</dt><dd class="num">${sc.damaged_leaf_spots ?? "–"}</dd>` + (dg.evidence ? `<dt>Evidence</dt><dd style="text-align:left">${esc(dg.evidence)}</dd>` : "");
 }
 
-// ---------------------------------------------------------------- figures
-function drawFigures() {
-  const st = S.status, last = S.samples[S.samples.length - 1];
-  $("fNow").innerHTML = last ? `${fmt(last.T_obj, 1)}<small>°C</small>` : "–";
-  $("fNowNote").textContent = last ? `room ${fmt(last.T_amb, 1)} °C · fan ${Math.round(last.fan_duty * 100)}% · heater ${last.heater_w} W` : "";
-  if (st.goal) {
-    const done = st.hold_done_s || 0, ok = st.hold_ok_s || 0, need = st.goal.hold_s;
-    $("fHold").innerHTML = `${Math.round(ok / 60 * 10) / 10}<small>of ${Math.round(need / 60)} min</small>`;
-    $("mHold").style.width = Math.min(100, ok / need * 100) + "%";
-    $("fHoldNote").textContent = done ? `${Math.round(ok / done * 100)}% of hold time within ${st.goal.tolerance_K} K of the ${st.goal.target_C} °C target` : `target ${st.goal.target_C} °C`;
-    const e = st.energy_J || {};
-    $("fTask").innerHTML = `${Math.round(e.task || 0)}<small>J of ${Math.round(st.task_budget_J)}</small>`;
-    $("mTask").style.width = Math.min(100, (e.task || 0) / st.task_budget_J * 100) + "%";
-    $("fTaskNote").textContent = "Fan energy while holding the target";
-    $("fExp").innerHTML = `${Math.round(e.exploration || 0)}<small>J of ${Math.round(st.exploration_budget_J)}</small>`;
-    $("mExp").style.width = Math.min(100, (e.exploration || 0) / st.exploration_budget_J * 100) + "%";
-    $("fExpNote").textContent = `${S.events.filter((x) => x.kind === "experiment_result").length} experiments so far`;
+// ------------------------------------------------------------------ trials and beliefs
+function drawTrials() {
+  if (!S.trials.length) { $("trials").innerHTML = `<p class="sub">No trials yet.</p>`; return; }
+  $("trials").innerHTML = S.trials.map((t) => {
+    const W = 180, H = 46, x = (d) => d / 272 * W, y = (v) => 4 + (1 - v) * (H - 8);
+    let p = t.days.map((d, k) => `${k ? "L" : "M"}${x(d)},${y(t.cc_pred_hi[k])}`).join("") + t.days.slice().reverse().map((d, k) => `L${x(d)},${y(t.cc_pred_lo[t.days.length - 1 - k])}`).join("") + "Z";
+    let dots = t.days.map((d, k) => `<circle cx="${x(d)}" cy="${y(t.cc_obs[k])}" r="1.8" fill="var(--world)"/>`).join("");
+    const [lo, hi] = t.predicted_yield_90pct;
+    return `<div class="plot"><div class="h"><b>${CROP_LABEL[t.crop]}</b><span>${t.plot === "saline" ? "saline plot" : "normal plot"}, sown ${dayLabel(t.sow)}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" height="${H}" aria-hidden="true"><path d="${p}" fill="var(--belief-band)"/>${dots}</svg>
+      <div><span style="color:var(--belief)">predicted ${fmt(lo, 1)}–${fmt(hi, 1)} t/ha</span> · <span style="color:var(--world)">measured ${fmt(t.measured_yield_t_ha, 1)}</span></div>
+      <div class="${t.prediction_held ? "ok-t" : "bad-t"}">${t.prediction_held ? "Prediction held" : "Prediction failed"}</div></div>`;
+  }).join("");
+}
+function drawForest() {
+  const b = S.beliefs; if (!b) { $("forest").innerHTML = ""; return; }
+  const crops = b.crops.filter((c) => c.plots > 0);
+  const show = crops.length ? crops : b.crops.slice(0, 4);
+  const range = { wp: [0.6, 1.4], cgc: [0.55, 1.45], heat: [-4.5, 4.5], salt: [-3, 3] };
+  const prior = { wp: [1, 0.12], cgc: [1, 0.15], heat: [0, 1.5], salt: [0, 1.0] };
+  let html = `<tr><th class="l">Crop</th><th class="l">Trait</th><th class="l">Belief (90%)</th><th>Mean</th><th>Plots</th></tr>`;
+  for (const c of show) {
+    TRAITS.forEach(([k, name, unit], j) => {
+      const tr = c.traits[k], [a, z] = range[k], W = 220, xx = (v) => Math.max(0, Math.min(W, (v - a) / (z - a) * W));
+      const pr = prior[k];
+      const svg = `<svg viewBox="0 0 ${W} 16" aria-hidden="true"><line x1="${xx(pr[0])}" x2="${xx(pr[0])}" y1="1" y2="15" stroke="var(--axis)"/>
+        <rect x="${xx(pr[0] - 1.645 * pr[1])}" y="5" width="${xx(pr[0] + 1.645 * pr[1]) - xx(pr[0] - 1.645 * pr[1])}" height="6" rx="3" fill="var(--grid)"/>
+        <rect x="${xx(tr.mean - 1.645 * tr.sd)}" y="6" width="${Math.max(2, xx(tr.mean + 1.645 * tr.sd) - xx(tr.mean - 1.645 * tr.sd))}" height="4" rx="2" fill="var(--belief)" opacity="0.55"/>
+        <circle cx="${xx(tr.mean)}" cy="8" r="3.5" fill="var(--belief)"/></svg>`;
+      html += `<tr>${j === 0 ? `<td class="l" rowspan="4">${esc(c.label)}</td>` : ""}<td class="l">${name}</td><td class="f">${svg}</td><td class="num">${k === "wp" || k === "cgc" ? "×" + fmt(tr.mean, 2) : (tr.mean >= 0 ? "+" : "") + fmt(tr.mean, 1) + " " + unit}</td>${j === 0 ? `<td class="num" rowspan="4">${c.plots}</td>` : ""}</tr>`;
+    });
   }
-  const p = S.plan;
-  $("fPrem").innerHTML = p ? `${Math.round(p.uncertainty_premium_J)}<small>J</small>` : "–";
-  $("fPremNote").textContent = p ? `Plan ${p.plan_id} needs ${Math.round(p.predicted_energy_J)} J; with a perfectly known model it would need ${Math.round(p.certainty_equivalent_energy_J)} J.` : "Extra fan energy a plan spends because the model is not certain.";
+  $("forest").innerHTML = html;
 }
 
-// ---------------------------------------------------------------- status sentence
+// ------------------------------------------------------------------ plan
+function drawPlan() {
+  const p = S.plan;
+  if (!p) { $("planSub").textContent = "No plan yet."; $("planTbl").innerHTML = ""; return; }
+  $("planSub").innerHTML = `Plan ${p.plan_id}: feeds <b>${Math.round(p.people_p10)}</b> people in a bad year (median ${Math.round(p.people_p50)}), limited by ${({ kcal: "calories", protein_g: "protein", vitA_ug: "vitamin A" })[p.limiting]}. ` +
+    `Water ${Number(p.water_p90_m3).toLocaleString()} m³ and energy ${Number(p.energy_p90_kwh).toLocaleString()} kWh in a dry year. ` +
+    `Uncertainty about the varieties costs ${fmt(p.cost_of_uncertainty_people, 0)} people.` + (p.untested_crops && p.untested_crops.length ? ` Untested crops: ${p.untested_crops.map((c) => CROP_LABEL[c]).join(", ")}.` : "");
+  $("planTbl").innerHTML = `<tr><th class="l">Field</th><th class="l">Crop</th><th>Sow</th><th>Irrigation</th><th>Desal water</th><th>Nitrogen</th><th>Yield t/ha (P10–P90)</th><th>People: calories</th><th>Protein</th><th>Vitamin A</th></tr>` +
+    p.fields.map((f, i) => f.crop ? `<tr><td class="l">${f.field} · ${FIELD_NAMES[i]}</td><td class="l">${CROP_LABEL[f.crop]}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="num">${Math.round(f.mgmt.irr * 100)}%</td><td class="num">${Math.round(f.mgmt.desal * 100)}%</td>
+      <td class="num">${Math.round(f.mgmt.nfert)} kg</td><td class="num">${fmt(f.yield_t_ha_p10_p50_p90[0], 1)}–${fmt(f.yield_t_ha_p10_p50_p90[2], 1)}</td>
+      <td class="num">${fmt(f.people_p50.kcal, 0)}</td><td class="num">${fmt(f.people_p50.protein_g, 0)}</td><td class="num">${fmt(f.people_p50.vitA_ug, 0)}</td></tr>` :
+      `<tr><td class="l">${f.field} · ${FIELD_NAMES[i]}</td><td class="l">Fallow</td><td colspan="8"></td></tr>`).join("");
+}
+
+// ------------------------------------------------------------------ status
 function drawStatus() {
   const st = S.status, line = $("statusline"); line.classList.remove("alert");
   const info = S.info || {};
-  const at = st.t != null ? `<span class="when num">at ${mmss(st.t)}</span>` : "";
   let msg;
-  if (!S.events.length) msg = info.running ? "Starting…" : "Ready. Choose an agent and start a run.";
-  else if (st.done) {
-    const end = lastEvent(["run_end"]); const d = end ? end.data : {};
-    msg = `Finished. Held the target for ${Math.round((d.hold_compliant_s || 0) / 60)} of ${Math.round((d.hold_done_s || 0) / 60)} min, using ${Math.round((d.energy_J || {}).task || 0)} J for the task and ${Math.round((d.energy_J || {}).exploration || 0)} J learning.`;
-  } else if (st.tripped) { msg = "Safety trip: heater off and fan at full."; line.classList.add("alert"); }
-  else if (st.anomaly) {
-    msg = st.anomaly.kind === "scene_change" ? "Investigating: the camera saw the setup change." : `Investigating: the heatsink ran ${st.anomaly.direction}.`;
-    line.classList.add("alert");
-  } else {
-    const e = lastEvent(["experiment_start", "experiment_result", "plan_execute", "plan_result", "model_update", "hypothesis", "plan", "conclusion"]);
-    if (!e) msg = "Getting oriented.";
-    else if (e.kind === "experiment_start") msg = `Running ${e.data.experiment_id}: ${esc(e.data.name)}, testing ${e.data.hypothesis_id}.`;
-    else if (e.kind === "plan_execute") { const p = S.plan; msg = `Holding the target with plan ${e.data.plan_id}` + (p ? `, fan at ${Math.round(p.phases[p.phases.length - 1].fan_duty * 100)}%.` : "."); }
-    else if (e.kind === "model_update") msg = `Updated the model: ${esc(e.data.adopted.structure.replace("_", " "))} fits best.`;
-    else if (e.kind === "hypothesis") msg = `New hypothesis ${e.data.id}: ${esc(e.data.statement)}`;
-    else if (e.kind === "plan") msg = `Planned ${e.data.plan_id}: ${Math.round(e.data.predicted_energy_J)} J predicted.`;
-    else msg = "Thinking about the next step…";
-  }
-  line.innerHTML = msg + " " + at;
-  const sim = info.simulated !== false;
-  $("moveFanBtn").disabled = !(info.running && sim);
-  $("speedSel").disabled = !sim;
-  $("foot").textContent = info.run_dir ? `Run folder: ${info.run_dir} · agent: ${info.agent}${sim ? " · simulated rig" : " · hardware rig"}` : "";
+  if (!S.events.length) msg = info.running ? "Starting…" : "Ready. Choose an agent and a farm, then start a run.";
+  else if (st.done && st.result) msg = `Season over. The harvest feeds ${Math.round(st.result.people_fed)} people for a year, using ${Number(st.result.water_used_m3).toLocaleString()} m³ of groundwater.`;
+  else if (st.anomaly) { msg = `Investigating ${st.anomaly.field}: ${st.anomaly.signal_label} ${st.anomaly.direction}.`; line.classList.add("alert"); }
+  else if (st.phase === "trials") { const e = lastEvent(["trial_start", "trial_result", "model_update", "plan", "hypothesis"]); msg = e && e.kind === "trial_start" ? `Growing ${e.data.plots.length} trial plots…` : "Designing trials to learn the local varieties."; }
+  else if (st.phase === "planning") msg = "Planning the season from what the trials showed.";
+  else if (st.phase === "season") msg = `Season running: ${st.date}.`;
+  else msg = "Harvest in.";
+  line.innerHTML = msg + (st.phase === "season" ? "" : st.date && st.phase !== "trials" && st.phase !== "planning" ? ` <span class="when">${st.date}</span>` : "");
+  $("changeBtn").disabled = !(info.running && st.phase === "season");
+  $("foot").textContent = info.run_dir ? `Run folder: ${info.run_dir} · agent: ${info.agent} · farm seed ${info.farm_seed}` : "";
 }
 
-// ---------------------------------------------------------------- notebook
+// ------------------------------------------------------------------ notebook
 function drawHyps() {
   const hs = (S.status.hypotheses || []);
-  if (!hs.length) { $("hyps").innerHTML = `<p class="sub">None yet.</p>`; return; }
-  $("hyps").innerHTML = hs.slice().reverse().map((h) => `
-    <div class="hyp"><div class="head"><span><span class="id">${h.id}</span> ${esc(h.statement)}</span><span class="state ${h.status}">${h.status}</span></div>
-    <p class="pred">Predicts: ${esc(h.prediction)}</p>
-    ${h.evidence.length ? `<p class="evidence">${esc(h.evidence[h.evidence.length - 1].text)}</p>` : `<p class="evidence">Refuted if: ${esc(h.falsified_if)}</p>`}</div>`).join("");
+  $("hyps").innerHTML = hs.length ? hs.slice().reverse().map((h) => `<div class="hyp"><div class="head"><span><span class="id">${h.id}</span> ${esc(h.statement)}</span><span class="state ${h.status}">${h.status}</span></div>
+    <p class="pred">Predicts: ${esc(h.prediction)}</p>${h.evidence.length ? `<p class="evidence">${esc(h.evidence[h.evidence.length - 1].text)}</p>` : `<p class="evidence">Refuted if: ${esc(h.falsified_if)}</p>`}</div>`).join("") : `<p class="sub">None yet.</p>`;
 }
-const KIND = {
-  hypothesis: ["Hypothesis", "science", "belief"], prediction: ["Prediction", "science", "belief"], experiment_start: ["Experiment", "science", ""],
-  experiment_result: ["Result", "science", "world"], model_update: ["Model update", "science", "belief"], conclusion: ["Conclusion", "science", ""],
-  plan: ["Plan", "science", "belief"], plan_execute: ["Plan started", "science", ""], plan_result: ["Plan result", "science", "world"],
-  plan_adjust: ["Plan adjusted", "science", ""], anomaly: ["Anomaly", "alarm", "alarm"], safety_trip: ["Safety trip", "alarm", "alarm"],
-  safety_block: ["Refused", "alarm", "alarm"], safety_guard: ["Guard stop", "alarm", "alarm"], scene: ["Camera", "science", ""],
-  agent_step: ["Agent", "agent", ""], run_start: ["Run started", "science", ""], run_end: ["Run ended", "science", ""],
-  scene_reference: ["Camera", "science", ""], experiment_options: ["Options", "science", ""], session: ["Session", "science", ""], idle: ["Hold", "science", ""],
-};
+const KIND = { hypothesis: ["Hypothesis", "science", "belief"], conclusion: ["Conclusion", "science", ""], trial_start: ["Trials sown", "science", ""],
+  trial_result: ["Trial harvest", "science", "world"], model_update: ["Model update", "science", "belief"], plan: ["Plan", "science", "belief"],
+  season_start: ["Season start", "science", ""], advance: ["Advance", "science", ""], anomaly: ["Anomaly", "alarm", "alarm"], field_test: ["Field test", "science", "world"],
+  look: ["Drone look", "science", ""], adjust: ["Field action", "science", ""], rebalance: ["Water re-plan", "science", "belief"], harvest: ["Harvest", "science", "world"],
+  season_result: ["Season result", "science", "world"], run_end: ["Run ended", "science", ""], run_start: ["Run started", "science", ""], anomaly_dismissed: ["Dismissed", "alarm", ""],
+  agent_step: ["Agent", "agent", ""], trial_options: ["Options", "science", ""], session: ["Session", "science", ""] };
 function summary(e) {
   const d = e.data;
   switch (e.kind) {
     case "hypothesis": return `<b>${d.id}</b> ${esc(d.statement)}`;
-    case "prediction": return `${d.experiment_id}: expects ${fmt(d.final_C, 2)} °C at the end (90%: ${fmt(d.final_90pct[0], 1)}–${fmt(d.final_90pct[1], 1)})`;
-    case "experiment_start": return `${d.experiment_id} ${esc(d.name)} for ${d.hypothesis_id}<div class="why">${esc(d.rationale)}</div>`;
-    case "experiment_result": return `${d.experiment_id} ${esc(d.name)}<div class="cmp"><span class="p">predicted ${fmt(d.predicted_final_C, 2)} °C</span><span class="m">measured ${fmt(d.measured_final_C, 2)} °C</span><span>${Math.round(d.coverage_90pct_band * 100)}% inside the band</span><span>${d.prediction_held ? "prediction held" : "prediction failed"}</span></div>`;
-    case "model_update": return `Adopted ${esc(d.adopted.structure.replace("_", " "))} (fit error ${fmt(d.adopted.rmse_K, 2)} K)${Object.keys(d.held || {}).length ? `, holding ${Object.keys(d.held).join(", ")} at their earlier values` : ""}${d.since_t != null ? `, using data since ${mmss(d.since_t)}` : ""}<div class="why">${esc(d.rationale)}</div>`;
     case "conclusion": return `<b>${d.hypothesis_id}</b> ${d.verdict}<div class="why">${esc(d.evidence)}</div>`;
-    case "plan": return `${d.plan_id}: ${d.phases.map((p) => `fan ${Math.round(p.fan_duty * 100)}% for ${Math.round(p.duration_s)} s`).join(", then ")}<div class="cmp"><span class="p">predicts ${Math.round(d.predicted_energy_J)} J</span><span>uncertainty costs ${Math.round(d.uncertainty_premium_J)} J</span></div>`;
-    case "plan_execute": return `${d.plan_id}<div class="why">${esc(d.rationale)}</div>`;
-    case "plan_result": return `${d.plan_id} ${d.status === "ok" ? "completed" : "interrupted"}: held ${Math.round(d.hold_compliant_s)} of ${Math.round(d.hold_done_s)} s, ${Math.round(d.task_energy_used_J)} J used${d.goal_complete ? ", goal complete" : ""}`;
-    case "plan_adjust": return `Fan ${Math.round(d.was * 100)}% → ${Math.round(d.fan_duty * 100)}% <div class="why">${esc(d.why)} (${fmt(d.measured_ambient_C, 1)} °C)</div>`;
-    case "anomaly": return `${d.kind === "scene_change" ? "Camera saw the layout change" : "Measurements left the model's band: " + esc(d.direction)} at ${mmss(d.t_detected)}, onset about ${mmss(d.onset_estimate_t)}`;
-    case "safety_trip": return `Heatsink reached ${fmt(d.T_obj, 1)} °C (limit ${d.limit}). ${esc(d.action)}`;
-    case "safety_block": return esc(d.why);
-    case "safety_guard": return `${d.experiment_id}: heatsink reached ${fmt(d.T_obj, 1)} °C, ${esc(d.action)}`;
-    case "scene": return `${esc(d.reason)}${d.changed_vs_reference ? ` — <b>changed</b>: ${esc((d.changes || []).join("; "))}` : ""}`;
-    case "scene_reference": return esc(d.note);
-    case "agent_step":
-      if (d.role === "agent") return `<b>${esc(d.text)}</b>`;
-      if (d.role === "tool_call") return `calls ${esc(d.text)}${d.args && (d.args.rationale || d.args.reason) ? `<div class="why">${esc(d.args.rationale || d.args.reason)}</div>` : ""}`;
-      if (d.role === "tool_result") return `${esc(d.text)} returned`;
-      return esc(d.text);
-    case "run_end": return `${esc(d.summary)}`;
-    case "run_start": return `Goal: keep ≤ ${d.goal.target_C} °C for ${Math.round(d.goal.hold_s / 60)} min within ${d.goal.task_budget_J} J`;
-    case "experiment_options": return `${d.options.length} candidate experiments compared`;
-    case "idle": return `fan ${Math.round(d.fan_duty * 100)}% for ${d.seconds} s`;
+    case "trial_start": return `${d.plots.length} plots: ${d.plots.map((p) => `${CROP_LABEL[p.crop]} (${p.plot}, ${dayLabel(p.sow)})`).join(", ")}<div class="why">${esc(d.rationale)}</div>`;
+    case "trial_result": { const held = d.plots.filter((p) => p.prediction_held).length; return `${d.round}: ${held} of ${d.plots.length} predictions held<div class="cmp">${d.plots.slice(0, 6).map((p) => `<span>${CROP_LABEL[p.crop]}: <span class="p">${p.predicted_yield_90pct[0]}–${p.predicted_yield_90pct[1]}</span> vs <span class="m">${p.measured_yield_t_ha}</span> t/ha</span>`).join("")}</div>`; }
+    case "model_update": return d.crops ? `Calibrated ${d.crops.map((c) => CROP_LABEL[c.crop]).join(", ")}<div class="why">${esc(d.rationale)}</div>` : `Learned ${esc(d.finding)} = ${d.value} in ${d.field} since ${dayLabel(d.since_day)}<div class="why">${esc(d.rationale)}</div>`;
+    case "plan": return `${d.plan_id}: ${Math.round(d.people_p10)} people in a bad year<div class="cmp">${d.fields.filter((f) => f.crop).map((f) => `<span>${f.field} ${CROP_LABEL[f.crop]}</span>`).join("")}</div>`;
+    case "season_start": return `Sowing plan ${d.plan_id}<div class="why">${esc(d.rationale)}</div>`;
+    case "advance": return `${d.days} days from ${dayLabel(d.from_day)}${d.rationale ? `<div class="why">${esc(d.rationale)}</div>` : ""}`;
+    case "anomaly": return `${d.field} (${CROP_LABEL[d.crop] || ""}): ${d.signal_label} ${d.direction}, onset about ${dayLabel(d.onset_day)}`;
+    case "field_test": { const r = Object.entries(d).filter(([k]) => !["rationale", "field", "day", "test", "note"].includes(k)).map(([k, v]) => `${k.replace(/_/g, " ")} ${Array.isArray(v) ? v.join(", ") : v}`).join(" · "); return `${d.field} ${d.test.replace("_", " ")}: <span style="color:var(--world)">${esc(r)}</span><div class="why">${esc(d.rationale)}</div>`; }
+    case "look": return `${d.field}: ${esc((d.diagnosis && d.diagnosis.condition || "").replace(/_/g, " "))}, canopy <span style="color:var(--world)">${fmt(d.canopy_cover_measured, 2)}</span> vs <span style="color:var(--belief)">${fmt(d.canopy_cover_predicted, 2)}</span>`;
+    case "adjust": return `${d.field}: ${[d.repair ? "drip line repaired" : "", d.pest_control ? "pest control" : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desal ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}<div class="why">${esc(d.rationale)}</div>`;
+    case "rebalance": return `Bad-year people fed ${d.people_p10_before} → ${d.people_p10_after}<div class="cmp">${d.fields.filter((f) => f.changed).map((f) => `<span>${f.field}: irrigation ${Math.round(f.irr * 100)}%, desal ${Math.round(f.desal * 100)}%</span>`).join("")}</div>`;
+    case "harvest": return `${d.field} ${CROP_LABEL[d.crop]}: ${d.yield_t_ha} t/ha`;
+    case "season_result": return `Feeds ${d.people_fed} people (limited by ${d.limiting}); ${Number(d.water_used_m3).toLocaleString()} m³, ${Number(d.energy_used_kwh).toLocaleString()} kWh`;
+    case "run_end": return esc(d.summary);
+    case "run_start": return esc(d.goal);
+    case "anomaly_dismissed": return esc(d.rationale);
+    case "agent_step": if (d.role === "agent") return `<b>${esc(d.text)}</b>`; if (d.role === "tool_call") return `calls ${esc(d.text)}${d.args && (d.args.rationale || d.args.reason) ? `<div class="why">${esc(d.args.rationale || d.args.reason)}</div>` : ""}`; return esc(d.text);
     default: return esc(JSON.stringify(d).slice(0, 160));
   }
 }
 function drawTimeline() {
   const rows = [];
   for (let i = S.events.length - 1; i >= 0 && rows.length < 250; i--) {
-    const e = S.events[i]; const k = KIND[e.kind] || [e.kind, "science", ""];
-    if (e.kind === "agent_step" && e.data.role === "tool_result") continue;
-    if (e.kind === "scene" && !e.data.changed_vs_reference && String(e.data.reason || "").startsWith("periodic")) continue;
-    if (e.kind === "experiment_options" || e.kind === "session") continue;
-    if (e.kind === "agent_step" && e.data.role === "tool_call" && filter !== "agent") continue;
+    const e = S.events[i], k = KIND[e.kind] || [e.kind, "science", ""];
+    if (["trial_options", "session"].includes(e.kind)) continue;
+    if (e.kind === "agent_step" && (e.data.role === "tool_result" || (e.data.role === "tool_call" && filter !== "agent") || (filter === "all" && e.data.role !== "agent"))) continue;
     if (filter !== "all" && k[1] !== filter) continue;
-    if (filter === "all" && e.kind === "agent_step" && e.data.role !== "agent") continue;
-    const cls = e.kind === "agent_step" ? "agent" : k[2];
-    rows.push(`<div class="entry ${cls}"><div class="t num">${e.t != null ? mmss(e.t) : ""}</div><div class="k"><b>${k[0]}</b></div><div class="body">${summary(e)}<div class="hash num">#${e.seq} · ${e.hash.slice(0, 12)}</div></div></div>`);
+    if (e.kind === "advance" && filter !== "science") continue;
+    rows.push(`<div class="entry ${e.kind === "agent_step" ? "agent" : k[2]}"><div class="t num">${e.t != null && e.t > 0 ? dayLabel(Math.min(e.t, 272)) : "pre-season"}</div><div class="k">${k[0]}</div><div class="body">${summary(e)}<div class="hash num">#${e.seq} · ${e.hash.slice(0, 12)}</div></div></div>`);
   }
   $("timeline").innerHTML = rows.join("") || `<p class="sub">Nothing recorded yet.</p>`;
 }
 
-// ---------------------------------------------------------------- render loop
-let lastEvents = -1, lastFits = -1, lastScene = null;
+// ------------------------------------------------------------------ loop
+let lastEvents = -1, lastTrials = -1, lastBeliefs = null, lastPlan = null;
 function render() {
   if (dirty) {
     dirty = false;
-    drawTemp(); drawFan(); drawFigures(); drawStatus();
-    if (S.fits.length !== lastFits || lastEvents === -1) { drawK(); lastFits = S.fits.length; }
-    if (S.scene !== lastScene) { drawCam(); lastScene = S.scene; }
+    drawStatus(); drawFarm(); drawFed(); drawField(); drawCam();
+    if (S.trials.length !== lastTrials) { drawTrials(); lastTrials = S.trials.length; }
+    if (S.beliefs !== lastBeliefs) { drawForest(); lastBeliefs = S.beliefs; }
+    if (S.plan !== lastPlan) { drawPlan(); lastPlan = S.plan; }
     if (S.events.length !== lastEvents) { drawHyps(); drawTimeline(); lastEvents = S.events.length; }
   }
   setTimeout(() => requestAnimationFrame(render), 250);
 }
-window.addEventListener("resize", () => { dirty = true; lastFits = -1; });
+window.addEventListener("resize", () => { dirty = true; });
 
-// ---------------------------------------------------------------- controls
 async function post(path, body) { const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) }); return r.json(); }
 $("startBtn").onclick = async () => {
-  const r = await post("/api/start", { agent: $("agentSel").value, speed: +$("speedSel").value });
+  const r = await post("/api/start", { agent: $("agentSel").value, speed: +$("speedSel").value, seed: +$("seedSel").value });
   if (!r.ok) alert("Couldn't start the run: " + r.error);
-  lastFits = -1; lastScene = null; lastEvents = -1; $("verifyOut").textContent = "";
+  lastTrials = -1; lastEvents = -1; lastPlan = null; lastBeliefs = null; lastScene = null; $("verifyOut").textContent = "";
 };
 $("stopBtn").onclick = () => post("/api/stop");
 $("speedSel").onchange = () => post("/api/speed", { speed: +$("speedSel").value });
-$("moveFanBtn").onclick = (e) => { e.stopPropagation(); $("changeMenu").classList.toggle("open"); };
+$("changeBtn").onclick = (e) => { e.stopPropagation(); $("changeMenu").classList.toggle("open"); };
 document.addEventListener("click", () => $("changeMenu").classList.remove("open"));
 for (const b of document.querySelectorAll(".menu-list button")) b.onclick = async () => {
   $("changeMenu").classList.remove("open");
-  const r = await post("/api/perturb", { kind: b.dataset.kind }); if (!r.ok) alert(r.error);
+  const r = await post("/api/perturb", { kind: b.dataset.kind, field: FIELD_IDS[sel] }); if (!r.ok) alert(r.error);
 };
 for (const b of document.querySelectorAll(".filters button")) b.onclick = () => {
-  filter = b.dataset.f; for (const o of document.querySelectorAll(".filters button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
-  drawTimeline();
+  filter = b.dataset.f; for (const o of document.querySelectorAll(".filters button")) o.setAttribute("aria-pressed", o === b ? "true" : "false"); drawTimeline();
 };
 $("verifyBtn").onclick = async () => {
   const r = await (await fetch("/api/verify")).json();
@@ -688,9 +695,8 @@ $("verifyBtn").onclick = async () => {
 $("themeBtn").onclick = () => {
   const cur = document.documentElement.getAttribute("data-theme");
   const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); dirty = true; lastFits = -1;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); dirty = true; lastPlan = null; lastBeliefs = null; lastTrials = -1;
 };
-
 load().then(() => { connect(); render(); });
 </script>
 </body>

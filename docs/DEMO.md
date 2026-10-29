@@ -1,21 +1,17 @@
 # Two-minute demo script
 
-Record the dashboard at 1440×900 with `python -m worldlab serve --agent spark --speed 20 --open`.
-At 20× a full run takes about 3–4 minutes; cut the waiting in the edit.
+Record at 1440×900 with `python -m worldlab serve --agent spark --open`. The trial phase takes a minute or two of model calls; cut the waiting in the edit. Set the season speed to 4 days/s for the fault, then speed up.
 
 | Time | On screen | Say |
 |---|---|---|
-| 0:00 | Dashboard, empty | "WorldLab is an AI scientist. Its job: keep this heatsink, a stand-in for a chip, under 42 °C for 20 minutes with as little fan energy as possible. It knows nothing about this rig yet." |
-| 0:10 | Press **Start run**. Camera panel fills in | "Muse Spark drives everything through tool calls. First it looks: SAM 3.1 finds the fan and the heatsink." |
-| 0:20 | Hypotheses panel shows H1; blue band appears, very wide | "Before any experiment it writes down a hypothesis and a prediction. The blue band is its prediction; it is wide because it knows almost nothing." |
-| 0:35 | Heat-up experiment; band narrows; staircase experiment | "Each experiment is chosen for how much it reduces the uncertainty that drives energy use, per joule. Watch the band shrink as evidence comes in." |
-| 0:50 | Cooling-curve panel and ranking table | "It compares four physical explanations for how airflow scales with fan speed and keeps the one the evidence supports." |
-| 1:00 | Plan starts; "Cost of uncertainty" figure | "Now it plans the cheapest fan schedule that is still safe at the 95th percentile, and tells us how many joules its remaining uncertainty is costing." |
-| 1:10 | Press **Move the fan**. Dotted line appears | "Now I move the fan. The agent is not told." |
-| 1:15 | Orange leaves the blue band; "camera saw a change" or "prediction failed"; status turns red | "Its predictions fail, and the camera sees the fan turned away. It stops trusting its model." |
-| 1:25 | Hypotheses H2 and H3; discriminating experiment runs | "Two explanations: the fan moved, or the heater changed. A fan-off step separates them: if the old model still explains fan-off, only the fan changed." |
-| 1:40 | H2 supported, H3 refuted; cooling curve shows "before the change" vs now | "Fan-off matches, fan-on doesn't. It refits only the fan's coupling, keeping everything else it knew." |
-| 1:50 | Plan resumes; figures; press **Verify ledger** | "It finishes the task. Every hypothesis, prediction and result is in a hash-chained ledger you can verify." |
-| 2:00 | Benchmark table from the README | "Across randomised worlds, it catches every moved fan and names the cause, at close to oracle energy." |
-
-Tips: use the **Agent reasoning** filter in the notebook to show Muse Spark's own words; switch to dark mode with **Theme** if it reads better on video.
+| 0:00 | Dashboard, empty farm map | "Twelve hectares near Al Ain: six fields, some already salty, brackish groundwater, a fixed water quota. The job: feed as many people as possible, counting only people whose calories, protein and vitamin A are all covered, in a bad year." |
+| 0:12 | Press **Start run**; first plan appears in the plan table | "Muse Spark runs the farm through tool calls. Its first plan uses published crop values, and it tells us that not knowing these local varieties costs about 70 people." |
+| 0:25 | Hypotheses panel; trial plots appear with blue bands and orange dots | "So it experiments first. It picks trial plots for what they reveal: a saline plot to learn salt tolerance, a late sowing so flowering hits the spring heat. Each plot is predicted before it's grown." |
+| 0:40 | A "Prediction failed" plot; belief chart narrows | "Some predictions fail. That's the point. Sorghum here flowers badly in the heat, nearly four degrees worse than published. Each blue interval narrows only for what a plot actually exposed." |
+| 0:55 | New plan; cost of uncertainty drops | "The calibrated plan feeds more people, and the cost of uncertainty drops from about 70 to 17. Wheat goes on the saline field, sweet potato covers vitamin A, maize gives calories." |
+| 1:05 | Season runs; select field F2; **Change the farm → Clog a drip line** | "Now the season. I clog a drip line in this field. The agent isn't told, and the water meter can't see it." |
+| 1:15 | Soil moisture leaves the blue band; red alarm; status turns red | "The soil dries faster than its model says it should. That's the alarm." |
+| 1:25 | Hypotheses: clogged line vs more water use; flow test result in the notebook | "Two explanations: a clogged line, or a thirstier crop. One test separates them. The emitters deliver 45 percent." |
+| 1:40 | Notebook: repair, model update, water re-plan | "It repairs the line, tells its model what happened since the onset, and re-plans water for the rest of the season within what's left of the quota." |
+| 1:50 | Season over; people fed; **Verify ledger** | "Harvest: 443 people fed, within the water budget. Every hypothesis, prediction and decision is in a hash-chained ledger anyone can verify." |
+| 2:00 | Benchmark table | "Across random farms with hidden faults, it catches and correctly diagnoses clogs, pests and salty groundwater, and it beats the same agent that ignores anomalies." |
