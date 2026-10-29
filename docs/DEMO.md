@@ -1,17 +1,21 @@
 # Two-minute demo script
 
-Record at 1440×900 with `python -m worldlab serve --agent spark --open`. The trial phase takes a minute or two of model calls; cut the waiting in the edit. Set the season speed to 4 days/s for the fault, then speed up.
+Record at 1440×900. Two options:
+
+- **Live:** `python -m worldlab serve --agent spark --open`. Model calls during trials take a minute or two; cut the waiting in the edit. Set the speed slider to about 4 days per second for the fault, then speed up.
+- **Replay:** open `docs/app/index.html` from any static host (or the published replay). It plays a recorded run with no server and no API key.
 
 | Time | On screen | Say |
 |---|---|---|
-| 0:00 | Dashboard, empty farm map | "Twelve hectares near Al Ain: six fields, some already salty, brackish groundwater, a fixed water quota. The job: feed as many people as possible, counting only people whose calories, protein and vitamin A are all covered, in a bad year." |
-| 0:12 | Press **Start run**; first plan appears in the plan table | "Muse Spark runs the farm through tool calls. Its first plan uses published crop values, and it tells us that not knowing these local varieties costs about 70 people." |
-| 0:25 | Hypotheses panel; trial plots appear with blue bands and orange dots | "So it experiments first. It picks trial plots for what they reveal: a saline plot to learn salt tolerance, a late sowing so flowering hits the spring heat. Each plot is predicted before it's grown." |
-| 0:40 | A "Prediction failed" plot; belief chart narrows | "Some predictions fail. That's the point. Sorghum here flowers badly in the heat, nearly four degrees worse than published. Each blue interval narrows only for what a plot actually exposed." |
-| 0:55 | New plan; cost of uncertainty drops | "The calibrated plan feeds more people, and the cost of uncertainty drops from about 70 to 17. Wheat goes on the saline field, sweet potato covers vitamin A, maize gives calories." |
-| 1:05 | Season runs; select field F2; **Change the farm → Clog a drip line** | "Now the season. I clog a drip line in this field. The agent isn't told, and the water meter can't see it." |
-| 1:15 | Soil moisture leaves the blue band; red alarm; status turns red | "The soil dries faster than its model says it should. That's the alarm." |
-| 1:25 | Hypotheses: clogged line vs more water use; flow test result in the notebook | "Two explanations: a clogged line, or a thirstier crop. One test separates them. The emitters deliver 45 percent." |
-| 1:40 | Notebook: repair, model update, water re-plan | "It repairs the line, tells its model what happened since the onset, and re-plans water for the rest of the season within what's left of the quota." |
-| 1:50 | Season over; people fed; **Verify ledger** | "Harvest: 443 people fed, within the water budget. Every hypothesis, prediction and decision is in a hash-chained ledger anyone can verify." |
-| 2:00 | Benchmark table | "Across random farms with hidden faults, it catches and correctly diagnoses clogs, pests and salty groundwater, and it beats the same agent that ignores anomalies." |
+| 0:00 | The camera flies in over the dunes to the farm: six plots, palms, the pump house and desalination unit | "Twelve hectares near Al Ain. Six fields, some already salty, brackish groundwater, a fixed water quota and energy budget. The goal: feed as many people as possible, in a bad year, counting someone only when calories, protein and vitamin A are all covered." |
+| 0:12 | First plan appears; the KPI shows people fed in a bad year | "Muse Spark runs the farm through tool calls. Its first plan uses published crop values, and it tells us that not knowing these local varieties costs about 70 people." |
+| 0:22 | Trial plots grow in the strip behind the farm; some get an orange "Prediction missed" tag. Open **Trials** | "So it experiments first. Each plot gets a predicted yield range before it is planted. A saline plot to learn salt tolerance, a late sowing so flowering hits the spring heat. Some predictions miss. That is the point." |
+| 0:38 | **Beliefs** drawer: violet intervals narrow only for exposed traits | "Each miss updates its beliefs, and only for traits a plot actually exposed." |
+| 0:48 | **RL policy** drawer: training curve, then rule vs policy | "Before sowing, it trains an irrigation policy by reinforcement learning, inside its own model of the farm: thousands of imagined seasons with crop traits drawn from its beliefs. The policy reads the sensors each day and scales the drip schedule and water blend. It keeps the farm inside the water quota in every imagined year, where the fixed rule overran in almost one in five." |
+| 1:02 | Season runs: plants grow, drip lines glow; select a field | "Now the season, with the policy in charge of the water." |
+| 1:08 | Clog appears (live: **Change the farm → Clog the drip line**); the drip lines in that plot turn red and dim | "A drip line clogs. The scientist isn't told, and the water meter can't see it." |
+| 1:16 | Red ring and alarm; soil salinity leaves the violet band | "Soil salinity rises out of its predicted band. Less water reaching the roots means less salt is leached. That's the alarm." |
+| 1:26 | Drone flies to the plot with a scan cone; notebook shows the water test, then the emitter flow test | "Two explanations: saltier groundwater, or a clogged line. The water test is normal. The emitter test reads 45 percent." |
+| 1:40 | Repair, model update, water re-plan; alarm clears | "It repairs the line, tells its model what happened since the onset, and re-plans the rest of the season." |
+| 1:50 | Season ends; plots harvested; KPI shows people fed; **Ledger** | "Harvest: about 460 people fed, inside the water and energy limits. Every hypothesis, prediction and decision is in a hash-chained ledger anyone can verify." |
+| 2:00 | Benchmark table | "Across random farms with hidden faults, it catches and correctly diagnoses every clog, pest outbreak and salt problem, and the RL policy uses less water than the fixed rule." |

@@ -25,7 +25,9 @@ Method:
 2. Before trials, record_hypothesis with a numeric prediction and a falsification condition.
 3. evaluate_trials (pass your own designs or an empty list for a menu). Choose plots that cut the uncertainty that matters for the plan (production_yield_sd_cut_pct), not just bits. A trait is only learned if a plot exposes it: saline plots expose salt tolerance; sowing late so flowering hits the spring heat exposes heat tolerance. Budget: 16 plots in total.
 4. run_trials, then fit_crop_models, then conclude your hypothesis citing predicted vs measured yields.
-5. plan_season again. If it relies on crops you never trialled (untested_crops), consider trialling them first. Then start_season.
+5. plan_season again. If it relies on crops you never trialled (untested_crops), consider trialling them first.
+   Then consider train_irrigation_policy for the final plan: reinforcement learning (evolution strategies) inside your calibrated model learns a daily irrigation and water-blend policy from the sensors, and reports it against the plan's fixed rule on held-out imagined seasons. Start the season with controller rl_policy only if it is recommended; remember it was trained in your model, not on the real farm.
+   Then start_season.
 6. During the season, advance in steps (up to 60 days). The lab runs your model alongside the farm and stops when measurements leave the predicted band. Then investigate instead of guessing:
    - Soil drier than predicted: a clogged or leaking drip line (emitter_flow test) or the crop using more water than modelled.
    - Canopy lower or soil wetter than predicted: pests (leaf_inspection, look_at_field) or salt damage (water_test, soil_sample).
@@ -33,6 +35,7 @@ Method:
    - Record competing hypotheses, run the test that tells them apart, conclude.
    - Act on what you found (adjust_field: repair_drip, pest_control, more desalinated water), then update_model with the measured value and the onset day so predictions match reality again. Use dismiss_anomaly only if the tests show nothing changed.
    - After a fault that cost water or yield, rebalance_water to re-plan irrigation for the rest of the season within the remaining quota.
+   - The policy was trained on a fault-free farm. If you diagnose a fault, you may set_irrigation_controller back to rule.
 7. Keep advancing to the end of the season (30 June), then finish with an honest summary: what you learned about the varieties, what went wrong, what it cost, how many people the farm feeds.
 
 Style: keep messages to one or two sentences. Put reasoning in each tool's rationale argument; it is recorded in the audit ledger and shown on the dashboard."""
@@ -72,8 +75,14 @@ TOOLS = [
      "parameters": _obj({"rationale": S, "crops": {"type": "array", "items": S}}, ["rationale"])},
     {"name": "plan_season", "description": "Choose crop, sowing day, irrigation level, desal blend and nitrogen for each field to maximise people fed in a bad year within the water quota and energy budget.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
-    {"name": "start_season", "description": "Sow according to a plan. No more trials after this.",
-     "parameters": _obj({"plan_id": S, "rationale": S}, ["plan_id", "rationale"])},
+    {"name": "train_irrigation_policy", "description": "Reinforcement learning: train a daily irrigation and desal-blend policy for a plan by evolution strategies inside your calibrated model (crop traits from your beliefs, weather from the climate). Takes about a minute. Returns the policy against the plan's fixed rule on held-out imagined seasons, and a recommendation.",
+     "parameters": _obj({"plan_id": S, "rationale": S, "iterations": {"type": "integer", "description": "10-120, default 50"}},
+                        ["plan_id", "rationale"])},
+    {"name": "start_season", "description": "Sow according to a plan. No more trials after this. controller: rule (the plan's fixed irrigation levels) or rl_policy (the trained policy for this plan).",
+     "parameters": _obj({"plan_id": S, "rationale": S, "controller": {"type": "string", "enum": ["rule", "rl_policy"]}},
+                        ["plan_id", "rationale"])},
+    {"name": "set_irrigation_controller", "description": "Switch daily irrigation between the plan's rule and the trained RL policy from today.",
+     "parameters": _obj({"controller": {"type": "string", "enum": ["rule", "rl_policy"]}, "rationale": S}, ["controller", "rationale"])},
     {"name": "advance", "description": "Run the season forward up to 60 days. Stops early if measurements leave the model's predicted band.",
      "parameters": _obj({"days": {"type": "integer"}, "rationale": S}, ["days", "rationale"])},
     {"name": "look_at_field", "description": "Drone image of a field analysed by SAM 3.1 (plants, salt crust, damaged leaves) and Muse Spark (stress diagnosis), with measured vs predicted canopy cover.",
@@ -114,8 +123,12 @@ def dispatch(lab: Lab, name: str, a: dict):
         return lab.fit_crop_models(a.get("rationale", ""), a.get("crops"))
     if name == "plan_season":
         return lab.plan_season(a.get("rationale", ""))
+    if name == "train_irrigation_policy":
+        return lab.train_irrigation_policy(a.get("plan_id", ""), a.get("rationale", ""), int(a.get("iterations") or 50))
     if name == "start_season":
-        return lab.start_season(a.get("plan_id", ""), a.get("rationale", ""))
+        return lab.start_season(a.get("plan_id", ""), a.get("rationale", ""), a.get("controller") or "rule")
+    if name == "set_irrigation_controller":
+        return lab.set_irrigation_controller(a.get("controller", ""), a.get("rationale", ""))
     if name == "advance":
         return lab.advance(int(a.get("days", 30)), a.get("rationale", ""))
     if name == "look_at_field":
@@ -153,6 +166,7 @@ def _brief(name: str, r) -> dict:
         "field_test": None,
         "look_at_field": ["field", "canopy_cover_measured", "canopy_cover_predicted", "diagnosis", "source"],
         "rebalance_water": ["people_p10_before", "people_p10_after"],
+        "train_irrigation_policy": ["recommend", "trained_seconds", "best_checkpoint_iter", "held_out_comparison", "refused"],
         "record_hypothesis": ["hypothesis_id"], "update_model": ["ok", "error"],
     }.get(name, list(r)[:5])
     return dict(r) if keep is None else {k: r[k] for k in keep if k in r}
@@ -225,8 +239,8 @@ class ScriptedScientist:
     against, and the fallback without a model endpoint. adapt=False ignores
     anomalies (the no-learning ablation); trials=False skips calibration."""
 
-    def __init__(self, lab: Lab, adapt: bool = True, trials: bool = True):
-        self.lab, self.adapt, self.trials = lab, adapt, trials
+    def __init__(self, lab: Lab, adapt: bool = True, trials: bool = True, rl: bool = False):
+        self.lab, self.adapt, self.trials, self.rl = lab, adapt, trials, rl
 
     def call(self, name, args):
         self.lab.agent_note("tool_call", name, {"args": args})
@@ -263,6 +277,11 @@ class ScriptedScientist:
         return self.call("run_trials", {"candidate_ids": [o["candidate_id"] for o in chosen[:n]], "hypothesis_id": h,
                                         "rationale": "plots that most cut the yield uncertainty where the plan would use each crop"})
 
+    def _leave_policy(self, r: dict):
+        if r.get("rl_policy_warning"):
+            self.call("set_irrigation_controller", {"controller": "rule",
+                                                    "rationale": "the farm is now outside the conditions the policy was trained on"})
+
     def run(self) -> dict:
         lab = self.lab
         lab.agent_note("system", "agent: scripted protocol (no LLM)" + ("" if self.adapt else ", ignores anomalies"))
@@ -287,7 +306,11 @@ class ScriptedScientist:
                                    "evidence": f"{missed} of {len(plots)} trial predictions missed; plan P10 {p0['people_p10']} -> "
                                                f"{p1['people_p10']} people; cost of uncertainty {p0['cost_of_uncertainty_people']} -> "
                                                f"{p1['cost_of_uncertainty_people']}"})
-        self.call("start_season", {"plan_id": p1["plan_id"], "rationale": "best robust plan"})
+        controller = "rule"
+        if self.rl:
+            t = self.call("train_irrigation_policy", {"plan_id": p1["plan_id"], "rationale": "learn a sensor-driven daily irrigation policy for this plan in the calibrated model"})
+            controller = t.get("recommend", "rule")
+        self.call("start_season", {"plan_id": p1["plan_id"], "rationale": "best robust plan", "controller": controller})
         for _ in range(40):
             r = self.call("advance", {"days": 60, "rationale": "run the season"})
             if lab.phase != "season":
@@ -312,8 +335,9 @@ class ScriptedScientist:
             wt = self.call("field_test", {"field": f, "test": "water_test", "rationale": "saltier water would raise soil salinity"})
             ec = wt.get("groundwater_ec_dS_m", 4.5)
             if ec > wt.get("assumed_by_model", 4.5) + 1.0:
-                self.call("update_model", {"finding": "groundwater_ec", "value": ec, "since_day": onset,
-                                           "rationale": f"water test {ec} dS/m"})
+                r = self.call("update_model", {"finding": "groundwater_ec", "value": ec, "since_day": onset,
+                                               "rationale": f"water test {ec} dS/m"})
+                self._leave_policy(r)
                 self.call("conclude", {"hypothesis_id": hs, "verdict": "supported", "evidence": f"water test {ec} dS/m"})
                 self.call("rebalance_water", {"rationale": "blend more desalinated water where it pays"})
                 return
@@ -375,8 +399,9 @@ class ScriptedScientist:
         ec = wt.get("groundwater_ec_dS_m", 4.5)
         self.call("conclude", {"hypothesis_id": hp, "verdict": "refuted", "evidence": "no pests on inspection"})
         if ec > wt.get("assumed_by_model", 4.5) + 1.0:
-            self.call("update_model", {"finding": "groundwater_ec", "value": ec, "since_day": onset,
-                                       "rationale": f"water test {ec} dS/m"})
+            r = self.call("update_model", {"finding": "groundwater_ec", "value": ec, "since_day": onset,
+                                           "rationale": f"water test {ec} dS/m"})
+            self._leave_policy(r)
             self.call("conclude", {"hypothesis_id": hs, "verdict": "supported", "evidence": f"water test {ec} dS/m"})
             self.call("rebalance_water", {"rationale": "blend more desalinated water where it pays"})
             return

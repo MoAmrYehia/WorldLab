@@ -211,6 +211,25 @@ class Farm:
     def schedule(self, kind: str, day: int, **kw):
         self.scheduled.append((int(day), kind, kw))
 
+    def world_state(self) -> list[dict]:
+        """What a camera would show, for the 3D view only (never given to the agent)."""
+        with self.lock:
+            s = self.sim
+            if s is None:
+                return []
+            d = max(self.day - 1, 0)
+            frac = np.clip(s.frac(), 0, 1)
+            ece = s.ece_layers()[:, 0]
+            out = []
+            for i, p in enumerate(self.plan or []):
+                out.append({"crop": p["crop"], "cc": round(float(s.cc[i]), 3), "stage": round(float(frac[i]), 3),
+                            "stand": round(float(s.stand[i]), 3), "ksw": round(float(s.ks_w[i]), 3),
+                            "ece_top": round(float(ece[i]), 2), "deliver": round(float(self.deliver[i, d]), 2),
+                            "pest": round(float(self.pest[i, d]), 3), "done": bool(s.done[i]),
+                            "theta_top": round(float((s.W / s.th)[i, 0]), 3),
+                            "sown": bool(p["crop"]) and self.day >= p["sow"]})
+            return out
+
     def truth(self) -> dict:
         return {"traits": self.traits, "eff": self.eff.round(3).tolist(), "events": self.events}
 
