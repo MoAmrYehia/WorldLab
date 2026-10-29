@@ -1,4 +1,4 @@
-"""Build a rig + lab + agent from settings, and run it on a thread."""
+"""Build a farm + lab + agent from settings, and run it on a thread."""
 from __future__ import annotations
 
 import os
@@ -8,30 +8,37 @@ import traceback
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
-from .lab import Lab, Goal, Limits, Bus, StopRequested
+from .lab import Lab, Limits, Bus, StopRequested
 from .agent import LLMScientist, ScriptedScientist
 from .llm import LLMConfig
+from .farm.world import Farm
 
 
 @dataclass
 class Settings:
     agent: str = "auto"            # auto | spark | glimmer | scripted | scripted-noadapt
-    rig: str = "sim"               # sim | serial
-    serial_port: str = ""
-    camera_index: int = -1         # serial rig: OpenCV camera index, -1 = none
-    speed: float = 20.0            # sim pacing (x real time); 0 = flat out
-    seed: int = 7
-    randomize: bool = False
-    perturb: list = field(default_factory=list)   # ["fan_moved@2400", ...] (sim)
+    seed: int = 7                  # which farm (hidden variety traits, drip efficiencies, weather year)
+    speed: float = 12.0            # season pacing for the dashboard, simulated days per second (0 = flat out)
+    perturb: list = field(default_factory=list)   # ["clog@80", "pest@100:F2", "salinity@60", "heatwave@170"]
     perception: str = "auto"       # auto | meta | sim | none
     runs_dir: str = "runs"
-    goal: dict = field(default_factory=dict)
     limits: dict = field(default_factory=dict)
 
     def resolved_agent(self) -> str:
         if self.agent != "auto":
             return self.agent
         return "spark" if os.environ.get("MODEL_API_KEY") else "scripted"
+
+
+def parse_perturb(spec: str):
+    """'clog@80:F3' -> ('clog', 80, field index or None)"""
+    kind, _, rest = spec.partition("@")
+    day, _, fld = rest.partition(":")
+    fi = None
+    if fld:
+        from .farm.world import FIELDS
+        fi = next((i for i, f in enumerate(FIELDS) if f["id"] == fld.upper()), None)
+    return kind, int(day or 80), fi
 
 
 class Session:
@@ -44,44 +51,28 @@ class Session:
         self.agent_kind = settings.resolved_agent()
         stamp = time.strftime("%Y%m%d-%H%M%S")
         self.run_dir = Path(settings.runs_dir) / f"{stamp}-{self.agent_kind}"
-        self.rig = self._make_rig()
-        if hasattr(self.rig, "on_perturb"):
-            self.rig.on_perturb = lambda info: self.bus.publish("perturbation", info)
+        self.farm = Farm(seed=settings.seed)
+        self.farm.on_event = lambda info: self.bus.publish("perturbation", info)
+        for spec in settings.perturb:
+            kind, day, fi = parse_perturb(spec)
+            self.farm.schedule(kind, day, field=fi)
         perception = self._make_perception()
-        self.lab = Lab(self.rig, goal=Goal(**settings.goal), limits=Limits(**settings.limits),
-                       run_dir=self.run_dir, perception=perception, bus=self.bus)
-        self.lab._log("session", {"agent": self.agent_kind, "rig": settings.rig,
-                                  "perception": type(perception).__name__ if perception else None,
-                                  "settings": {k: v for k, v in asdict(settings).items() if k != "goal"}})
-
-    def _make_rig(self):
-        s = self.settings
-        if s.rig == "sim":
-            from .rig.sim import SimRig, World
-            world = World.randomized(s.seed) if s.randomize else World(seed=s.seed)
-            rig = SimRig(world, speed=s.speed)
-            for spec in s.perturb:
-                kind, _, at = spec.partition("@")
-                rig.schedule(kind, float(at or 2400))
-            return rig
-        if s.rig == "serial":
-            from .rig.serial_rig import SerialRig
-            return SerialRig(s.serial_port, camera_index=s.camera_index)
-        raise ValueError(f"unknown rig {s.rig}")
+        self.lab = Lab(self.farm, limits=Limits(**settings.limits), run_dir=self.run_dir,
+                       perception=perception, bus=self.bus, speed=settings.speed)
+        self.lab._log("session", {"agent": self.agent_kind, "farm_seed": settings.seed,
+                                  "perception": type(perception).__name__ if perception else None})
 
     def _make_perception(self):
         mode = self.settings.perception
         if mode == "none":
             return None
         if mode == "auto":
-            mode = "meta" if os.environ.get("MODEL_API_KEY") else ("sim" if self.settings.rig == "sim" else "none")
+            mode = "meta" if os.environ.get("MODEL_API_KEY") else "sim"
         if mode == "meta":
             from .perception import MetaPerception
             return MetaPerception()
-        if mode == "sim" and self.settings.rig == "sim":
-            from .perception import SimPerception
-            return SimPerception(self.rig)
-        return None
+        from .perception import SimPerception
+        return SimPerception()
 
     def start(self):
         self.thread = threading.Thread(target=self._run, daemon=True, name="worldlab-agent")
@@ -101,13 +92,6 @@ class Session:
         except Exception:
             self.error = traceback.format_exc()
             self.lab.agent_note("error", self.error)
-        finally:
-            try:
-                self.rig.safe_state() if not self.lab.done else None
-                if not self.lab.done:
-                    self.lab.finish("Run ended early: " + ("stopped by operator" if self.lab.stop_flag.is_set() else "error"))
-            except Exception:
-                pass
 
     def stop(self):
         self.lab.stop_flag.set()

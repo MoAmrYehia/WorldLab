@@ -1,69 +1,61 @@
-"""The lab: everything the agent can do to the world, with numbers attached.
+"""The farm lab: everything the agent can do, with numbers attached.
 
 The agent (Muse Spark, Muse Glimmer, or the scripted baseline) decides; this
-module executes. Every action is bounded by the safety governor, every
-prediction carries an uncertainty band, every result is compared against the
-prediction made before it ran, and every step is written to the hash-chained
-ledger.
+module executes. It runs trial plots, calibrates beliefs, plans the season,
+runs it day by day with a monitoring ensemble, performs field tests and
+corrections, and writes every step to the hash-chained ledger.
 """
 from __future__ import annotations
 
 import base64
-import csv
 import hashlib
 import json
 import math
 import queue
 import threading
 import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from pathlib import Path
 
 import numpy as np
 
-from . import model as M
+from .farm import weather as WX
+from .farm.belief import CropBelief, calibrate, trial_information, typical_year, predict_trials
+from .farm.crops import CROPS, CROP_IDS, NUTRIENTS, NEEDS, TRAITS, TRAIT_IDS, nutrients_per_ha, people_fed
+from .farm.optimize import evaluate, optimise, MG_KEYS
+from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL
+from .farm.world import Farm, FIELDS, FIELD_HA, EC_GROUNDWATER
 from .ledger import Ledger
-from .rig.base import Rig, fan_power_model
 
+D = WX.SEASON_DAYS
+NF = len(FIELDS)
+TESTS = ("emitter_flow", "soil_sample", "water_test", "leaf_inspection")
 
-# ----------------------------------------------------------------- settings
 
 @dataclass
 class Limits:
-    T_abort: float = 75.0            # hard trip: heater off, fan full
-    T_plan_max: float = 68.0         # predicted 95th pct must stay below this
-    max_experiment_s: float = 900.0
-    min_step_s: float = 30.0
-    max_steps: int = 6
-    exploration_budget_J: float = 2500.0
-
-
-@dataclass
-class Goal:
-    target_C: float = 42.0           # keep the heatsink at or below this
-    settle_s: float = 300.0          # time allowed to get there
-    hold_s: float = 1200.0           # then hold it for this long (cumulative)
-    task_budget_J: float = 1500.0    # fan energy allowed for the task
-    tolerance_K: float = 0.3
-
-    def describe(self) -> str:
-        return (f"Keep the heated object at or below {self.target_C:.1f} C (tolerance "
-                f"{self.tolerance_K} K) for {self.hold_s:.0f} s of cumulative hold time, reaching it within "
-                f"{self.settle_s:.0f} s of starting a plan, using at most {self.task_budget_J:.0f} J of fan "
-                f"energy for the task. Exploration experiments have a separate budget.")
+    trial_plots: int = 16
+    plots_per_round: int = 10
+    field_tests: int = 30
+    water_quota_m3: float = 60000.0
+    energy_kwh: float = 90000.0
+    max_advance_days: int = 60
 
 
 # ---------------------------------------------------------------------- bus
 
 class Bus:
     """Fan-out of live events to dashboard clients, plus a snapshot for late joiners."""
+    LISTS = ("days", "events", "agent", "perturbations", "beliefs_hist", "projections", "trials")
 
     def __init__(self):
         self._subs: list[queue.Queue] = []
         self._lock = threading.Lock()
-        self.snapshot: dict = {"samples": [], "events": [], "forecasts": [], "scene": None,
-                               "model": None, "plan": None, "status": {}, "agent": [], "fits": [],
-                               "perturbations": []}
+        self.reset()
+
+    def reset(self):
+        self.snapshot = {k: [] for k in self.LISTS}
+        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None})
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=5000)
@@ -77,22 +69,26 @@ class Bus:
                 self._subs.remove(q)
 
     def publish(self, kind: str, payload):
-        snap = self.snapshot
-        if kind == "sample":
-            snap["samples"].append(payload)
+        s = self.snapshot
+        if kind == "day":
+            s["days"].append(payload)
         elif kind == "ledger":
-            snap["events"].append(payload)
-        elif kind == "forecast":
-            snap["forecasts"].append(payload)
+            s["events"].append(payload)
         elif kind == "agent":
-            snap["agent"].append(payload)
+            s["agent"].append(payload)
         elif kind == "perturbation":
-            snap["perturbations"].append(payload)
-        elif kind == "fit":
-            snap["fits"].append(payload)
-            snap["model"] = payload
-        elif kind in ("scene", "plan", "status"):
-            snap[kind] = payload
+            s["perturbations"].append(payload)
+        elif kind == "beliefs":
+            s["beliefs"] = payload
+            s["beliefs_hist"].append(payload)
+        elif kind == "projection":
+            s["projections"].append(payload)
+        elif kind == "trials":
+            s["trials"].append(payload)
+        elif kind == "scene":
+            s["scene"][payload.get("field", "?")] = payload
+        elif kind in ("plan", "status", "fields"):
+            s[kind] = payload
         msg = {"kind": kind, "data": payload}
         with self._lock:
             for q in list(self._subs):
@@ -102,321 +98,96 @@ class Bus:
                     pass
 
 
-# ------------------------------------------------------------------ monitor
-
-class Monitor:
-    """Runs the current model alongside reality, as an ensemble over the
-    parameter uncertainty, driven by the *measured* inputs. Flags a sustained
-    disagreement with a two-sided CUSUM on standardised residuals."""
-
-    def __init__(self, fit: M.Fit, last: dict, S: int = 200, seed: int = 0,
-                 k: float = 1.5, h: float = 12.0, warmup_s: float = 40.0, min_effect_K: float = 0.6):
-        self.fit = fit
-        self.P = {n: np.asarray(v, float) for n, v in fit.sample(S, np.random.default_rng(seed)).items()}
-        self.state = np.full(S, last["T_obj"])
-        self.last = last
-        self.t0 = last["t"]
-        self.floor = max(0.12, fit.rmse if math.isfinite(fit.rmse) else 0.3)
-        self.k, self.h, self.warmup = k, h, warmup_s
-        self.min_effect = min_effect_K
-        self.sp = self.sn = 0.0
-        self.since_zero = last["t"]
-        self.zs: list[float] = []
-        self.inside = 0
-        self.count = 0
-        self.alarm: dict | None = None
-        self._acc = 0.0
-
-    def update(self, s: dict) -> dict:
-        dt = s["t"] - self.last["t"]
-        if dt > 0:
-            u, q, Ta = self.last["fan_duty"], self.last["heater_w"], self.last["T_amb"]
-            k = np.maximum(M.cooling_rate(self.fit.structure, self.P, u), 1e-7)
-            Teq = Ta + self.P["b"] * q / k
-            self.state = Teq + (self.state - Teq) * np.exp(-k * dt)
-        self.last = s
-        mean = float(self.state.mean())
-        sd = math.sqrt(float(self.state.var()) + M.SENSOR_SIGMA ** 2 + self.floor ** 2)
-        lo, hi = float(np.percentile(self.state, 5)) - 1.645 * M.SENSOR_SIGMA, float(np.percentile(self.state, 95)) + 1.645 * M.SENSOR_SIGMA
-        z = (s["T_obj"] - mean) / sd
-        self.count += 1
-        if lo - self.floor <= s["T_obj"] <= hi + self.floor:
-            self.inside += 1
-        self.zs.append(z)
-        # CUSUM on ~5 s cadence so 1 Hz autocorrelated samples are not over-counted
-        self._acc += dt
-        if self._acc >= 5.0 and s["t"] - self.t0 >= self.warmup and self.alarm is None:
-            self._acc = 0.0
-            # Only a divergence big enough to matter for the goal accumulates evidence.
-            zc = z if abs(s["T_obj"] - mean) >= self.min_effect else 0.0
-            self.sp = max(0.0, self.sp + zc - self.k)
-            self.sn = max(0.0, self.sn - zc - self.k)
-            if self.sp == 0.0 and self.sn == 0.0:
-                self.since_zero = s["t"]
-            if self.sp > self.h or self.sn > self.h:
-                self.alarm = {
-                    "t_detected": s["t"], "onset_estimate_t": round(self.since_zero, 1),
-                    "direction": "warmer than predicted" if self.sp > self.h else "cooler than predicted",
-                    "residual_K": round(s["T_obj"] - mean, 3), "z": round(z, 2),
-                }
-        return {"pred": round(mean, 3), "lo": round(lo, 3), "hi": round(hi, 3), "z": round(z, 2)}
-
-    def summary(self) -> dict:
-        zs = np.array(self.zs) if self.zs else np.zeros(1)
-        cov = self.inside / max(self.count, 1)
-        return {"coverage_90pct_band": round(cov, 3), "mean_z": round(float(zs.mean()), 2),
-                "max_abs_z": round(float(np.abs(zs).max()), 2), "n": self.count,
-                "prediction_held": bool(cov >= 0.8 and abs(zs.mean()) < 1.5 and self.alarm is None)}
-
-
-# ---------------------------------------------------------------------- lab
-
 class StopRequested(Exception):
     pass
 
 
 class Lab:
-    def __init__(self, rig: Rig, goal: Goal | None = None, limits: Limits | None = None,
-                 run_dir: str | Path | None = None, perception=None, bus: Bus | None = None,
-                 scene_check_s: float = 120.0):
-        self.rig = rig
-        self.goal = goal or Goal()
+    def __init__(self, farm: Farm, limits: Limits | None = None, run_dir: str | Path | None = None,
+                 perception=None, bus: Bus | None = None, speed: float = 0.0):
+        self.farm = farm
         self.limits = limits or Limits()
         self.bus = bus or Bus()
         self.perception = perception
-        self.scene_check_s = scene_check_s
+        self.speed = speed                         # dashboard pacing, simulated days per second (0 = flat out)
         self.run_dir = Path(run_dir) if run_dir else None
         if self.run_dir:
-            (self.run_dir / "frames").mkdir(parents=True, exist_ok=True)
-            self._csv = (self.run_dir / "samples.csv").open("w", newline="")
-            self._csvw = csv.writer(self._csv)
-            self._csvw.writerow(["t", "T_obj", "T_amb", "fan_duty", "heater_w", "fan_power_w", "activity"])
-        else:
-            self._csv = None
+            (self.run_dir / "images").mkdir(parents=True, exist_ok=True)
         self.ledger = Ledger(self.run_dir / "ledger.jsonl" if self.run_dir else None)
-        self.samples: list[dict] = []
-        self.energy = {"exploration": 0.0, "task": 0.0, "idle": 0.0}
-        self.fit: M.Fit = M.prior_fit("power")
-        self.fits: list[M.Fit] = [self.fit]
-        self.model_status = "prior"
-        self.hyps: dict[str, dict] = {}
+        self.beliefs = {c: CropBelief(c) for c in CROP_IDS}
+        self.priors = {c: (b.mean.copy(), b.cov.copy()) for c, b in self.beliefs.items()}
+        self.trial_data: dict[str, list] = {c: [] for c in CROP_IDS}
+        self.plots_used = 0
+        self.trial_rounds = 0
         self.candidates: dict[str, dict] = {}
         self.plans: dict[str, dict] = {}
-        self.experiments: list[dict] = []
+        self.hyps: dict[str, dict] = {}
+        self.tests_used = 0
+        self.phase = "trials"
+        self.day = 0
         self.anomaly: dict | None = None
         self.anomalies: list[dict] = []
-        self.fit_reference: M.Fit | None = None  # last model trusted before the latest anomaly
-        self.scene_ref: dict | None = None
-        self.scene_last: dict | None = None
-        self.hold_done_s = 0.0
-        self.hold_ok_s = 0.0
-        self.tripped = False
         self.done = False
         self.stop_flag = threading.Event()
-        self._ids = {"H": 0, "C": 0, "P": 0, "E": 0}
-        self._last_scene_t = -1e9
-        self.power_scale = 1.0
-        self._log("run_start", {"goal": asdict(self.goal), "limits": asdict(self.limits),
-                                "rig": asdict(rig.caps)})
-        self.sync()
+        self._ids = {"H": 0, "C": 0, "P": 0, "R": 0}
+        self.wx_typ = typical_year()
+        self.water_used = 0.0
+        self.energy_used = 0.0
+        self.harvest: dict[str, dict] = {}
+        self.season_plan = None
+        self.result = None
+        self._log("run_start", {"limits": asdict(self.limits), "fields": [
+            {k: f[k] for k in ("id", "name", "layers", "ece", "soil_n")} for f in FIELDS],
+            "goal": "maximise people fed (scarcest of calories, protein, vitamin A) in a bad year (P10), "
+                    f"within {self.limits.water_quota_m3:.0f} m3 groundwater and {self.limits.energy_kwh:.0f} kWh"})
+        self._publish_beliefs()
         self._status()
 
-    # ----------------------------------------------------------- plumbing
-    @property
-    def belief(self) -> M.Mixture:
-        """What the lab predicts with: all fitted structures, evidence-weighted."""
-        return M.Mixture(self.fits)
-
-    def tested_duties(self, min_hold_s: float = 60.0) -> list[float]:
-        """Fan duties that were actually held for a while (heater on), so the model has seen them."""
-        out, start, cur = set(), None, None
-        for s in self.samples:
-            u = round(s["fan_duty"], 2)
-            if u != cur:
-                cur, start = u, s["t"]
-            elif s["t"] - start >= min_hold_s and s["heater_w"] > 0:
-                out.add(u)
-        return sorted(out)
-
+    # ============================================================ plumbing
     def _id(self, p):
         self._ids[p] += 1
         return f"{p}{self._ids[p]}"
 
     def _log(self, kind: str, data: dict) -> dict:
-        e = self.ledger.append(kind, data, t_rig=round(self.rig.now(), 1))
+        e = self.ledger.append(kind, data, t_rig=self.day)
         self.bus.publish("ledger", e)
         return e
 
     def agent_note(self, role: str, text: str, extra: dict | None = None):
-        item = {"t": round(self.rig.now(), 1), "role": role, "text": text, **(extra or {})}
+        item = {"t": self.day, "role": role, "text": text, **(extra or {})}
         self.bus.publish("agent", item)
         self._log("agent_step", item)
-
-    def _status(self):
-        self.bus.publish("status", {
-            "t": round(self.rig.now(), 1), "model_status": self.model_status,
-            "energy_J": {k: round(v, 1) for k, v in self.energy.items()},
-            "exploration_budget_J": self.limits.exploration_budget_J,
-            "task_budget_J": self.goal.task_budget_J, "goal": asdict(self.goal),
-            "hold_done_s": round(self.hold_done_s, 1), "hold_ok_s": round(self.hold_ok_s, 1),
-            "anomaly": self.anomaly, "tripped": self.tripped, "done": self.done,
-            "hypotheses": list(self.hyps.values()),
-        })
-
-    def latest(self) -> dict:
-        return self.samples[-1]
-
-    def _ingest(self, samples, activity: str, monitor: Monitor | None = None):
-        for s in samples:
-            d = s.to_dict() if hasattr(s, "to_dict") else dict(s)
-            if self.samples:
-                dt = max(0.0, d["t"] - self.samples[-1]["t"])
-                self.energy[activity] += self.samples[-1]["fan_power_w"] * dt
-            d["activity"] = activity
-            if monitor is not None:
-                d.update(monitor.update(d))
-            self.samples.append(d)
-            if self._csv:
-                self._csvw.writerow([d["t"], d["T_obj"], d["T_amb"], d["fan_duty"], d["heater_w"],
-                                     d["fan_power_w"], activity])
-            self.bus.publish("sample", d)
-            if d["T_obj"] >= self.limits.T_abort and not self.tripped:
-                self.tripped = True
-                self.rig.safe_state()
-                self._log("safety_trip", {"T_obj": d["T_obj"], "limit": self.limits.T_abort,
-                                          "action": "heater off, fan 100%"})
-        if self._csv:
-            self._csv.flush()
-
-    def sync(self):
-        """Pull in samples taken while the agent was thinking (real hardware)."""
-        s = self.rig.drain()
-        if s:
-            self._ingest(s, "idle")
-        if not self.samples:
-            self._ingest(self.rig.advance(self.rig.caps.sample_period_s), "idle")
-
-    def _run(self, seconds: float, activity: str, monitor: Monitor | None, scene_watch: bool = False,
-             on_chunk=None, stop_on_alarm: bool = True, guard_T: float | None = None) -> str:
-        """Let time pass in 5 s chunks. Returns 'ok', 'anomaly', 'scene', 'trip',
-        'guard' (object reached guard_T, step ended early) or 'stopped'."""
-        end = self.rig.now() + seconds
-        while self.rig.now() < end - 1e-6:
-            if self.stop_flag.is_set():
-                return "stopped"
-            chunk = min(5.0, end - self.rig.now())
-            self._ingest(self.rig.advance(chunk), activity, monitor)
-            if on_chunk:
-                on_chunk(chunk)
-            if self.tripped:
-                return "trip"
-            if guard_T is not None and self.latest()["T_obj"] >= guard_T:
-                return "guard"
-            if monitor and monitor.alarm and stop_on_alarm:
-                return "anomaly"
-            if scene_watch and self.perception and self.rig.now() - self._last_scene_t >= self.scene_check_s:
-                sc = self.look_at_scene(reason="periodic check during plan execution")
-                if sc.get("changed_vs_reference"):
-                    return "scene"
-            self._status()
-        self._status()
-        return "ok"
-
-    def _fan_power(self, u):
-        return self.power_scale * np.vectorize(fan_power_model)(np.asarray(u, float))
-
-    def _update_power_scale(self):
-        ratios = [s["fan_power_w"] / fan_power_model(s["fan_duty"]) for s in self.samples[-2000:]
-                  if s["fan_duty"] > 0.05 and fan_power_model(s["fan_duty"]) > 0]
-        if len(ratios) > 5:
-            self.power_scale = float(np.median(ratios))
-
-    @staticmethod
-    def _digest(rows: list[dict]) -> str:
-        return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
 
     def _check_stop(self):
         if self.stop_flag.is_set():
             raise StopRequested()
 
-    # ============================================================ TOOLS ==
-    def observe(self) -> dict:
-        self.sync()
-        s = self.latest()
-        recent = [x for x in self.samples if x["t"] >= s["t"] - 120]
-        slope = 0.0
-        if len(recent) > 5:
-            tt = np.array([x["t"] for x in recent])
-            TT = np.array([x["T_obj"] for x in recent])
-            slope = float(np.polyfit(tt - tt[0], TT, 1)[0]) * 60
-        return {
-            "rig_time_s": round(s["t"], 1),
-            "object_temp_C": s["T_obj"], "ambient_temp_C": s["T_amb"],
-            "trend_K_per_min_last_2min": round(slope, 3),
-            "fan_duty": s["fan_duty"], "heater_w": s["heater_w"], "fan_power_w": round(s["fan_power_w"], 3),
-            "energy_used_J": {k: round(v, 1) for k, v in self.energy.items()},
-            "exploration_budget_left_J": round(self.limits.exploration_budget_J - self.energy["exploration"], 1),
-            "task_budget_left_J": round(self.goal.task_budget_J - self.energy["task"], 1),
-            "goal": self.goal.describe(),
-            "goal_progress": {"hold_done_s": round(self.hold_done_s, 1), "hold_required_s": self.goal.hold_s,
-                              "hold_compliant_s": round(self.hold_ok_s, 1)},
-            "model_status": self.model_status,
-            "active_anomaly": self.anomaly,
-            "safety_tripped": self.tripped,
-            "rig": {"simulated": self.rig.caps.simulated, "heater_w": self.rig.caps.heater_w,
-                    "camera": self.rig.caps.has_camera},
-        }
+    def _status(self):
+        self.bus.publish("status", {
+            "phase": self.phase, "day": self.day, "date": WX.day_label(min(self.day, D - 1)),
+            "plots_used": self.plots_used, "plots_budget": self.limits.trial_plots,
+            "tests_used": self.tests_used, "tests_budget": self.limits.field_tests,
+            "water_used_m3": round(self.water_used), "water_quota_m3": self.limits.water_quota_m3,
+            "energy_used_kwh": round(self.energy_used), "energy_kwh": self.limits.energy_kwh,
+            "anomaly": self.anomaly, "done": self.done, "hypotheses": list(self.hyps.values()),
+            "harvest": self.harvest, "result": self.result,
+        })
 
-    def look_at_scene(self, reason: str = "") -> dict:
-        self.sync()
-        self._last_scene_t = self.rig.now()
-        if not self.perception or not self.rig.caps.has_camera:
-            return {"available": False, "note": "no camera or perception configured"}
-        frame = self.rig.capture_frame()
-        if frame is None:
-            return {"available": False, "note": "camera returned no frame"}
-        res = self.perception.analyze(frame, self.rig.frame_mime())
-        self._scene_last_raw = res
-        fname = None
-        if self.run_dir:
-            fname = f"frames/scene_{int(self.rig.now()):06d}.png"
-            (self.run_dir / fname).write_bytes(frame)
-        out = {"available": True, "source": res.get("source"), "objects": res.get("objects", []),
-               "aim": res.get("aim"), "image_size": res.get("image_size")}
-        if self.scene_ref is None and res.get("objects"):
-            self.scene_ref = res
-            out["reference"] = "this view is now the reference layout"
-            out["changed_vs_reference"] = False
-        elif self.scene_ref is not None:
-            out.update(compare_scenes(self.scene_ref, res))
-        self.scene_last = out
-        self.bus.publish("scene", {**out, "t": round(self.rig.now(), 1),
-                                   "image": "data:%s;base64,%s" % (self.rig.frame_mime(), base64.b64encode(frame).decode())})
-        self._log("scene", {"reason": reason, "frame": fname, **{k: v for k, v in out.items() if k != "objects"},
-                            "objects": out.get("objects")})
-        return out
+    def _publish_beliefs(self):
+        self.bus.publish("beliefs", {"day": self.day, "phase": self.phase,
+                                     "crops": [self.beliefs[c].to_json() for c in CROP_IDS]})
 
-    def get_model(self) -> dict:
-        f = self.fit.to_json()
-        s = self.latest()
-        u_grid = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
-        ss = []
-        bel = self.belief
-        P = bel.sample(300, np.random.default_rng(1))
-        for u in u_grid:
-            k = np.maximum(M.cooling_rate(bel.structure, P, u), 1e-7)
-            Tss = s["T_amb"] + P["b"] * self.rig.caps.heater_w / k
-            ss.append({"fan_duty": u, "steady_state_C_heater_on": round(float(np.median(Tss)), 2),
-                       "p5_p95": [round(float(np.percentile(Tss, 5)), 2), round(float(np.percentile(Tss, 95)), 2)]})
-        return {"status": self.model_status, "model": f, "steady_state_table": ss,
-                "structure_weights": bel.weights_json(), "tested_duties": self.tested_duties(),
-                "fan_power_scale_vs_nominal": round(self.power_scale, 3),
-                "recent_fits": [x for x in self.bus.snapshot["fits"][-1:]]}
+    def _fi(self, field):
+        for i, f in enumerate(FIELDS):
+            if str(field).upper() in (f["id"], f["name"].upper()):
+                return i
+        return None
 
+    # ============================================================ shared tools
     def record_hypothesis(self, statement: str, prediction: str, falsified_if: str) -> dict:
         hid = self._id("H")
         h = {"id": hid, "statement": statement, "prediction": prediction, "falsified_if": falsified_if,
-             "status": "open", "created_t": round(self.rig.now(), 1), "evidence": []}
+             "status": "open", "created_day": self.day, "phase": self.phase, "evidence": []}
         self.hyps[hid] = h
         self._log("hypothesis", h)
         self._status()
@@ -429,552 +200,726 @@ class Lab:
         if verdict not in ("supported", "refuted", "inconclusive"):
             return {"error": "verdict must be supported, refuted or inconclusive"}
         h["status"] = verdict
-        h["evidence"].append({"t": round(self.rig.now(), 1), "text": evidence})
+        h["evidence"].append({"day": self.day, "text": evidence})
         self._log("conclusion", {"hypothesis_id": hypothesis_id, "verdict": verdict, "evidence": evidence})
         self._status()
         return {"ok": True, "hypothesis": h}
 
-    # ------------------------------------------------------- experiments
-    def _validate_steps(self, steps) -> str | None:
-        if not isinstance(steps, list) or not steps:
-            return "steps must be a non-empty list"
-        if len(steps) > self.limits.max_steps:
-            return f"at most {self.limits.max_steps} steps"
-        tot = 0.0
-        for st in steps:
-            try:
-                u = float(st["fan_duty"])
-                d = float(st["duration_s"])
-            except (KeyError, TypeError, ValueError):
-                return "each step needs fan_duty (0..1) and duration_s"
-            if not 0.0 <= u <= 1.0:
-                return f"fan_duty {u} outside 0..1"
-            if d < self.limits.min_step_s:
-                return f"step duration {d} s below minimum {self.limits.min_step_s} s"
-            if st.get("heater_on", True) and not self.rig.caps.has_heater:
-                return "this rig has no heater"
-            tot += d
-        if tot > self.limits.max_experiment_s:
-            return f"total duration {tot} s exceeds {self.limits.max_experiment_s} s"
+    def get_beliefs(self, crops: list[str] | None = None) -> dict:
+        crops = [c for c in (crops or CROP_IDS) if c in CROPS]
+        out = []
+        for c in crops:
+            b = self.beliefs[c].to_json()
+            b["trial_plots"] = len(self.trial_data[c])
+            out.append(b)
+        return {"crops": out, "trait_meaning": {k: v["about"] for k, v in TRAITS.items()}}
+
+    # ============================================================ trial phase
+    def default_trial_menu(self) -> list[dict]:
+        """Three designs per crop in the current plan (or common candidates): a normal
+        plot in the sowing window, a saline plot (exposes salt tolerance) and a late
+        sowing (flowering in the spring heat, exposes heat tolerance)."""
+        crops = [f["crop"] for f in (self.season_plan or {}).get("fields", []) if f.get("crop")] or \
+            ["wheat", "maize", "potato", "sorghum", "sweet_potato", "beans"]
+        menu = []
+        for c in dict.fromkeys(crops):
+            a, b = CROPS[c]["sow"]
+            base = {"crop": c, "density": 1.0, "irr": 1.0, "desal": 0.0, "nfert": CROPS[c]["nreq"], "mulch": 1}
+            menu.append({**base, "sow": (a + b) // 2, "plot": "normal"})
+            menu.append({**base, "sow": (a + b) // 2, "plot": "saline"})
+            menu.append({**base, "sow": min(b + 35, 200), "plot": "normal"})
+        return menu
+
+    def _reference_use(self, crop: str):
+        for f in (self.season_plan or {}).get("fields", []):
+            if f.get("crop") == crop:
+                return {"field": f["field_index"], "mgmt": f["mgmt"]}
         return None
 
-    def _assess(self, steps, fit: M.Fit | None = None) -> dict:
-        fit = fit or self.fit
-        s = self.latest()
-        dt, u, q, Ta = M.schedule_arrays(steps, self.rig.caps.heater_w, s["T_amb"])
-        pred = M.predict(self.belief, s["T_obj"], s["t"], dt, u, q, Ta)
-        energy = float(np.sum(self._fan_power(u) * dt))
-        gain = M.info_gain(fit, s["T_obj"], dt, u, q, Ta)
-        g0 = self._goal_sd(fit)
-        g1 = self._goal_sd(gain["posterior"])
-        return {"pred": pred, "energy_J": energy, "bits": gain["bits"], "goal_sd_before": g0,
-                "goal_sd_after": g1, "max_T_p95": float(pred.hi.max()), "duration_s": float(np.sum(dt)),
-                "touches_duties": sorted({round(float(x), 2) for x in u})}
+    def _norm_trial(self, c: dict):
+        if c.get("crop") not in CROPS:
+            return f"unknown crop {c.get('crop')}"
+        crop = c["crop"]
+        try:
+            t = {"crop": crop, "sow": int(c.get("sow", sum(CROPS[crop]["sow"]) // 2)),
+                 "density": float(c.get("density", 1.0)), "irr": float(c.get("irr", 1.0)),
+                 "desal": float(c.get("desal", 0.0)), "nfert": float(c.get("nfert", CROPS[crop]["nreq"])),
+                 "mulch": float(c.get("mulch", 1)), "plot": c.get("plot", "normal")}
+        except (TypeError, ValueError):
+            return "bad numbers in trial spec"
+        if not 0 <= t["sow"] <= 200 or not 0.4 <= t["irr"] <= 1.3 or not 0 <= t["desal"] <= 1 or t["plot"] not in ("normal", "saline"):
+            return "sow 0-200, irr 0.4-1.3, desal 0-1, plot normal|saline"
+        return t
 
-    def _goal_sd(self, fit: M.Fit) -> float:
-        """Uncertainty (K) in steady-state temperature at the duty the model
-        currently thinks meets the goal: the number that decides energy spend."""
-        s = self.latest()
-        p = fit.params()
-        u_star = 1.0
-        for u in np.linspace(0, 1, 51):
-            if M.steady_state(p, fit.structure, u, self.rig.caps.heater_w, s["T_amb"]) <= self.goal.target_C:
-                u_star = float(u)
-                break
-        P = fit.sample(300, np.random.default_rng(2))
-        k = np.maximum(M.cooling_rate(fit.structure, P, u_star), 1e-7)
-        return float(np.std(s["T_amb"] + P["b"] * self.rig.caps.heater_w / k))
-
-    def structural_spread(self) -> dict:
-        """How much the competing airflow hypotheses disagree about the steady
-        temperature, across fan duties. Large spread = more experiments needed."""
-        s = self.latest()
-        out = {}
-        for u in (0.1, 0.2, 0.3, 0.5, 0.8):
-            vals = [M.steady_state(f.params(), f.structure, u, self.rig.caps.heater_w, s["T_amb"])
-                    for f, w in zip(self.belief.members, self.belief.weights) if w >= 0.05]
-            out[u] = round(max(vals) - min(vals), 2) if len(vals) > 1 else 0.0
-        return out
-
-    def standard_candidates(self) -> list[dict]:
-        T = self.latest()["T_obj"]
-        Ta = self.latest()["T_amb"]
-        warm = T - Ta > 8
-        c = []
-        if not warm:
-            c.append({"name": "heat-up, fan off", "steps": [{"fan_duty": 0.0, "heater_on": True, "duration_s": 600}]})
-        c += [
-            {"name": "fan full", "steps": [{"fan_duty": 1.0, "heater_on": True, "duration_s": 240}]},
-            {"name": "fan 35%", "steps": [{"fan_duty": 0.35, "heater_on": True, "duration_s": 240}]},
-            {"name": "fan 60%", "steps": [{"fan_duty": 0.6, "heater_on": True, "duration_s": 180}]},
-            {"name": "fan 15% (near stall?)", "steps": [{"fan_duty": 0.15, "heater_on": True, "duration_s": 240}]},
-            {"name": "fan off, heater on", "steps": [{"fan_duty": 0.0, "heater_on": True, "duration_s": 240}]},
-            {"name": "staircase 100/50/25", "steps": [{"fan_duty": 1.0, "heater_on": True, "duration_s": 150},
-                                                      {"fan_duty": 0.5, "heater_on": True, "duration_s": 150},
-                                                      {"fan_duty": 0.25, "heater_on": True, "duration_s": 150}]},
-        ]
-        return c
-
-    def evaluate_experiments(self, candidates: list[dict] | None = None) -> dict:
-        self.sync()
-        candidates = candidates or self.standard_candidates()
+    def evaluate_trials(self, candidates: list[dict] | None = None) -> dict:
+        if self.phase not in ("trials", "planning"):
+            return {"refused": "trials can only be run before the season starts"}
+        candidates = candidates or self.default_trial_menu()
         out = []
-        left = self.limits.exploration_budget_J - self.energy["exploration"]
-        for c in candidates[:8]:
-            steps = c.get("steps")
-            err = self._validate_steps(steps)
-            if err:
-                out.append({"name": c.get("name"), "rejected": err})
+        for c in candidates[:24]:
+            t = self._norm_trial(c)
+            if isinstance(t, str):
+                out.append({"rejected": t, "spec": c})
                 continue
-            a = self._assess(steps)
+            info = trial_information(self.beliefs[t["crop"]], t, self.wx_typ, self._reference_use(t["crop"]))
             cid = self._id("C")
-            safe = float(np.max(a["pred"].mean)) <= self.limits.T_abort - 2
-            within = a["energy_J"] <= left
-            rec = {"candidate_id": cid, "name": c.get("name", cid), "steps": steps,
-                   "duration_s": round(a["duration_s"]), "fan_energy_J": round(a["energy_J"], 1),
-                   "predicted_final_C": round(float(a["pred"].mean[-1]), 2),
-                   "predicted_final_90pct": [round(float(a["pred"].lo[-1]), 2), round(float(a["pred"].hi[-1]), 2)],
-                   "predicted_max_C_p95": round(a["max_T_p95"], 2),
-                   "expected_information_bits": round(a["bits"], 2),
-                   "goal_uncertainty_K_before_after": [round(a["goal_sd_before"], 3), round(a["goal_sd_after"], 3)],
-                   "bits_per_100J": round(a["bits"] / max(a["energy_J"], 1.0) * 100, 2),
-                   "safe": safe, "within_budget": within,
-                   "may_hit_guard": a["max_T_p95"] > self.limits.T_plan_max}
-            self.candidates[cid] = {**rec, "_pred": a["pred"]}
+            rec = {"candidate_id": cid, "spec": t, "predicted_yield_t_ha": round(info["pred_yield"], 2),
+                   "expected_information_bits": round(info["bits"], 2),
+                   "production_yield_sd_t_ha_before_after": [round(info["ref_sd_before"], 3), round(info["ref_sd_after"], 3)],
+                   "production_yield_sd_cut_pct": round(100 * (1 - info["ref_sd_after"] / max(info["ref_sd_before"], 1e-9)), 1),
+                   "trait_sd_after": info["trait_sd_after"]}
+            self.candidates[cid] = rec
             out.append(rec)
-        self._log("experiment_options", {"options": out, "model_structure": self.fit.structure})
-        return {"options": out, "exploration_budget_left_J": round(left, 1),
-                "tested_duties": self.tested_duties(),
-                "structure_weights": self.belief.weights_json(),
-                "structural_spread_K_by_duty": self.structural_spread(),
-                "note": ("information bits are a linearised estimate for the current model structure; "
-                         f"heater steps are guarded: they end early if the object reaches {self.limits.T_plan_max} C")}
+        self._log("trial_options", {"options": out})
+        return {"options": out, "plots_left": self.limits.trial_plots - self.plots_used,
+                "note": "information is linearised at the current belief; 'production_yield_sd' is the uncertainty in "
+                        "this crop's yield where the plan would grow it (or on a normal and a saline field if unplanned)"}
 
-    def run_experiment(self, hypothesis_id: str, rationale: str, candidate_id: str | None = None,
-                       steps: list | None = None, name: str | None = None) -> dict:
-        self.sync()
-        if self.tripped:
-            return {"refused": "safety trip active; the rig is in safe state"}
-        if candidate_id:
-            c = self.candidates.get(candidate_id)
-            if not c:
-                return {"refused": f"unknown candidate {candidate_id}; call evaluate_experiments first"}
-            steps, name = c["steps"], c["name"]
-        err = self._validate_steps(steps)
-        if err:
-            return {"refused": err}
+    def run_trials(self, candidate_ids: list[str], hypothesis_id: str, rationale: str) -> dict:
+        self._check_stop()
+        if self.phase not in ("trials", "planning"):
+            return {"refused": "the season has started; no more trials"}
         if hypothesis_id not in self.hyps:
             return {"refused": f"record a hypothesis first (unknown id {hypothesis_id})"}
-        a = self._assess(steps)
-        left = self.limits.exploration_budget_J - self.energy["exploration"]
-        med_max = float(np.max(a["pred"].mean))
-        if med_max > self.limits.T_abort - 2:
-            self._log("safety_block", {"why": "predicted temperature too high", "median_max_C": med_max, "steps": steps})
-            return {"refused": f"median predicted max temperature {med_max:.1f} C is too close to the {self.limits.T_abort} C trip"}
-        if a["energy_J"] > left:
-            self._log("safety_block", {"why": "exploration budget", "needed_J": a["energy_J"], "left_J": left})
-            return {"refused": f"needs {a['energy_J']:.0f} J, exploration budget left {left:.0f} J"}
-        eid = self._id("E")
-        pred = a["pred"]
-        start_t = self.latest()["t"]
-        self._log("prediction", {"experiment_id": eid, "hypothesis_id": hypothesis_id,
-                                 "final_C": round(float(pred.mean[-1]), 3),
-                                 "final_90pct": [round(float(pred.lo[-1]), 3), round(float(pred.hi[-1]), 3)],
-                                 "model": self.fit.structure, "params": self.fit.params()})
-        self._log("experiment_start", {"experiment_id": eid, "name": name, "steps": steps,
-                                       "hypothesis_id": hypothesis_id, "rationale": rationale})
-        self.bus.publish("forecast", {"id": eid, "label": f"{eid} {name}", **pred.to_json()})
-        mon = Monitor(self.belief, self.latest())
-        status = "ok"
-        guarded: list[float] = []
-        step_stats = []
-        for st in steps:
-            n0 = len(self.samples)
-            self.rig.set_fan(float(st["fan_duty"]))
-            self.rig.set_heater(bool(st.get("heater_on", True)))
-            # experiments are allowed to falsify the model, so a divergence is
-            # recorded but does not interrupt the run
-            status = self._run(float(st["duration_s"]), "exploration", mon, stop_on_alarm=False,
-                               guard_T=self.limits.T_plan_max if st.get("heater_on", True) else None)
-            if status == "guard":
-                guarded.append(round(self.rig.now(), 1))
-                self.rig.set_heater(False)
-                self._log("safety_guard", {"experiment_id": eid, "T_obj": self.latest()["T_obj"],
-                                           "guard_C": self.limits.T_plan_max, "action": "step ended early, heater off"})
-                status = "ok"
-            seg = [x for x in self.samples[n0:] if "pred" in x]
-            if seg:
-                res = np.array([x["T_obj"] - x["pred"] for x in seg])
-                inside = np.mean([x["lo"] - mon.floor <= x["T_obj"] <= x["hi"] + mon.floor for x in seg])
-                step_stats.append({"fan_duty": st["fan_duty"], "heater_on": st.get("heater_on", True),
-                                   "mean_residual_K": round(float(res.mean()), 3),
-                                   "final_residual_K": round(float(res[-1]), 3),
-                                   "coverage_90pct_band": round(float(inside), 3),
-                                   "matched_prediction": bool(inside >= 0.8 and abs(res.mean()) < 0.5)})
-            if status in ("trip", "stopped"):
-                break
-        rows = [x for x in self.samples if x["t"] > start_t]
-        final = rows[-1] if rows else self.latest()
-        summ = mon.summary()
-        if mon.alarm:
-            summ["divergence"] = mon.alarm
-        if guarded:
-            summ["guard_stops_at_t"] = guarded
-        summ["per_step"] = step_stats
-        result = {
-            "experiment_id": eid, "name": name, "status": status, "hypothesis_id": hypothesis_id,
-            "measured_final_C": final["T_obj"],
-            "predicted_final_C": round(float(pred.mean[-1]), 2),
-            "predicted_final_90pct": [round(float(pred.lo[-1]), 2), round(float(pred.hi[-1]), 2)],
-            "fan_energy_J": round(sum(r["fan_power_w"] for r in rows) * self.rig.caps.sample_period_s, 1),
-            **summ,
-            "data_sha256": self._digest(rows),
-            "t_start": round(start_t, 1), "t_end": round(final["t"], 1),
-        }
-        self.experiments.append(result)
-        self._update_power_scale()
-        self._log("experiment_result", result)
+        specs = []
+        for cid in candidate_ids:
+            c = self.candidates.get(cid)
+            if not c:
+                return {"refused": f"unknown candidate {cid}; call evaluate_trials first"}
+            specs.append(c["spec"])
+        left = self.limits.trial_plots - self.plots_used
+        if not specs:
+            return {"refused": "no candidates given"}
+        if len(specs) > min(left, self.limits.plots_per_round):
+            return {"refused": f"{len(specs)} plots requested; {left} left in the budget, at most {self.limits.plots_per_round} per round"}
+        rid = self._id("R")
+        self._log("trial_start", {"round": rid, "plots": specs, "hypothesis_id": hypothesis_id, "rationale": rationale})
+        res = self.farm.run_trials(specs)
+        self.plots_used += len(specs)
+        self.trial_rounds += 1
+        out = []
+        rng = np.random.default_rng(self.trial_rounds)
+        for t, o in zip(specs, res["plots"]):
+            # the prediction is made with the belief held *before* this result, using this year's actual weather
+            b = self.beliefs[t["crop"]]
+            S = 40
+            smp = b.sample(S, rng)
+            th = np.stack([smp[k] for k in TRAIT_IDS], axis=1)
+            sim = predict_trials(t["crop"], th, [t], [res["weather"]])
+            y = sim.fresh_yield()
+            ccp = sim.traces()["cc"]
+            days = np.array(o["days"])
+            lo, hi = np.percentile(y, 5), np.percentile(y, 95)
+            inside = lo * 0.95 <= o["yield_t_ha"] <= hi * 1.05
+            cc_lo = np.percentile(ccp[:, days], 5, axis=0) - 0.03
+            cc_hi = np.percentile(ccp[:, days], 95, axis=0) + 0.03
+            cc_cov = float(np.mean((np.array(o["cc_obs"]) >= cc_lo) & (np.array(o["cc_obs"]) <= cc_hi)))
+            self.trial_data[t["crop"]].append((t, o, res["weather"]))
+            r = {"crop": t["crop"], "plot": t["plot"], "sow": t["sow"], "irr": t["irr"], "desal": t["desal"],
+                 "measured_yield_t_ha": o["yield_t_ha"], "predicted_yield_90pct": [round(lo, 2), round(hi, 2)],
+                 "predicted_yield_median": round(float(np.median(y)), 2),
+                 "canopy_inside_band_pct": round(100 * cc_cov), "prediction_held": bool(inside and cc_cov >= 0.7),
+                 "harvest_day": o["harvest_day"], "water_m3_ha": o["water_m3_ha"]}
+            out.append(r)
+            self.bus.publish("trials", {"round": rid, **r, "days": o["days"], "cc_obs": o["cc_obs"],
+                                        "cc_pred_lo": np.clip(cc_lo, 0, 1).round(3).tolist(),
+                                        "cc_pred_hi": np.clip(cc_hi, 0, 1).round(3).tolist(),
+                                        "cc_pred_med": np.median(ccp[:, days], axis=0).round(3).tolist()})
+        digest = hashlib.sha256(json.dumps(res["plots"], sort_keys=True).encode()).hexdigest()
+        result = {"round": rid, "plots": out, "plots_left": self.limits.trial_plots - self.plots_used,
+                  "trial_year": {"days_above_38C": int(np.sum(res["weather"]["tmax"] > 38)),
+                                 "season_et0_mm": round(float(res["weather"]["et0"].sum())),
+                                 "rain_mm": round(float(res["weather"]["rain"].sum()))},
+                  "data_sha256": digest}
+        self._log("trial_result", result)
         self._status()
-        out = dict(result)
-        out["next"] = "call fit_model to learn from this data, then conclude the hypothesis"
-        return out
+        result["next"] = "call fit_crop_models to learn from these plots, then conclude the hypothesis"
+        return result
 
-    # ------------------------------------------------------------ fitting
-    def fit_model(self, rationale: str, structures: list[str] | None = None, since_t: float | None = None,
-                  hold_params: list[str] | None = None) -> dict:
-        self.sync()
-        data = M.Data.from_samples(self.samples, since=since_t)
-        if len(data) < 12:
-            return {"error": f"only {len(data)} usable points since t={since_t}; run an experiment first"}
-        fix = None
-        ref = self.fit_reference or self.fit
-        if hold_params:
-            cur = ref.params()
-            fix = {n: cur[n] for n in hold_params if n in cur}
-        prior = None
-        if since_t is not None and self.model_status != "prior":
-            # Post-change refit: start from what was known, widened so that
-            # parameters which really changed are free to move.
-            sd = ref.sd()
-            prior = {n: (v, max(3 * sd.get(n, 0.0), 0.25 * abs(v), 1e-6)) for n, v in ref.params().items()}
-            if not structures:
-                structures = [ref.structure]
-        structures = [s for s in (structures or list(M.STRUCTURES)) if s in M.STRUCTURES]
-        fits = M.fit_all(data, structures=structures, start=self.fit.params(), since=since_t, fix=fix,
-                         prior=prior if (structures == [ref.structure]) else None)
-        best = fits[0]
-        self.fits = fits
-        table = [{"structure": f.structure, "aic": round(f.aic, 1), "delta_aic": round(f.aic - best.aic, 1),
-                  "rmse_K": round(f.rmse, 3), "params": {k: round(v, 6) for k, v in f.params().items()}}
-                 for f in fits]
-        prev = self.fit
-        self.fit = best
-        self.model_status = "fitted"
-        resolved = None
-        if self.anomaly:
-            resolved = self.anomaly
-            self.anomaly = None
-            # The agent has explained the change and refit: the current camera
-            # view becomes the new reference layout.
-            if getattr(self, "_scene_last_raw", None) and self._scene_last_raw.get("objects"):
-                self.scene_ref = self._scene_last_raw
-                self._log("scene_reference", {"note": "reference layout updated after the anomaly was resolved"})
-        # k(u) curve with band, for the dashboard
-        bel = self.belief
-        P = bel.sample(400, np.random.default_rng(3))
-        ug = np.linspace(0, 1, 41)
-        K = np.maximum(M.cooling_rate(bel.structure, {n: v[:, None] for n, v in P.items()}, ug[None, :]), 1e-7)
-        curve = {"u": ug.round(3).tolist(), "k_med": np.median(K, 0).round(6).tolist(),
-                 "k_lo": np.percentile(K, 5, 0).round(6).tolist(), "k_hi": np.percentile(K, 95, 0).round(6).tolist()}
-        payload = {"t": round(self.rig.now(), 1), **best.to_json(), "ranking": table, "k_curve": curve,
-                   "weights": bel.weights_json(), "tested_duties": self.tested_duties(),
-                   "rationale": rationale, "held": fix or {}}
-        self.bus.publish("fit", payload)
-        self._log("model_update", {"rationale": rationale, "since_t": since_t, "held": fix or {},
-                                   "ranking": table, "adopted": best.to_json(),
-                                   "previous": prev.to_json(), "resolved_anomaly": resolved})
-        self._status()
-        return {"adopted": best.to_json(), "ranking": table, "structure_weights": bel.weights_json(),
-                "structural_spread_K_by_duty": self.structural_spread(),
-                "data_points": len(data), "since_t": since_t, "held_params": fix or {},
-                "note": "lower AIC is better; a delta_aic above ~10 is strong evidence against that structure"}
+    def fit_crop_models(self, rationale: str, crops: list[str] | None = None) -> dict:
+        crops = [c for c in (crops or CROP_IDS) if self.trial_data.get(c)]
+        if not crops:
+            return {"error": "no trial data yet"}
+        table = []
+        for c in crops:
+            b = self.beliefs[c]
+            before = b.to_json()
+            data = self.trial_data[c]
+            b.mean, b.cov = self.priors[c][0].copy(), self.priors[c][1].copy()
+            fit = calibrate(b, self.priors[c], [d[0] for d in data], [d[1] for d in data], [d[2] for d in data])
+            after = b.to_json()
+            table.append({"crop": c, "plots": len(data), "cc_rmse": fit["cc_rmse"], "yield_err_pct": fit["yield_err_pct"],
+                          "traits": {k: {"mean": after["traits"][k]["mean"], "sd": after["traits"][k]["sd"],
+                                         "sd_before": before["traits"][k]["sd"]} for k in TRAIT_IDS}})
+        self._log("model_update", {"rationale": rationale, "crops": table})
+        self._publish_beliefs()
+        return {"updated": table, "note": "traits: wp and cgc are multipliers (1 = published value), heat and salt are "
+                                          "shifts in C and dS/m (0 = published value). sd shrinks only for traits a trial exposed."}
 
-    # ----------------------------------------------------------- planning
-    def plan_control(self, rationale: str) -> dict:
-        self.sync()
-        if self.anomaly:
-            return {"refused": "the model is invalidated by an unexplained anomaly; investigate and refit before planning",
-                    "anomaly": self.anomaly}
-        if self.model_status == "prior":
-            return {"refused": "no fitted model yet; run experiments and fit_model first"}
-        s = self.latest()
-        remaining_hold = max(self.goal.hold_s - self.hold_done_s, 0.0)
-        if remaining_hold <= 0:
-            return {"refused": "goal already complete"}
-        bel = self.belief
-        res = plan_constant_then_hold(bel, s, self.rig.caps.heater_w, self.goal, remaining_hold,
-                                      self._fan_power)
-        nominal = plan_constant_then_hold(bel, s, self.rig.caps.heater_w, self.goal, remaining_hold,
-                                          self._fan_power, robust=False)
+    # ============================================================ planning
+    def plan_season(self, rationale: str, seed: int = 99) -> dict:
+        self._check_stop()
+        if self.phase in ("season", "harvested"):
+            return {"refused": "the season has started; use rebalance_water to change irrigation"}
+        L = self.limits
+        ev = evaluate(self.beliefs, S=24, seed=seed)
+        plan = optimise(ev, L.water_quota_m3, L.energy_kwh)
+        # what certainty would be worth: same weather years, traits fixed at their means
+        sure = {c: CropBelief(c) for c in CROP_IDS}
+        for c in CROP_IDS:
+            sure[c].mean = self.beliefs[c].mean.copy()
+            sure[c].cov = np.eye(4) * 1e-10
+        plan2 = optimise(evaluate(sure, S=24, seed=seed), L.water_quota_m3, L.energy_kwh)
         pid = self._id("P")
-        left = self.goal.task_budget_J - self.energy["task"]
-        plan = {"plan_id": pid, "phases": res["phases"], "feasible": res["feasible"],
-                "predicted_energy_J": round(res["energy_J"], 1),
-                "certainty_equivalent_energy_J": round(nominal["energy_J"], 1),
-                "uncertainty_premium_J": round(res["energy_J"] - nominal["energy_J"], 1),
-                "predicted_hold_max_C_p95": round(res["hold_max_p95"], 2),
-                "predicted_settled_C_median": round(res["hold_med"], 2),
-                "task_budget_left_J": round(left, 1),
-                "within_budget": res["energy_J"] <= left,
-                "remaining_hold_s": remaining_hold, "rationale": rationale,
-                "model": self.fit.structure}
-        if not res["feasible"]:
-            plan["note"] = "no constant-duty plan keeps the 95th percentile under target; even full fan is not enough by the model"
-        # Trust region: has the model ever seen the duty this plan relies on?
-        u_hold = res["phases"][-1]["fan_duty"]
-        tested = self.tested_duties()
-        # Fan off is a different regime (no airflow), so only spinning duties count as evidence.
-        near = [d for d in tested if d > 0 and abs(d - u_hold) <= max(0.05, 0.25 * u_hold)]
-        plan["hold_duty"] = u_hold
-        plan["tested_duties"] = tested
-        plan["structure_weights"] = bel.weights_json()
-        if u_hold > 0 and not near:
-            plan["extrapolation"] = True
-            plan["suggested_validation"] = {"name": f"validate operating point, fan {round(u_hold * 100)}%",
-                                            "steps": [{"fan_duty": u_hold, "heater_on": True, "duration_s": 300}]}
-            plan["note"] = (f"the hold duty {u_hold:.2f} is outside the duties tested so far {tested}; "
-                            "the prediction there is an extrapolation. Consider running the suggested validation experiment first.")
-        self.plans[pid] = {**plan, "_pred": res["pred"]}
-        self.bus.publish("plan", {**plan, "t": round(s["t"], 1)})
-        self.bus.publish("forecast", {"id": pid, "label": f"{pid} plan", **res["pred"].to_json()})
-        self._log("plan", plan)
-        return plan
+        untested = sorted({f["crop"] for f in plan["fields"] if f.get("crop") and not self.trial_data[f["crop"]]})
+        rec = {"plan_id": pid, **{k: v for k, v in plan.items() if k != "fed_samples"},
+               "people_p10_if_traits_known": plan2["people_p10"],
+               "cost_of_uncertainty_people": round(plan2["people_p10"] - plan["people_p10"], 1),
+               "untested_crops": untested, "rationale": rationale}
+        if untested:
+            rec["note"] = (f"the plan relies on crops never trialled on this farm: {', '.join(untested)}; their predictions "
+                           "rest on published values only. Consider trialling them before committing.")
+        self.plans[pid] = rec
+        self.season_plan = rec
+        if self.phase == "trials":
+            self.phase = "planning"
+        self.bus.publish("plan", {**rec, "day": self.day, "fed_samples": plan["fed_samples"]})
+        self._log("plan", rec)
+        self._status()
+        return rec
 
-    def execute_plan(self, plan_id: str, rationale: str) -> dict:
-        self.sync()
+    # ============================================================ season
+    def start_season(self, plan_id: str, rationale: str) -> dict:
         p = self.plans.get(plan_id)
         if not p:
             return {"refused": f"unknown plan {plan_id}"}
+        if self.phase in ("season", "harvested"):
+            return {"refused": "already started"}
+        fields = []
+        for f in p["fields"]:
+            if f.get("crop"):
+                fields.append({"crop": f["crop"], **f["mgmt"]})
+            else:
+                fields.append({"crop": None, "sow": 0, "density": 1, "irr": 0, "desal": 0, "nfert": 0, "mulch": 0})
+        self.run_plan = fields
+        self.farm.start_season(fields)
+        self.phase = "season"
+        self.day = 0
+        self.gross_hist = np.zeros((NF, D))
+        self.irr_hist = np.tile(np.array([f["irr"] for f in fields], float)[:, None], (1, D))
+        self.desal_hist = np.tile(np.array([f["desal"] for f in fields], float)[:, None], (1, D))
+        self.deliver_est = np.ones((NF, D))
+        self.pest_est = np.zeros((NF, D))
+        self.ecgw_est = np.full((NF, D), EC_GROUNDWATER)
+        self.wx_obs = {k: np.zeros((1, D)) for k in ("tmax", "tmin", "rh", "u2", "rs", "rain", "et0", "doy")}
+        self.wx_obs["doy"][0] = WX.season_doys()
+        self.theta_obs = np.full((NF, D, 3), np.nan)
+        self.ec_last = np.array([np.mean(f["ece"][:2]) for f in FIELDS])
+        self.cc_obs = {i: [] for i in range(NF)}
+        self.cc_last = np.zeros(NF)
+        self.harvested = np.zeros(NF, bool)
+        self.S_mon = 30
+        self._build_ensemble()
+        self._reset_monitor()
+        self._log("season_start", {"plan_id": plan_id, "fields": fields, "rationale": rationale})
+        self.bus.publish("fields", self._fields_static())
+        self._status()
+        self.project()
+        return {"started": True, "date": WX.day_label(0), "fields": [
+            {"field": FIELDS[i]["id"], "crop": f["crop"], "sow_date": WX.day_label(int(f["sow"])) if f["crop"] else None}
+            for i, f in enumerate(fields)]}
+
+    def _fields_static(self):
+        return [{"id": FIELDS[i]["id"], "name": FIELDS[i]["name"], "crop": f["crop"],
+                 "label": CROPS[f["crop"]]["label"] if f["crop"] else "Fallow", "sow": int(f["sow"]),
+                 "irr": f["irr"], "desal": f["desal"], "nfert": f["nfert"],
+                 "layers": FIELDS[i]["layers"], "ece": FIELDS[i]["ece"]} for i, f in enumerate(self.run_plan)]
+
+    def _trait_samples(self, S: int, rng):
+        crops, tr = [], {k: [] for k in TRAIT_IDS}
+        for f in self.run_plan:
+            c = f["crop"]
+            smp = self.beliefs[c].sample(S, rng) if c else {k: np.zeros(S) for k in TRAIT_IDS}
+            crops += [c] * S
+            for k in TRAIT_IDS:
+                tr[k].append(smp[k])
+        return crops, {k: np.concatenate(v) for k, v in tr.items()}
+
+    def _build_ensemble(self):
+        """(Re)build the monitoring ensemble and replay the season so far."""
+        S = self.S_mon
+        crops, tr = self._trait_samples(S, np.random.default_rng(17))
+        mg = {k: np.repeat(np.array([float(f[k]) for f in self.run_plan]), S) for k in MG_KEYS}
+        mg["irr"] = np.repeat(self.irr_hist, S, axis=0)
+        mg["desal"] = np.repeat(self.desal_hist, S, axis=0)
+        self.ens = Sim(crop_arrays(crops, tr), mg, soil_arrays([f for f in FIELDS for _ in range(S)]), self.wx_obs,
+                       np.zeros(NF * S, int), np.repeat(self.ecgw_est, S, axis=0), eff=DRIP_EFF_NOMINAL,
+                       deliver=np.repeat(self.deliver_est, S, axis=0), pest=np.repeat(self.pest_est, S, axis=0))
+        for d in range(self.day):
+            self.ens.step(np.repeat(self.gross_hist[:, d], S))
+
+    def _reset_monitor(self):
+        self.cus = {f"{s}_{k}": (np.zeros(NF) if k != "zero" else np.full(NF, self.day))
+                    for s in ("sw", "cc", "ec") for k in ("p", "n", "zero")}
+        self.mon_from = np.array([max(self.day + 5, int(f["sow"]) + 5) for f in self.run_plan])
+
+    def _controller(self, d: int) -> np.ndarray:
+        """Daily drip irrigation from observable data: last drone canopy cover and yesterday's ET0."""
+        et0 = self.wx_obs["et0"][0, d - 1] if d > 0 else 5.0
+        g = np.zeros(NF)
+        for i, f in enumerate(self.run_plan):
+            c = f["crop"]
+            if not c or d < f["sow"] or self.harvested[i]:
+                continue
+            cc = self.cc_last[i]
+            etc = (CROPS[c]["kcb"] * cc + 0.3 * (1 - cc) * (1 - 0.5 * f["mulch"])) * et0
+            g[i] = self.irr_hist[i, d] * etc * (1 + LEACH_FRACTION) / DRIP_EFF_NOMINAL
+            if d == f["sow"]:
+                g[i] += PRE_IRRIGATION_MM
+        return g
+
+    def advance(self, days: int, rationale: str = "") -> dict:
+        """Run the season forward day by day; stops early on an anomaly or at season end."""
+        if self.phase != "season":
+            return {"refused": "start the season first" if self.phase in ("trials", "planning") else "the season is over"}
         if self.anomaly:
-            return {"refused": "unresolved anomaly; refit the model before executing a plan"}
-        if not p["within_budget"]:
-            return {"refused": "plan exceeds the task energy budget"}
-        self._log("plan_execute", {"plan_id": plan_id, "rationale": rationale})
-        if self.perception and self.scene_ref is None:
-            self.look_at_scene(reason="reference before executing plan")
-        mon = Monitor(self.belief, self.latest())
-        self.rig.set_heater(True)
-        status = "ok"
-        elapsed = 0.0
-        start_t = self.latest()["t"]
-        bel = self.belief
-        P = bel.sample(300, np.random.default_rng(5))
-        in_hold = {"on": False, "last_adj": -1e9, "adjustments": 0}
-
-        def hold_duty(Ta: float, bias: float = 0.0) -> float:
-            for u in np.round(np.arange(0, 1.0001, 0.01), 2):
-                k = np.maximum(M.cooling_rate(bel.structure, P, u), 1e-7)
-                if np.percentile(Ta + P["b"] * self.rig.caps.heater_w / k, 95) + bias <= self.goal.target_C - 0.1:
-                    return float(u)
-            return 1.0
-
-        def recent_bias() -> float:
-            """Offset-free control: the measured minus predicted temperature over
-            the last minute, folded into the hold duty."""
-            now = self.latest()["t"]
-            r = [x["T_obj"] - x["pred"] for x in self.samples[-90:] if "pred" in x and x["t"] >= now - 60]
-            return float(np.clip(np.mean(r), -1.0, 2.0)) if len(r) >= 20 else 0.0
-
-        def count(chunk):
-            nonlocal elapsed
-            elapsed += chunk
-            if elapsed > self.goal.settle_s:
-                held = min(chunk, elapsed - self.goal.settle_s)
-                self.hold_done_s += held
-                if self.latest()["T_obj"] <= self.goal.target_C + self.goal.tolerance_K:
-                    self.hold_ok_s += held
-            # Feedback on measured conditions: the model is still trusted, but the
-            # room may warm or cool. Re-derive the robust hold duty each minute.
-            if in_hold["on"] and self.rig.now() - in_hold["last_adj"] >= 60:
-                in_hold["last_adj"] = self.rig.now()
-                s = self.latest()
-                bias = recent_bias()
-                u_new = hold_duty(s["T_amb"], bias)
-                if abs(u_new - s["fan_duty"]) >= 0.02:
-                    self.rig.set_fan(u_new)
-                    in_hold["adjustments"] += 1
-                    self._log("plan_adjust", {"plan_id": plan_id, "fan_duty": u_new, "was": s["fan_duty"],
-                                              "measured_ambient_C": s["T_amb"], "model_bias_K": round(bias, 3),
-                                              "why": "robust hold duty recomputed for the measured room temperature and model offset"})
-
-        for i, ph in enumerate(p["phases"]):
-            self.rig.set_fan(ph["fan_duty"])
-            in_hold["on"] = i == len(p["phases"]) - 1
-            in_hold["last_adj"] = self.rig.now()
-            status = self._run(ph["duration_s"], "task", mon, scene_watch=True, on_chunk=count)
-            if status != "ok":
+            return {"refused": "an anomaly is open: investigate, then update_model with what you found, or "
+                               "dismiss_anomaly if it was noise", "anomaly": self.anomaly}
+        days = int(max(1, min(days, self.limits.max_advance_days)))
+        self._log("advance", {"days": days, "from_day": self.day, "rationale": rationale})
+        stop_reason = "days elapsed"
+        for _ in range(days):
+            self._check_stop()
+            if self.day >= D:
                 break
-        result = {"plan_id": plan_id, "status": status, "elapsed_s": round(elapsed, 1),
-                  "task_energy_used_J": round(self.energy["task"], 1),
-                  "hold_done_s": round(self.hold_done_s, 1), "hold_compliant_s": round(self.hold_ok_s, 1),
-                  "object_temp_C": self.latest()["T_obj"], "feedback_adjustments": in_hold["adjustments"],
-                  **mon.summary()}
-        if status in ("anomaly", "scene"):
-            alarm = mon.alarm
-            if alarm is None:
-                # The camera caught it. Date the change by when measurement and
-                # model started to separate, within the window since the last look.
-                lo_t = self._last_scene_t - self.scene_check_s
-                onset = lo_t
-                for x in reversed(self.samples):
-                    if x["t"] < lo_t:
-                        break
-                    if "pred" in x and abs(x["T_obj"] - x["pred"]) < 0.2:
-                        onset = x["t"]
-                        break
-                alarm = {"t_detected": round(self.rig.now(), 1), "onset_estimate_t": round(onset, 1),
-                         "direction": "scene changed"}
-            self.anomaly = {"kind": "prediction_divergence" if status == "anomaly" else "scene_change",
-                            **alarm, "during": plan_id,
-                            "scene": {k: v for k, v in (self.scene_last or {}).items() if k != "objects"}}
-            self.anomalies.append(self.anomaly)
-            self.fit_reference = self.fit
-            self.model_status = "invalidated"
-            # fail toward cooling while the agent investigates
-            self.rig.set_fan(1.0)
-            self._log("anomaly", self.anomaly)
-            result["anomaly"] = self.anomaly
-            result["fallback"] = "fan set to 100% to protect the target while you investigate"
-        if self.hold_done_s >= self.goal.hold_s - 1e-6:
-            result["goal_complete"] = True
-        self._log("plan_result", result)
+            alarm = self._one_day()
+            if self.speed > 0:
+                time.sleep(1.0 / self.speed)
+            if alarm:
+                stop_reason = "anomaly"
+                break
+            if self.day % 14 == 0 and self.day < D:
+                self.project()
+        if self.day >= D and self.phase == "season":
+            self._season_end()
+            stop_reason = "season over"
         self._status()
-        return result
+        out = {"stopped_because": stop_reason, "day": self.day, "date": WX.day_label(min(self.day, D - 1)),
+               "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
+               "fields": self._field_summary()}
+        if self.anomaly:
+            out["anomaly"] = self.anomaly
+        if self.result:
+            out["result"] = self.result
+        return out
 
-    def set_idle(self, fan_duty: float, heater_on: bool, seconds: float, rationale: str) -> dict:
-        """Hold a fixed state without an experiment (e.g. let the rig settle)."""
-        if not 0 <= fan_duty <= 1 or seconds > 600 or seconds < 5:
-            return {"refused": "fan_duty 0..1 and 5..600 s"}
-        self.rig.set_fan(fan_duty)
-        self.rig.set_heater(heater_on and self.rig.caps.has_heater)
-        self._log("idle", {"fan_duty": fan_duty, "heater_on": heater_on, "seconds": seconds, "rationale": rationale})
-        st = self._run(seconds, "idle", None)
-        return {"status": st, **self.observe()}
+    def _one_day(self):
+        d = self.day
+        g = self._controller(d)
+        obs = self.farm.step(g)
+        for k, v in obs["weather"].items():
+            self.wx_obs[k][0, d] = v
+        self.gross_hist[:, d] = g
+        vol = g * 10 * FIELD_HA
+        self.water_used += float(vol.sum())
+        self.energy_used += float((vol * (KWH_PUMP + KWH_DESAL * self.desal_hist[:, d])).sum())
+        self.theta_obs[:, d] = obs["theta"]
+        ec_obs = obs["ece"]
+        self.ec_last = ec_obs[:, :2].mean(1)
+        S = self.S_mon
+        self.ens.step(np.repeat(g, S))
+        self.day = d + 1
+        drone_day = d % 4 == 3
+        rec = {"day": d, "date": WX.day_label(d), "tmax": round(obs["weather"]["tmax"], 1),
+               "et0": round(obs["weather"]["et0"], 2), "rain": round(obs["weather"]["rain"], 1), "fields": []}
+        alarm = None
+        ens_theta = (self.ens.W / self.ens.th)[:, :2].mean(1).reshape(NF, S)
+        ens_cc = self.ens.cc.reshape(NF, S)
+        ens_ec = self.ens.ece_layers()[:, :2].mean(1).reshape(NF, S)
+        for i, f in enumerate(self.run_plan):
+            fr = {"irr_mm": round(float(g[i]), 2)}
+            th_o = float(np.mean(obs["theta"][i, :2]))
+            mu, sd_e = float(ens_theta[i].mean()), float(ens_theta[i].std())
+            fr.update({"sw_obs": round(th_o, 4), "sw_pred": round(mu, 4),
+                       "sw_lo": round(float(np.percentile(ens_theta[i], 5)) - 0.013, 4),
+                       "sw_hi": round(float(np.percentile(ens_theta[i], 95)) + 0.013, 4)})
+            ec_o = float(np.mean(ec_obs[i, :2]))
+            ec_mu, ec_sd = float(ens_ec[i].mean()), float(ens_ec[i].std())
+            fr.update({"ec_obs": round(ec_o, 3), "ec_pred": round(ec_mu, 3),
+                       "ec_lo": round(float(np.percentile(ens_ec[i], 5)) * 0.9, 3),
+                       "ec_hi": round(float(np.percentile(ens_ec[i], 95)) * 1.1, 3)})
+            if f["crop"] and obs["harvested"][i] and not self.harvested[i]:
+                self.harvested[i] = True
+                self._record_harvest(i)
+            active = bool(f["crop"]) and not self.harvested[i] and d >= f["sow"]
+            cc_mu, cc_sd = float(ens_cc[i].mean()), float(ens_cc[i].std())
+            fr.update({"cc_pred": round(cc_mu, 4), "cc_lo": round(max(float(np.percentile(ens_cc[i], 5)) - 0.03, 0), 4),
+                       "cc_hi": round(min(float(np.percentile(ens_cc[i], 95)) + 0.03, 1), 4)})
+            if drone_day and active:
+                dr = self.farm.drone(i)
+                self.cc_last[i] = dr["cc"]
+                self.cc_obs[i].append((d, dr["cc"]))
+                fr["cc_obs"] = dr["cc"]
+            if active and d >= self.mon_from[i]:
+                a = self._cusum(i, "sw", th_o - mu, math.sqrt(sd_e ** 2 + 0.008 ** 2 + 0.012 ** 2), 0.015, 1.5, 10, d)
+                a = a or self._cusum(i, "ec", ec_o - ec_mu, math.sqrt(ec_sd ** 2 + (0.08 * ec_mu) ** 2 + 0.3 ** 2),
+                                     max(0.8, 0.15 * ec_mu), 1.0, 8, d)
+                if "cc_obs" in fr and fr["cc_obs"] > 0.04:
+                    a = a or self._cusum(i, "cc", fr["cc_obs"] - cc_mu, math.sqrt(cc_sd ** 2 + 0.025 ** 2 + 0.03 ** 2), 0.06, 1.0, 6, d)
+                if a and not alarm:
+                    alarm = a
+            rec["fields"].append(fr)
+        self.bus.publish("day", rec)
+        if alarm:
+            self.anomaly = alarm
+            self.anomalies.append(alarm)
+            self._log("anomaly", alarm)
+        return alarm
 
-    def finish(self, summary: str) -> dict:
-        self.done = True
-        self.rig.set_heater(False)
-        self.rig.set_fan(0.4)
-        verdict = {
-            "summary": summary,
-            "hold_done_s": round(self.hold_done_s, 1), "hold_compliant_s": round(self.hold_ok_s, 1),
-            "compliance": round(self.hold_ok_s / self.hold_done_s, 3) if self.hold_done_s else None,
-            "energy_J": {k: round(v, 1) for k, v in self.energy.items()},
-            "experiments": len(self.experiments), "anomalies": len(self.anomalies),
-            "hypotheses": {h["id"]: h["status"] for h in self.hyps.values()},
-            "final_model": self.fit.to_json(),
-        }
-        self._log("run_end", verdict)
-        self._status()
-        if self._csv:
-            self._csv.close()
-            self._csv = None
-        return verdict
-
-
-# ----------------------------------------------------------------- helpers
-
-def compare_scenes(ref: dict, cur: dict) -> dict:
-    def find(res, label):
-        for o in res.get("objects", []):
-            if o["label"] == label:
-                return o
+    def _cusum(self, i, sig, resid, sd, effect, k, h, d):
+        z = resid / sd if abs(resid) >= effect else 0.0
+        P, N, Z = self.cus[sig + "_p"], self.cus[sig + "_n"], self.cus[sig + "_zero"]
+        P[i] = max(0.0, P[i] + z - k)
+        N[i] = max(0.0, N[i] - z - k)
+        if P[i] == 0 and N[i] == 0:
+            Z[i] = d
+        if P[i] > h or N[i] > h:
+            label = {"sw": "soil moisture", "cc": "canopy cover", "ec": "soil salinity"}[sig]
+            hi = P[i] > h
+            direction = ("wetter" if hi else "drier") if sig == "sw" else ("higher" if hi else "lower")
+            return {"field": FIELDS[i]["id"], "field_index": i, "signal": sig, "signal_label": label,
+                    "direction": f"{direction} than predicted", "residual": round(resid, 3),
+                    "onset_day": int(Z[i]), "detected_day": d, "crop": self.run_plan[i]["crop"]}
         return None
 
-    W, H = cur.get("image_size") or [640, 400]
-    diag = math.hypot(W, H)
-    out = {"changed_vs_reference": False, "changes": []}
-    for label in ("fan", "heatsink"):
-        a, b = find(ref, label), find(cur, label)
-        if a is None or b is None:
-            if a is not None and b is None:
-                out["changes"].append(f"{label} no longer detected")
-                out["changed_vs_reference"] = True
-            continue
-        ca = ((a["box"][0] + a["box"][2]) / 2, (a["box"][1] + a["box"][3]) / 2)
-        cb = ((b["box"][0] + b["box"][2]) / 2, (b["box"][1] + b["box"][3]) / 2)
-        shift = math.hypot(cb[0] - ca[0], cb[1] - ca[1]) / diag
-        wa, ha = a["box"][2] - a["box"][0], a["box"][3] - a["box"][1]
-        wb, hb = b["box"][2] - b["box"][0], b["box"][3] - b["box"][1]
-        shape = abs(math.log(max(wb, 1) / max(hb, 1)) - math.log(max(wa, 1) / max(ha, 1)))
-        entry = {"object": label, "centre_shift_pct_of_diag": round(shift * 100, 1),
-                 "box_aspect_change": round(shape, 2)}
-        out[f"{label}_motion"] = entry
-        if shift > 0.04 or shape > 0.35:
-            out["changed_vs_reference"] = True
-            out["changes"].append(f"{label} moved {shift * 100:.1f}% of frame diagonal"
-                                  + (f", box shape changed (rotation?)" if shape > 0.35 else ""))
-    f_ref, s_ref, f_cur, s_cur = find(ref, "fan"), find(ref, "heatsink"), find(cur, "fan"), find(cur, "heatsink")
-    if all((f_ref, s_ref, f_cur, s_cur)):
-        def cdist(f, s):
-            return math.hypot((f["box"][0] + f["box"][2] - s["box"][0] - s["box"][2]) / 2,
-                              (f["box"][1] + f["box"][3] - s["box"][1] - s["box"][3]) / 2)
-        out["fan_to_heatsink_distance_px"] = [round(cdist(f_ref, s_ref)), round(cdist(f_cur, s_cur))]
-    if ref.get("aim") and cur.get("aim"):
-        out["aim_reference_vs_now"] = [ref["aim"], cur["aim"]]
-    return out
+    def _record_harvest(self, i):
+        y_true = float(self.farm.sim.fresh_yield()[i])
+        y = round(y_true * float(self.farm.rng.lognormal(0, 0.03)), 2)
+        c = self.run_plan[i]["crop"]
+        nut = nutrients_per_ha(c, y * FIELD_HA)
+        self.harvest[FIELDS[i]["id"]] = {"crop": c, "day": self.day, "yield_t_ha": y,
+                                         "people": {n: round(nut[n] / (NEEDS[n] * 365), 1) for n in NUTRIENTS}}
+        self._log("harvest", {"field": FIELDS[i]["id"], **self.harvest[FIELDS[i]["id"]]})
 
+    def _season_end(self):
+        tot = {n: 0.0 for n in NUTRIENTS}
+        for h in self.harvest.values():
+            nut = nutrients_per_ha(h["crop"], h["yield_t_ha"] * FIELD_HA)
+            for n in NUTRIENTS:
+                tot[n] += nut[n]
+        pf = people_fed(tot)
+        self.result = {"people_fed": round(pf["people"], 1), "limiting": pf["limiting"],
+                       "by_nutrient": {n: round(pf[n], 1) for n in NUTRIENTS},
+                       "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
+                       "within_quota": self.water_used <= self.limits.water_quota_m3 * 1.001,
+                       "within_energy": self.energy_used <= self.limits.energy_kwh * 1.001}
+        self.phase = "harvested"
+        self._log("season_result", self.result)
+        self._status()
 
-def plan_constant_then_hold(fit: M.Fit, s: dict, heater_w: float, goal: Goal, remaining_hold: float,
-                            fan_power, robust: bool = True, S: int = 300) -> dict:
-    """Pick the cheapest two-phase plan (boost, then hold) whose 95th-percentile
-    temperature stays under target for the hold window. robust=False plans on
-    the mean parameters only, which shows what certainty would be worth."""
-    rng = np.random.default_rng(11)
-    if robust:
-        P = fit.sample(S, rng)
-    else:
-        P = {n: np.array([v]) for n, v in fit.params().items()}
-    Ta, T0 = s["T_amb"], s["T_obj"]
-    target = goal.target_C
-    q = heater_w
-    # 1) cheapest hold duty with robust steady state under target
-    u_hold = None
-    for u in np.round(np.arange(0, 1.0001, 0.01), 2):
-        k = np.maximum(M.cooling_rate(fit.structure, P, u), 1e-7)
-        Tss = Ta + P["b"] * q / k
-        if np.percentile(Tss, 95) <= target - 0.1:
-            u_hold = float(u)
-            break
-    feasible = u_hold is not None
-    if u_hold is None:
-        u_hold = 1.0
-    horizon = goal.settle_s + remaining_hold
-    best = None
-    for ub in sorted({u_hold, 0.6, 0.8, 1.0}):
-        if ub < u_hold:
-            continue
-        for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
-            tb = round(goal.settle_s * frac / 5) * 5
-            if ub == u_hold and tb > 0:
+    def _field_summary(self):
+        out = []
+        frac = np.minimum(self.ens.frac().reshape(NF, self.S_mon).mean(1), 1)
+        for i, f in enumerate(self.run_plan):
+            if not f["crop"]:
+                out.append({"field": FIELDS[i]["id"], "crop": None})
                 continue
-            phases = ([{"fan_duty": ub, "duration_s": tb}] if tb > 0 else []) + \
-                     [{"fan_duty": u_hold, "duration_s": horizon - tb}]
-            steps = [{"fan_duty": p["fan_duty"], "heater_on": True, "duration_s": p["duration_s"]} for p in phases]
-            dt, u, qq, TaA = M.schedule_arrays(steps, q, Ta)
-            sims = M.simulate_many(fit.structure, P, T0, dt, u, qq, TaA)
-            t = np.concatenate([[0], np.cumsum(dt)])
-            hold = t >= goal.settle_s
-            p95 = np.percentile(sims[:, hold], 95, axis=0) if robust else sims[0, hold]
-            ok = bool(np.all(p95 <= target + goal.tolerance_K))
-            E = float(np.sum(fan_power(u) * dt))
-            cand = (not ok, E)
-            if best is None or cand < best[0]:
-                best = (cand, phases, sims, dt, E, p95)
-    (_, phases, sims, dt, E, p95) = best
-    t0 = s["t"]
-    pred = M.Prediction(t=t0 + np.concatenate([[0], np.cumsum(dt)]), mean=sims.mean(0),
-                        lo=np.percentile(sims, 5, 0) - 0.12, hi=np.percentile(sims, 95, 0) + 0.12,
-                        sd=sims.std(0))
-    return {"phases": phases, "feasible": feasible and not best[0][0], "energy_J": E,
-            "hold_max_p95": float(np.max(p95)), "hold_med": float(np.median(sims[:, -1])), "pred": pred}
+            th = self.theta_obs[i, max(self.day - 1, 0)]
+            dd = min(self.day, D - 1)
+            out.append({"field": FIELDS[i]["id"], "crop": f["crop"],
+                        "stage_pct": round(100 * float(frac[i])) if self.day > f["sow"] else 0,
+                        "harvested": bool(self.harvested[i]),
+                        "canopy_cover_last_drone": round(float(self.cc_last[i]), 3),
+                        "soil_moisture_0_50cm": None if np.isnan(th).any() else round(float(th[:2].mean()), 3),
+                        "soil_salinity_ece_0_50cm": round(float(self.ec_last[i]), 2),
+                        "irrigation_level": round(float(self.irr_hist[i, dd]), 2),
+                        "desal_fraction": round(float(self.desal_hist[i, dd]), 2)})
+        return out
+
+    def observe(self) -> dict:
+        out = {"phase": self.phase, "day": self.day, "date": WX.day_label(min(self.day, D - 1)),
+               "trial_plots_left": self.limits.trial_plots - self.plots_used,
+               "field_tests_left": self.limits.field_tests - self.tests_used,
+               "water_used_m3": round(self.water_used), "water_quota_m3": self.limits.water_quota_m3,
+               "energy_used_kwh": round(self.energy_used), "energy_budget_kwh": self.limits.energy_kwh,
+               "active_anomaly": self.anomaly,
+               "goal": "maximise people fed in a bad year (P10): the scarcest of calories, protein and vitamin A"}
+        if self.phase in ("season", "harvested"):
+            out["fields"] = self._field_summary()
+            if self.day < D:
+                out["forecast_7d"] = self.farm.forecast(7)
+            out["last_projection"] = self.bus.snapshot["projections"][-1] if self.bus.snapshot["projections"] else None
+            if self.result:
+                out["result"] = self.result
+        else:
+            out["fields"] = [{"field": f["id"], "name": f["name"], "soil": f["layers"], "ece_dS_m": f["ece"],
+                              "soil_n_kg_ha": f["soil_n"]} for f in FIELDS]
+            out["crops"] = [{"crop": c, "label": CROPS[c]["label"], "trial_plots": len(self.trial_data[c])} for c in CROP_IDS]
+        return out
+
+    # ---------------------------------------------------------- in-season tools
+    def look_at_field(self, field: str, reason: str = "") -> dict:
+        i = self._fi(field)
+        if i is None:
+            return {"error": f"unknown field {field}"}
+        if self.phase not in ("season", "harvested"):
+            return {"error": "nothing is growing yet"}
+        img = self.farm.image(i)
+        res = self.perception.analyze(img, "image/png", self.farm, i) if self.perception else {"source": "none"}
+        fname = None
+        if self.run_dir:
+            fname = f"images/{FIELDS[i]['id']}_day{self.day:03d}.png"
+            (self.run_dir / fname).write_bytes(img)
+        dr = self.farm.drone(i)
+        ccp = self.ens.cc.reshape(NF, self.S_mon)[i]
+        out = {"field": FIELDS[i]["id"], "crop": self.run_plan[i]["crop"], "day": self.day,
+               "canopy_cover_measured": dr["cc"], "canopy_cover_predicted": round(float(ccp.mean()), 3),
+               "canopy_cover_predicted_90pct": [round(float(np.percentile(ccp, 5)), 3), round(float(np.percentile(ccp, 95)), 3)],
+               **{k: v for k, v in res.items() if k != "objects"}}
+        self.bus.publish("scene", {**out, "objects": res.get("objects", [])[:60], "image_size": [640, 400],
+                                   "image": "data:image/png;base64," + base64.b64encode(img).decode(), "reason": reason})
+        self._log("look", {"reason": reason, "frame": fname, **out})
+        return out
+
+    def field_test(self, field: str, test: str, rationale: str) -> dict:
+        i = self._fi(field)
+        if i is None or test not in TESTS:
+            return {"error": f"field F1-F6 and test one of {TESTS}"}
+        if self.phase != "season":
+            return {"error": "field tests run during the season"}
+        if self.tests_used >= self.limits.field_tests:
+            return {"refused": "field-test budget used up"}
+        self.tests_used += 1
+        r = self.farm.field_test(i, test)
+        r.update({"field": FIELDS[i]["id"], "day": self.day})
+        if test == "emitter_flow":
+            r["expected_if_healthy"] = round(float(self.deliver_est[i, max(self.day - 1, 0)]), 2)
+        if test == "water_test":
+            r["assumed_by_model"] = round(float(self.ecgw_est[i, max(self.day - 1, 0)]), 2)
+        if test == "soil_sample":
+            ece = self.ens.ece_layers().reshape(NF, self.S_mon, 3)[i]
+            r["model_predicted_ece_by_layer"] = ece.mean(0).round(2).tolist()
+        self._log("field_test", {"rationale": rationale, **r})
+        self._status()
+        return r
+
+    def adjust_field(self, field: str, rationale: str, irr: float | None = None, desal: float | None = None,
+                     repair_drip: bool = False, pest_control: bool = False) -> dict:
+        i = self._fi(field)
+        if i is None or self.phase != "season":
+            return {"error": "unknown field or season not running"}
+        d = self.day
+        out = {"field": FIELDS[i]["id"], "day": d}
+        if irr is not None:
+            if not 0.3 <= irr <= 1.4:
+                return {"refused": "irr must be 0.3-1.4"}
+            self.irr_hist[i, d:] = irr
+            out["irr"] = irr
+        if desal is not None:
+            if not 0 <= desal <= 1:
+                return {"refused": "desal must be 0-1"}
+            self.desal_hist[i, d:] = desal
+            self.farm.set_management(i, desal=desal)
+            out["desal"] = desal
+        if repair_drip:
+            out["repair"] = self.farm.repair_drip(i)
+            self.deliver_est[i, d:] = 1.0
+        if pest_control:
+            out["pest_control"] = self.farm.pest_control(i)
+            self.pest_est[i, d:] = np.minimum(self.pest_est[i, d:], 0.001)
+        self._build_ensemble()
+        self._log("adjust", {"rationale": rationale, **out})
+        return out
+
+    def update_model(self, rationale: str, finding: str, value: float, since_day: int, field: str | None = None) -> dict:
+        """Teach the model a diagnosed fact, then rebuild the monitoring ensemble from day 0."""
+        since = int(np.clip(since_day, 0, self.day))
+        d = self.day
+        if finding == "groundwater_ec":
+            self.ecgw_est[:, since:] = float(value)
+            fid = "all"
+        else:
+            i = self._fi(field)
+            if i is None:
+                return {"error": "unknown field"}
+            fid = FIELDS[i]["id"]
+            if finding == "drip_delivery":
+                repaired = any(r["field"] == fid and r["day"] >= since for r in self.farm.repairs)
+                end = max((r["day"] for r in self.farm.repairs if r["field"] == fid and r["day"] >= since), default=D)
+                self.deliver_est[i, since:min(end, D)] = float(value)
+            elif finding == "pest":
+                # past damage at the diagnosed rate; the future keeps whatever treatment already set
+                self.pest_est[i, since:d] = float(value)
+                if not np.all(self.pest_est[i, d:] <= 0.001):
+                    self.pest_est[i, d:] = float(value)
+            else:
+                return {"error": "finding must be drip_delivery, pest or groundwater_ec"}
+        resolved = self.anomaly
+        self.anomaly = None
+        self._build_ensemble()
+        self._reset_monitor()
+        self._log("model_update", {"rationale": rationale, "finding": finding, "field": fid,
+                                   "value": value, "since_day": since, "resolved_anomaly": resolved})
+        self._status()
+        return {"ok": True, "resolved_anomaly": resolved, "note": "monitoring ensemble rebuilt with the finding"}
+
+    def dismiss_anomaly(self, rationale: str) -> dict:
+        resolved = self.anomaly
+        self.anomaly = None
+        self._reset_monitor()
+        self._log("anomaly_dismissed", {"rationale": rationale, "anomaly": resolved})
+        self._status()
+        return {"ok": True}
+
+    # ---------------------------------------------------------- projection and rebalancing
+    def _future_wx(self, S: int, seed: int):
+        """Observed weather up to today, scenario years after."""
+        fut = WX.generate(S, seed)
+        wx = {}
+        for k in self.wx_obs:
+            a = fut[k].copy()
+            a[:, :self.day] = self.wx_obs[k][0, :self.day]
+            wx[k] = a
+        return wx
+
+    def _season_batch(self, opts: list[tuple[np.ndarray, np.ndarray]], S: int, seed: int):
+        """Each field under each option (irr per field, desal per field) for the rest of the
+        season, replaying the recorded irrigation so far. Returns arrays shaped (F, O, S)."""
+        O = len(opts)
+        crops, tr = self._trait_samples(S, np.random.default_rng(seed))
+        B = NF * O * S
+        crop_list = []
+        trb = {k: np.zeros(B) for k in TRAIT_IDS}
+        mg = {k: np.zeros(B) for k in MG_KEYS}
+        mg["irr"], mg["desal"] = np.zeros((B, D)), np.zeros((B, D))
+        soils, widx = [], np.zeros(B, int)
+        deliver, pest, ecgw = np.zeros((B, D)), np.zeros((B, D)), np.zeros((B, D))
+        j = 0
+        for i, f in enumerate(self.run_plan):
+            for o in range(O):
+                sl = slice(j, j + S)
+                crop_list += [f["crop"]] * S
+                for k in TRAIT_IDS:
+                    trb[k][sl] = tr[k][i * S:(i + 1) * S]
+                for k in MG_KEYS:
+                    if k not in ("irr", "desal"):
+                        mg[k][sl] = f[k]
+                ir, de = self.irr_hist[i].copy(), self.desal_hist[i].copy()
+                ir[self.day:] = opts[o][0][i]
+                de[self.day:] = opts[o][1][i]
+                mg["irr"][sl], mg["desal"][sl] = ir, de
+                soils += [FIELDS[i]] * S
+                widx[sl] = np.arange(S)
+                deliver[sl], pest[sl], ecgw[sl] = self.deliver_est[i], self.pest_est[i], self.ecgw_est[i]
+                j += S
+        sim = Sim(crop_arrays(crop_list, trb), mg, soil_arrays(soils), self._future_wx(S, seed), widx, ecgw,
+                  eff=DRIP_EFF_NOMINAL, deliver=deliver, pest=pest)
+        rep = np.repeat(self.gross_hist, O * S, axis=0)
+        for d in range(self.day):
+            sim.step(rep[:, d])
+        past_mm = sim.gross_mm.copy()
+        past_kwh = sim.kwh_ha.copy()
+        sim.run()
+        y = sim.fresh_yield().reshape(NF, O, S)
+        fw = ((sim.gross_mm - past_mm) * 10 * FIELD_HA).reshape(NF, O, S)
+        fe = ((sim.kwh_ha - past_kwh) * FIELD_HA).reshape(NF, O, S)
+        return y, fw, fe
+
+    def _people_arrays(self, y):
+        """y (F, O, S) fresh t/ha -> person-years per nutrient (F, O, S, 3); harvested fields use actual yields."""
+        need = np.array([NEEDS[n] * 365.0 for n in NUTRIENTS])
+        out = np.zeros(y.shape + (3,))
+        for i, f in enumerate(self.run_plan):
+            c = f["crop"]
+            if not c:
+                continue
+            yy = y[i]
+            if FIELDS[i]["id"] in self.harvest:
+                yy = np.full_like(yy, self.harvest[FIELDS[i]["id"]]["yield_t_ha"])
+            per = np.array([CROPS[c]["kcal"], CROPS[c]["prot"], CROPS[c]["vita"]], float)
+            out[i] = yy[..., None] * 1000 * FIELD_HA * per / need
+        return out
+
+    def project(self, publish: bool = True) -> dict:
+        if self.phase != "season":
+            return {"error": "no season running"}
+        dd = min(self.day, D - 1)
+        y, w, e = self._season_batch([(self.irr_hist[:, dd], self.desal_hist[:, dd])], 20, seed=500 + self.day)
+        P = self._people_arrays(y)[:, 0]
+        fed = P.sum(0).min(-1)
+        water = self.water_used + w[:, 0].sum(0)
+        out = {"day": self.day, "people_p10": round(float(np.percentile(fed, 10)), 1),
+               "people_p50": round(float(np.median(fed)), 1),
+               "by_nutrient_p50": {n: round(float(np.median(P.sum(0)[:, j])), 1) for j, n in enumerate(NUTRIENTS)},
+               "water_total_p90_m3": round(float(np.percentile(water, 90))),
+               "field_yield_p50": {FIELDS[i]["id"]: round(float(np.median(y[i, 0])), 2) for i in range(NF) if self.run_plan[i]["crop"]}}
+        if publish:
+            self.bus.publish("projection", out)
+        return out
+
+    def rebalance_water(self, rationale: str) -> dict:
+        """Re-optimise irrigation level and desal blend per field for the rest of the season."""
+        if self.phase != "season":
+            return {"refused": "no season running"}
+        levels = [(a, b) for a in (0.5, 0.7, 0.85, 1.0, 1.15) for b in (0.0, 0.5, 0.8)]
+        S = 16
+        y, w, e = self._season_batch([(np.full(NF, a), np.full(NF, b)) for a, b in levels], S, seed=700 + self.day)
+        P = self._people_arrays(y)
+        quota_left = self.limits.water_quota_m3 - self.water_used
+        energy_left = self.limits.energy_kwh - self.energy_used
+        dd = min(self.day, D - 1)
+        cur = np.array([int(np.argmin([abs(a - self.irr_hist[i, dd]) + abs(b - self.desal_hist[i, dd]) for a, b in levels]))
+                        for i in range(NF)])
+        active = [i for i, f in enumerate(self.run_plan) if f["crop"] and not self.harvested[i]]
+        choice = cur.copy()
+        for _ in range(6):
+            changed = False
+            for i in active:
+                others = [g for g in range(NF) if g != i]
+                tp = sum(P[g, choice[g]] for g in others)
+                tw = sum(w[g, choice[g]] for g in others)
+                te = sum(e[g, choice[g]] for g in others)
+                fed = (tp[None] + P[i]).min(-1)
+                p10 = np.percentile(fed, 10, axis=1)
+                w90 = np.percentile(tw[None] + w[i], 90, axis=1)
+                e90 = np.percentile(te[None] + e[i], 90, axis=1)
+                score = p10 - 1e3 * (np.maximum(w90 - quota_left, 0) / max(quota_left, 1)
+                                     + np.maximum(e90 - energy_left, 0) / max(energy_left, 1))
+                k = int(np.argmax(score))
+                if k != choice[i]:
+                    choice[i], changed = k, True
+            if not changed:
+                break
+        before = P[np.arange(NF), cur].sum(0).min(-1)
+        after = P[np.arange(NF), choice].sum(0).min(-1)
+        changes = []
+        for i in active:
+            a, b = levels[choice[i]]
+            if choice[i] != cur[i]:
+                self.irr_hist[i, self.day:] = a
+                self.desal_hist[i, self.day:] = b
+                self.farm.set_management(i, desal=b)
+            changes.append({"field": FIELDS[i]["id"], "crop": self.run_plan[i]["crop"], "irr": a, "desal": b,
+                            "changed": bool(choice[i] != cur[i])})
+        self._build_ensemble()
+        out = {"fields": changes, "people_p10_before": round(float(np.percentile(before, 10)), 1),
+               "people_p10_after": round(float(np.percentile(after, 10)), 1), "water_left_m3": round(quota_left),
+               "future_water_p90_m3": round(float(np.percentile(sum(w[g, choice[g]] for g in range(NF)), 90)))}
+        self._log("rebalance", {"rationale": rationale, **out})
+        self.project()
+        return out
+
+    def finish(self, summary: str) -> dict:
+        if self.phase == "season":
+            while self.day < D and not self.stop_flag.is_set():
+                self._one_day()
+                self.anomaly = None
+            if self.phase == "season":
+                self._season_end()
+        self.done = True
+        out = {"summary": summary, "result": self.result, "anomalies": len(self.anomalies),
+               "plots_used": self.plots_used, "tests_used": self.tests_used,
+               "hypotheses": {h["id"]: h["status"] for h in self.hyps.values()}}
+        self._log("run_end", out)
+        self._status()
+        return out

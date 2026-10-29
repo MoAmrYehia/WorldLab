@@ -3,10 +3,10 @@
 GET  /                 dashboard
 GET  /api/state        snapshot of the current run
 GET  /api/stream       server-sent events for live updates
-POST /api/start        start a run      {agent, speed, seed, randomize, goal}
-POST /api/perturb      change the world {kind}   (simulator only, hidden from the agent)
-POST /api/stop         stop the run and put the rig in its safe state
-POST /api/speed        {speed}          (simulator pacing)
+POST /api/start        start a run      {agent, speed, seed}
+POST /api/perturb      change the world {kind, field}  (hidden from the agent: clog, pest, salinity, heatwave)
+POST /api/stop         stop the run
+POST /api/speed        {speed}          (season pacing, days per second)
 GET  /api/verify       verify the ledger's hash chain
 """
 from __future__ import annotations
@@ -55,24 +55,19 @@ class App:
                 self.session.stop()
                 self.session.thread.join(timeout=10)
             s = Settings(**{**asdict(self.defaults), **{k: v for k, v in overrides.items() if k in asdict(self.defaults)}})
-            # fresh snapshot for the new run
-            self.bus.snapshot.update({"samples": [], "events": [], "forecasts": [], "scene": None, "model": None,
-                                      "plan": None, "status": {}, "agent": [], "fits": [],
-                                      "perturbations": []})
+            self.bus.reset()
             self.bus.publish("reset", {"agent": s.resolved_agent()})
             self.session = Session(s, bus=self.bus).start()
-            return {"ok": True, "agent": self.session.agent_kind, "run_dir": str(self.session.run_dir),
-                    "simulated": self.session.rig.caps.simulated}
+            return {"ok": True, "agent": self.session.agent_kind, "run_dir": str(self.session.run_dir)}
 
     def info(self) -> dict:
         s = self.session
         return {
             "running": bool(s and s.alive()), "agent": s.agent_kind if s else self.defaults.resolved_agent(),
-            "simulated": (s.rig.caps.simulated if s else self.defaults.rig == "sim"),
-            "speed": getattr(s.rig, "speed", None) if s else self.defaults.speed,
+            "speed": s.lab.speed if s else self.defaults.speed,
             "run_dir": str(s.run_dir) if s else None, "error": s.error if s else None,
             "has_api_key": bool(os.environ.get("MODEL_API_KEY")),
-            "perturbations": getattr(s.rig, "perturbations", []) if s else [],
+            "farm_seed": s.settings.seed if s else self.defaults.seed,
         }
 
 
@@ -155,10 +150,14 @@ def make_handler(app: App):
                     self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 400)
             elif path == "/api/perturb":
                 s = app.session
-                if not s or not hasattr(s.rig, "perturb"):
-                    return self._json({"ok": False, "error": "perturbations need a running simulator"}, 400)
+                if not s or s.lab.phase != "season":
+                    return self._json({"ok": False, "error": "changes can be made once the season has started"}, 400)
+                fi = None
+                if b.get("field"):
+                    from .farm.world import FIELDS
+                    fi = next((i for i, f in enumerate(FIELDS) if f["id"] == str(b["field"]).upper()), None)
                 try:
-                    info = s.rig.perturb(b.get("kind", "fan_moved"))
+                    info = s.farm.perturb(b.get("kind", "clog"), field=fi)
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 self._json({"ok": True, **info})
@@ -167,8 +166,8 @@ def make_handler(app: App):
                     app.session.stop()
                 self._json({"ok": True})
             elif path == "/api/speed":
-                if app.session and hasattr(app.session.rig, "speed"):
-                    app.session.rig.speed = max(0.0, float(b.get("speed", 20)))
+                if app.session:
+                    app.session.lab.speed = max(0.0, float(b.get("speed", 12)))
                 self._json({"ok": True})
             else:
                 self._json({"error": "not found"}, 404)
@@ -183,7 +182,7 @@ def serve(defaults: Settings, host: str = "127.0.0.1", port: int = 8765, autosta
     httpd.daemon_threads = True
     url = f"http://{host}:{port}/"
     print(f"WorldLab dashboard: {url}")
-    print(f"agent: {defaults.resolved_agent()}   rig: {defaults.rig}")
+    print(f"agent: {defaults.resolved_agent()}   farm seed: {defaults.seed}")
     if autostart:
         app.start({})
     if open_browser:
@@ -196,8 +195,4 @@ def serve(defaults: Settings, host: str = "127.0.0.1", port: int = 8765, autosta
     finally:
         if app.session:
             app.session.stop()
-            try:
-                app.session.rig.safe_state()
-            except Exception:
-                pass
         httpd.server_close()
