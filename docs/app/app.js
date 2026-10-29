@@ -370,7 +370,7 @@ function drawRl() {
   svgEl("text", { x: W, y: H - 3, "text-anchor": "end", "font-size": 10, fill: css("--ink-3") }, svg).textContent = `iteration ${tr.length}`;
   svgEl("path", { d: tr.map((x, k) => `${k ? "L" : "M"}${X(x.iter + 1).toFixed(1)},${Y(x.people).toFixed(1)}`).join(""), fill: "none", stroke: css("--belief"), "stroke-width": 2 }, svg);
   val.forEach((v) => svgEl("circle", { cx: X(v.iter), cy: Y(v.val_people_p10), r: 4.5, fill: css("--measured"), stroke: css("--glass-strong"), "stroke-width": 2 }, svg));
-  if (S.rl && S.rl.best_checkpoint_iter > 0) { const b = S.rl.best_checkpoint_iter; svgEl("line", { x1: X(b), x2: X(b), y1: 6, y2: H - B, stroke: css("--ink-3"), "stroke-dasharray": "3 3" }, svg); svgEl("text", { x: X(b) + 4, y: 14, "font-size": 10, fill: css("--ink-2") }, svg).textContent = "kept"; }
+  if (S.rl && S.rl.best_checkpoint_iter > 0) { const b = S.rl.best_checkpoint_iter; svgEl("line", { x1: X(b), x2: X(b), y1: 6, y2: H - B, stroke: css("--ink-3"), "stroke-dasharray": "3 3" }, svg); svgEl("text", { x: X(b) - 4, y: 14, "text-anchor": "end", "font-size": 10, fill: css("--ink-2") }, svg).textContent = "kept"; }
   const wk = $("rlWeek"); if (!wk || !S.rl) return;
   const m = S.rl.policy_irrigation_multiplier_by_week || []; const pts = m.map((v, k) => [k, v]).filter(([, v]) => v > 0);
   if (!pts.length) return;
