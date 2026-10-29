@@ -110,7 +110,7 @@ class Monitor:
     disagreement with a two-sided CUSUM on standardised residuals."""
 
     def __init__(self, fit: M.Fit, last: dict, S: int = 200, seed: int = 0,
-                 k: float = 1.5, h: float = 12.0, warmup_s: float = 40.0):
+                 k: float = 1.5, h: float = 12.0, warmup_s: float = 40.0, min_effect_K: float = 0.6):
         self.fit = fit
         self.P = {n: np.asarray(v, float) for n, v in fit.sample(S, np.random.default_rng(seed)).items()}
         self.state = np.full(S, last["T_obj"])
@@ -118,6 +118,7 @@ class Monitor:
         self.t0 = last["t"]
         self.floor = max(0.12, fit.rmse if math.isfinite(fit.rmse) else 0.3)
         self.k, self.h, self.warmup = k, h, warmup_s
+        self.min_effect = min_effect_K
         self.sp = self.sn = 0.0
         self.since_zero = last["t"]
         self.zs: list[float] = []
@@ -146,8 +147,10 @@ class Monitor:
         self._acc += dt
         if self._acc >= 5.0 and s["t"] - self.t0 >= self.warmup and self.alarm is None:
             self._acc = 0.0
-            self.sp = max(0.0, self.sp + z - self.k)
-            self.sn = max(0.0, self.sn - z - self.k)
+            # Only a divergence big enough to matter for the goal accumulates evidence.
+            zc = z if abs(s["T_obj"] - mean) >= self.min_effect else 0.0
+            self.sp = max(0.0, self.sp + zc - self.k)
+            self.sn = max(0.0, self.sn - zc - self.k)
             if self.sp == 0.0 and self.sn == 0.0:
                 self.since_zero = s["t"]
             if self.sp > self.h or self.sn > self.h:
@@ -194,6 +197,7 @@ class Lab:
         self.samples: list[dict] = []
         self.energy = {"exploration": 0.0, "task": 0.0, "idle": 0.0}
         self.fit: M.Fit = M.prior_fit("power")
+        self.fits: list[M.Fit] = [self.fit]
         self.model_status = "prior"
         self.hyps: dict[str, dict] = {}
         self.candidates: dict[str, dict] = {}
@@ -218,6 +222,22 @@ class Lab:
         self._status()
 
     # ----------------------------------------------------------- plumbing
+    @property
+    def belief(self) -> M.Mixture:
+        """What the lab predicts with: all fitted structures, evidence-weighted."""
+        return M.Mixture(self.fits)
+
+    def tested_duties(self, min_hold_s: float = 60.0) -> list[float]:
+        """Fan duties that were actually held for a while (heater on), so the model has seen them."""
+        out, start, cur = set(), None, None
+        for s in self.samples:
+            u = round(s["fan_duty"], 2)
+            if u != cur:
+                cur, start = u, s["t"]
+            elif s["t"] - start >= min_hold_s and s["heater_w"] > 0:
+                out.add(u)
+        return sorted(out)
+
     def _id(self, p):
         self._ids[p] += 1
         return f"{p}{self._ids[p]}"
@@ -381,13 +401,15 @@ class Lab:
         s = self.latest()
         u_grid = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
         ss = []
-        P = self.fit.sample(300, np.random.default_rng(1))
+        bel = self.belief
+        P = bel.sample(300, np.random.default_rng(1))
         for u in u_grid:
-            k = np.maximum(M.cooling_rate(self.fit.structure, P, u), 1e-7)
+            k = np.maximum(M.cooling_rate(bel.structure, P, u), 1e-7)
             Tss = s["T_amb"] + P["b"] * self.rig.caps.heater_w / k
             ss.append({"fan_duty": u, "steady_state_C_heater_on": round(float(np.median(Tss)), 2),
                        "p5_p95": [round(float(np.percentile(Tss, 5)), 2), round(float(np.percentile(Tss, 95)), 2)]})
         return {"status": self.model_status, "model": f, "steady_state_table": ss,
+                "structure_weights": bel.weights_json(), "tested_duties": self.tested_duties(),
                 "fan_power_scale_vs_nominal": round(self.power_scale, 3),
                 "recent_fits": [x for x in self.bus.snapshot["fits"][-1:]]}
 
@@ -440,13 +462,14 @@ class Lab:
         fit = fit or self.fit
         s = self.latest()
         dt, u, q, Ta = M.schedule_arrays(steps, self.rig.caps.heater_w, s["T_amb"])
-        pred = M.predict(fit, s["T_obj"], s["t"], dt, u, q, Ta)
+        pred = M.predict(self.belief, s["T_obj"], s["t"], dt, u, q, Ta)
         energy = float(np.sum(self._fan_power(u) * dt))
         gain = M.info_gain(fit, s["T_obj"], dt, u, q, Ta)
         g0 = self._goal_sd(fit)
         g1 = self._goal_sd(gain["posterior"])
         return {"pred": pred, "energy_J": energy, "bits": gain["bits"], "goal_sd_before": g0,
-                "goal_sd_after": g1, "max_T_p95": float(pred.hi.max()), "duration_s": float(np.sum(dt))}
+                "goal_sd_after": g1, "max_T_p95": float(pred.hi.max()), "duration_s": float(np.sum(dt)),
+                "touches_duties": sorted({round(float(x), 2) for x in u})}
 
     def _goal_sd(self, fit: M.Fit) -> float:
         """Uncertainty (K) in steady-state temperature at the duty the model
@@ -461,6 +484,17 @@ class Lab:
         P = fit.sample(300, np.random.default_rng(2))
         k = np.maximum(M.cooling_rate(fit.structure, P, u_star), 1e-7)
         return float(np.std(s["T_amb"] + P["b"] * self.rig.caps.heater_w / k))
+
+    def structural_spread(self) -> dict:
+        """How much the competing airflow hypotheses disagree about the steady
+        temperature, across fan duties. Large spread = more experiments needed."""
+        s = self.latest()
+        out = {}
+        for u in (0.1, 0.2, 0.3, 0.5, 0.8):
+            vals = [M.steady_state(f.params(), f.structure, u, self.rig.caps.heater_w, s["T_amb"])
+                    for f, w in zip(self.belief.members, self.belief.weights) if w >= 0.05]
+            out[u] = round(max(vals) - min(vals), 2) if len(vals) > 1 else 0.0
+        return out
 
     def standard_candidates(self) -> list[dict]:
         T = self.latest()["T_obj"]
@@ -510,6 +544,9 @@ class Lab:
             out.append(rec)
         self._log("experiment_options", {"options": out, "model_structure": self.fit.structure})
         return {"options": out, "exploration_budget_left_J": round(left, 1),
+                "tested_duties": self.tested_duties(),
+                "structure_weights": self.belief.weights_json(),
+                "structural_spread_K_by_duty": self.structural_spread(),
                 "note": ("information bits are a linearised estimate for the current model structure; "
                          f"heater steps are guarded: they end early if the object reaches {self.limits.T_plan_max} C")}
 
@@ -547,7 +584,7 @@ class Lab:
         self._log("experiment_start", {"experiment_id": eid, "name": name, "steps": steps,
                                        "hypothesis_id": hypothesis_id, "rationale": rationale})
         self.bus.publish("forecast", {"id": eid, "label": f"{eid} {name}", **pred.to_json()})
-        mon = Monitor(self.fit, self.latest())
+        mon = Monitor(self.belief, self.latest())
         status = "ok"
         guarded: list[float] = []
         step_stats = []
@@ -626,6 +663,7 @@ class Lab:
         fits = M.fit_all(data, structures=structures, start=self.fit.params(), since=since_t, fix=fix,
                          prior=prior if (structures == [ref.structure]) else None)
         best = fits[0]
+        self.fits = fits
         table = [{"structure": f.structure, "aic": round(f.aic, 1), "delta_aic": round(f.aic - best.aic, 1),
                   "rmse_K": round(f.rmse, 3), "params": {k: round(v, 6) for k, v in f.params().items()}}
                  for f in fits]
@@ -642,19 +680,22 @@ class Lab:
                 self.scene_ref = self._scene_last_raw
                 self._log("scene_reference", {"note": "reference layout updated after the anomaly was resolved"})
         # k(u) curve with band, for the dashboard
-        P = best.sample(300, np.random.default_rng(3))
+        bel = self.belief
+        P = bel.sample(400, np.random.default_rng(3))
         ug = np.linspace(0, 1, 41)
-        K = np.maximum(M.cooling_rate(best.structure, {n: v[:, None] for n, v in P.items()}, ug[None, :]), 1e-7)
+        K = np.maximum(M.cooling_rate(bel.structure, {n: v[:, None] for n, v in P.items()}, ug[None, :]), 1e-7)
         curve = {"u": ug.round(3).tolist(), "k_med": np.median(K, 0).round(6).tolist(),
                  "k_lo": np.percentile(K, 5, 0).round(6).tolist(), "k_hi": np.percentile(K, 95, 0).round(6).tolist()}
         payload = {"t": round(self.rig.now(), 1), **best.to_json(), "ranking": table, "k_curve": curve,
+                   "weights": bel.weights_json(), "tested_duties": self.tested_duties(),
                    "rationale": rationale, "held": fix or {}}
         self.bus.publish("fit", payload)
         self._log("model_update", {"rationale": rationale, "since_t": since_t, "held": fix or {},
                                    "ranking": table, "adopted": best.to_json(),
                                    "previous": prev.to_json(), "resolved_anomaly": resolved})
         self._status()
-        return {"adopted": best.to_json(), "ranking": table,
+        return {"adopted": best.to_json(), "ranking": table, "structure_weights": bel.weights_json(),
+                "structural_spread_K_by_duty": self.structural_spread(),
                 "data_points": len(data), "since_t": since_t, "held_params": fix or {},
                 "note": "lower AIC is better; a delta_aic above ~10 is strong evidence against that structure"}
 
@@ -670,9 +711,10 @@ class Lab:
         remaining_hold = max(self.goal.hold_s - self.hold_done_s, 0.0)
         if remaining_hold <= 0:
             return {"refused": "goal already complete"}
-        res = plan_constant_then_hold(self.fit, s, self.rig.caps.heater_w, self.goal, remaining_hold,
+        bel = self.belief
+        res = plan_constant_then_hold(bel, s, self.rig.caps.heater_w, self.goal, remaining_hold,
                                       self._fan_power)
-        nominal = plan_constant_then_hold(self.fit, s, self.rig.caps.heater_w, self.goal, remaining_hold,
+        nominal = plan_constant_then_hold(bel, s, self.rig.caps.heater_w, self.goal, remaining_hold,
                                           self._fan_power, robust=False)
         pid = self._id("P")
         left = self.goal.task_budget_J - self.energy["task"]
@@ -688,6 +730,20 @@ class Lab:
                 "model": self.fit.structure}
         if not res["feasible"]:
             plan["note"] = "no constant-duty plan keeps the 95th percentile under target; even full fan is not enough by the model"
+        # Trust region: has the model ever seen the duty this plan relies on?
+        u_hold = res["phases"][-1]["fan_duty"]
+        tested = self.tested_duties()
+        # Fan off is a different regime (no airflow), so only spinning duties count as evidence.
+        near = [d for d in tested if d > 0 and abs(d - u_hold) <= max(0.05, 0.25 * u_hold)]
+        plan["hold_duty"] = u_hold
+        plan["tested_duties"] = tested
+        plan["structure_weights"] = bel.weights_json()
+        if u_hold > 0 and not near:
+            plan["extrapolation"] = True
+            plan["suggested_validation"] = {"name": f"validate operating point, fan {round(u_hold * 100)}%",
+                                            "steps": [{"fan_duty": u_hold, "heater_on": True, "duration_s": 300}]}
+            plan["note"] = (f"the hold duty {u_hold:.2f} is outside the duties tested so far {tested}; "
+                            "the prediction there is an extrapolation. Consider running the suggested validation experiment first.")
         self.plans[pid] = {**plan, "_pred": res["pred"]}
         self.bus.publish("plan", {**plan, "t": round(s["t"], 1)})
         self.bus.publish("forecast", {"id": pid, "label": f"{pid} plan", **res["pred"].to_json()})
@@ -706,20 +762,28 @@ class Lab:
         self._log("plan_execute", {"plan_id": plan_id, "rationale": rationale})
         if self.perception and self.scene_ref is None:
             self.look_at_scene(reason="reference before executing plan")
-        mon = Monitor(self.fit, self.latest())
+        mon = Monitor(self.belief, self.latest())
         self.rig.set_heater(True)
         status = "ok"
         elapsed = 0.0
         start_t = self.latest()["t"]
-        P = self.fit.sample(300, np.random.default_rng(5))
+        bel = self.belief
+        P = bel.sample(300, np.random.default_rng(5))
         in_hold = {"on": False, "last_adj": -1e9, "adjustments": 0}
 
-        def hold_duty(Ta: float) -> float:
+        def hold_duty(Ta: float, bias: float = 0.0) -> float:
             for u in np.round(np.arange(0, 1.0001, 0.01), 2):
-                k = np.maximum(M.cooling_rate(self.fit.structure, P, u), 1e-7)
-                if np.percentile(Ta + P["b"] * self.rig.caps.heater_w / k, 95) <= self.goal.target_C - 0.1:
+                k = np.maximum(M.cooling_rate(bel.structure, P, u), 1e-7)
+                if np.percentile(Ta + P["b"] * self.rig.caps.heater_w / k, 95) + bias <= self.goal.target_C - 0.1:
                     return float(u)
             return 1.0
+
+        def recent_bias() -> float:
+            """Offset-free control: the measured minus predicted temperature over
+            the last minute, folded into the hold duty."""
+            now = self.latest()["t"]
+            r = [x["T_obj"] - x["pred"] for x in self.samples[-90:] if "pred" in x and x["t"] >= now - 60]
+            return float(np.clip(np.mean(r), -1.0, 2.0)) if len(r) >= 20 else 0.0
 
         def count(chunk):
             nonlocal elapsed
@@ -734,13 +798,14 @@ class Lab:
             if in_hold["on"] and self.rig.now() - in_hold["last_adj"] >= 60:
                 in_hold["last_adj"] = self.rig.now()
                 s = self.latest()
-                u_new = hold_duty(s["T_amb"])
+                bias = recent_bias()
+                u_new = hold_duty(s["T_amb"], bias)
                 if abs(u_new - s["fan_duty"]) >= 0.02:
                     self.rig.set_fan(u_new)
                     in_hold["adjustments"] += 1
                     self._log("plan_adjust", {"plan_id": plan_id, "fan_duty": u_new, "was": s["fan_duty"],
-                                              "measured_ambient_C": s["T_amb"],
-                                              "why": "robust hold duty recomputed for measured ambient"})
+                                              "measured_ambient_C": s["T_amb"], "model_bias_K": round(bias, 3),
+                                              "why": "robust hold duty recomputed for the measured room temperature and model offset"})
 
         for i, ph in enumerate(p["phases"]):
             self.rig.set_fan(ph["fan_duty"])

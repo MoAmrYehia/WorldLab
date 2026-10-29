@@ -394,3 +394,60 @@ def info_gain(f: Fit, T0: float, dt, u, q, Ta) -> dict:
 
 def steady_state(f_params: dict, structure: str, u: float, q: float, Ta: float) -> float:
     return Ta + f_params["b"] * q / max(float(cooling_rate(structure, f_params, u)), 1e-7)
+
+
+# ------------------------------------------------------- structural uncertainty
+
+GENERAL = "stall_power"   # every structure is a special case of this one
+
+
+def to_general(structure: str, P: dict) -> dict:
+    """Express any structure's parameters (scalars or arrays) in stall_power form."""
+    out = {"k0": P["k0"], "k1": P["k1"], "b": P["b"]}
+    like = np.zeros_like(np.asarray(P["k0"], float))
+    if structure == "linear":
+        out["u0"], out["n"] = like + 0.0, like + 1.0
+    elif structure == "sqrt":
+        out["u0"], out["n"] = like + 0.0, like + 0.5
+    elif structure == "power":
+        out["u0"], out["n"] = like + 0.0, np.asarray(P["n"], float) + like
+    else:
+        out["u0"], out["n"] = np.asarray(P["u0"], float) + like, np.asarray(P["n"], float) + like
+    if np.ndim(like) == 0:
+        out = {k: float(v) for k, v in out.items()}
+    return out
+
+
+class Mixture:
+    """Belief over several model structures at once, weighted by Akaike
+    weights. Behaves like a Fit for sampling-based prediction, so where the
+    candidate explanations disagree (typically when extrapolating to fan duties
+    that were never tried) the prediction bands widen honestly."""
+
+    def __init__(self, fits: list[Fit], min_weight: float = 0.01):
+        fits = sorted(fits, key=lambda f: f.aic)
+        a0 = fits[0].aic
+        w = np.array([math.exp(-0.5 * (f.aic - a0)) if math.isfinite(f.aic) else 0.0 for f in fits])
+        if not np.isfinite(w).all() or w.sum() == 0:
+            w = np.zeros(len(fits))
+            w[0] = 1.0
+        w = w / w.sum()
+        keep = [i for i in range(len(fits)) if w[i] >= min_weight] or [0]
+        self.members = [fits[i] for i in keep]
+        self.weights = w[keep] / w[keep].sum()
+        self.best = fits[0]
+        self.structure = GENERAL
+        self.rmse = self.best.rmse
+        self.fixed: dict = {}
+        self.names = STRUCTURES[GENERAL]["params"]
+
+    def params(self) -> dict:
+        return to_general(self.best.structure, self.best.params())
+
+    def sample(self, S: int, rng: np.random.Generator) -> dict[str, np.ndarray]:
+        counts = rng.multinomial(S, self.weights)
+        parts = [to_general(f.structure, f.sample(int(c), rng)) for f, c in zip(self.members, counts) if c > 0]
+        return {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
+
+    def weights_json(self) -> dict:
+        return {f.structure: round(float(w), 3) for f, w in zip(self.members, self.weights)}
