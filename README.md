@@ -173,7 +173,7 @@ On day 90 (early January), each scenario hides one change:
 - **salinity:** the groundwater turns from 4.5 to 9 dS/m.
 - **heatwave:** a heat wave arrives, and it is in the forecast, so it should not cause an alarm.
 
-Results across 5 random farms × 5 scenarios × 3 agents (`python -m worldlab bench --farms 5`; raw runs in `docs/bench/runs.json`). The oracle plans with the true traits and suffers no faults.
+Results across 5 random farms × 5 scenarios × 4 agents (`python -m worldlab bench --farms 5 --agents scripted,scripted-rl,scripted-noadapt,scripted-notrials`; raw runs in `docs/bench/runs.json`). The oracle plans with the true traits and suffers no faults.
 
 | agent | scenario | runs | people_fed | pct_of_oracle | detected | detect_days_median | diagnosis_ok | false_alarms | within_limits | trait_error |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -182,21 +182,27 @@ Results across 5 random farms × 5 scenarios × 3 agents (`python -m worldlab be
 | scripted | pest | 5 | 436.9 | 98.9 | 5/5 | 13.0 | 5/5 | 0 | 5/5 | 0.4 |
 | scripted | salinity | 5 | 383.6 | 86.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.4 |
 | scripted | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-rl | none | 5 | 440.9 | 100.0 | – | – | 5/5 | 0 | 5/5 | 0.4 |
+| scripted-rl | clog | 5 | 431.3 | 97.7 | 5/5 | 19.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted-rl | pest | 5 | 436.6 | 98.9 | 5/5 | 13.0 | 5/5 | 0 | 5/5 | 0.4 |
+| scripted-rl | salinity | 5 | 387.3 | 86.9 | 5/5 | 16.0 | 5/5 | 0 | 4/5 | 0.4 |
+| scripted-rl | heatwave | 5 | 420.7 | 95.5 | – | – | 5/5 | 0 | 5/5 | 0.4 |
 | scripted-noadapt | none | 5 | 439.1 | 99.7 | – | – | 5/5 | 0 | 4/5 | 0.4 |
 | scripted-noadapt | clog | 5 | 421.4 | 95.5 | 5/5 | 20.0 | 0/5 | 0 | 4/5 | 0.4 |
 | scripted-noadapt | pest | 5 | 419.7 | 95.2 | 5/5 | 13.0 | 0/5 | 0 | 5/5 | 0.4 |
 | scripted-noadapt | salinity | 5 | 370.8 | 83.4 | 5/5 | 14.0 | 0/5 | 0 | 4/5 | 0.4 |
 | scripted-noadapt | heatwave | 5 | 419.2 | 95.2 | – | – | 5/5 | 0 | 4/5 | 0.4 |
 | scripted-notrials | none | 5 | 384.2 | 88.1 | – | – | 5/5 | 1 | 4/5 | 0.9 |
-| scripted-notrials | clog | 5 | 358.2 | 82.7 | 5/5 | 16.0 | 0/5 | 0 | 3/5 | 0.9 |
+| scripted-notrials | clog | 5 | 379.3 | 87.2 | 5/5 | 16.0 | 5/5 | 0 | 5/5 | 0.9 |
 | scripted-notrials | pest | 5 | 379.8 | 87.4 | 5/5 | 17.0 | 5/5 | 0 | 4/5 | 0.9 |
 | scripted-notrials | salinity | 5 | 343.7 | 78.5 | 5/5 | 14.0 | 5/5 | 0 | 4/5 | 0.9 |
 | scripted-notrials | heatwave | 5 | 374.1 | 85.9 | – | – | 5/5 | 0 | 4/5 | 0.9 |
 
-The three agents:
+The four agents:
 
-- **scripted:** the full protocol: trials, calibration, planning, monitoring, diagnosis and repair.
-- **scripted-noadapt:** the same, but it ignores alarms.
+- **scripted:** the full protocol: trials, calibration, planning, monitoring, diagnosis and repair, with the plan's fixed irrigation rule.
+- **scripted-rl:** the same, plus an irrigation policy trained by reinforcement learning in its calibrated model, deployed when it beats the rule on held-out imagined seasons (it did on all 25 farms).
+- **scripted-noadapt:** the full protocol, but it ignores alarms.
 - **scripted-notrials:** plans on published values and never experiments.
 
 What the numbers say:
@@ -208,7 +214,8 @@ What the numbers say:
   - saltier groundwater, by water test.
 - **Acting on the diagnosis helps**: 429 vs 421 people with a clog, 437 vs 420 with pests, 384 vs 371 with salty groundwater.
 - **A forecast heat wave** raises no alarm. It is already in the forecast, so the model accounts for it.
-- **Water and energy limits held in 4 of 5 farms.** On farm 204 the actual year was drier than the planner's 90th-percentile assumption, and use overran by up to 2%. A hard quota cut-off is a natural next step.
+- **The learned irrigation policy uses less to feed as many.** Across all 25 farm-scenarios, the RL agent fed slightly more people than the same agent with the fixed rule (423.4 against 421.6 on average), with 4% less groundwater (53,830 against 56,208 m³) and 8% less energy (76,843 against 83,413 kWh). It stayed within both limits in 24 of 25 runs, against 22 of 25 for the rule. The policy never saw the real farm: it was trained only in the agent's own model.
+- **Limits.** With the fixed rule, water and energy held in 22 of 25 runs. On farm 204 the actual year was drier than the planner's 90th-percentile assumption, and use overran by up to 2%. A hard quota cut-off is a natural next step.
 
 An earlier version of this benchmark caught a real gap. A clogged line first shows up as *rising soil salinity* (less water means less leaching), not as dry soil. The scripted agent only tested the groundwater, so it never found the clog. It now tests both causes, and clog diagnosis went from 2/5 to 5/5.
 
