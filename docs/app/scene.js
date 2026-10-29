@@ -55,9 +55,10 @@ function canvasTexture(w, h, draw) {
 }
 
 function dashTexture() {
-  const t = canvasTexture(64, 4, (g, w, h) => {
+  // gradient runs along v: a cylinder's uv.y follows its length
+  const t = canvasTexture(4, 64, (g, w, h) => {
     g.clearRect(0, 0, w, h);
-    const grd = g.createLinearGradient(0, 0, w, 0);
+    const grd = g.createLinearGradient(0, 0, 0, h);
     grd.addColorStop(0, "rgba(255,255,255,0)"); grd.addColorStop(0.55, "rgba(255,255,255,0.15)");
     grd.addColorStop(0.8, "rgba(255,255,255,1)"); grd.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = grd; g.fillRect(0, 0, w, h);
@@ -286,7 +287,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
   const pipeMat = mat("#5b6b80", { roughness: 0.5, metalness: 0.2 });
   function flowLine(len, radius, color) {
     const tex = DASH.clone(); tex.needsUpdate = true;
-    tex.repeat.set(Math.max(1, len / 2.2), 1);
+    tex.repeat.set(1, Math.max(1, len / 2.2));
     const m = new THREE.MeshBasicMaterial({ map: tex, color, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending });
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.25, radius * 1.25, len, 6, 1, true), m);
     return { mesh, tex, m };
@@ -636,7 +637,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
         const target = p.flow * (clogged ? 0.35 : 1);
         ln.m.opacity += (target * 0.95 - ln.m.opacity) * Math.min(1, dt * 4);
         ln.m.color.set(clogged ? "#ff6b5e" : "#45e3f0");
-        if (!reducedMotion) ln.tex.offset.x += dt * ln.dir * (clogged ? 0.25 : 0.9);
+        if (!reducedMotion) ln.tex.offset.y += dt * ln.dir * (clogged ? 0.25 : 0.9);
       }
       const sel = k === selected;
       p.frame.material.opacity += ((sel ? 0.95 : 0) - p.frame.material.opacity) * Math.min(1, dt * 6);
@@ -648,7 +649,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
     }
     for (const m of mains) {
       m.m.opacity += ((m.target || 0) * 0.9 - m.m.opacity) * Math.min(1, dt * 3);
-      if (!reducedMotion) m.tex.offset.x -= dt * 1.4;
+      if (!reducedMotion) m.tex.offset.y -= dt * 1.4;
     }
     for (const fp of flowParts) {
       const tv = fp.target || 0;
