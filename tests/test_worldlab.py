@@ -145,3 +145,41 @@ class PerceptionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SerialRigTests(unittest.TestCase):
+    def test_parses_firmware_lines_and_sends_commands(self):
+        import types, time as _t
+        written = []
+        lines = [b"I,worldlab rig ready\n", b"D,1000,31.2500,24.1250,40,1,-1,OK\n",
+                 b"D,2000,31.3125,24.1250,40,1,850,OK\n", b"garbage\n"]
+
+        class FakeSerial:
+            def __init__(self, *a, **k): pass
+            def write(self, b): written.append(b.decode().strip())
+            def readline(self):
+                if lines: return lines.pop(0)
+                _t.sleep(0.05); return b""
+            def close(self): pass
+
+        sys.modules["serial"] = types.SimpleNamespace(Serial=FakeSerial)
+        from worldlab.rig import serial_rig
+        orig_sleep = serial_rig.time.sleep
+        serial_rig.time.sleep = lambda s: orig_sleep(min(s, 0.05))
+        try:
+            rig = serial_rig.SerialRig("FAKE")
+            rig.set_fan(0.55)
+            rig.set_heater(True)
+            got = rig.advance(0.3)
+            self.assertEqual(len(got), 2)
+            self.assertAlmostEqual(got[0].T_obj, 31.25)
+            self.assertEqual(got[0].heater_w, 10.0)
+            self.assertAlmostEqual(got[0].fan_duty, 0.40)
+            self.assertAlmostEqual(got[1].fan_power_w, 0.85)
+            self.assertIn("F 55", written)
+            self.assertIn("H 1", written)
+            rig.close()
+            self.assertIn("S", written)
+        finally:
+            serial_rig.time.sleep = orig_sleep
+            del sys.modules["serial"]

@@ -820,9 +820,20 @@ class Lab:
                   "object_temp_C": self.latest()["T_obj"], "feedback_adjustments": in_hold["adjustments"],
                   **mon.summary()}
         if status in ("anomaly", "scene"):
-            alarm = mon.alarm or {"t_detected": round(self.rig.now(), 1),
-                                  "onset_estimate_t": round(self._last_scene_t - self.scene_check_s, 1),
-                                  "direction": "scene changed"}
+            alarm = mon.alarm
+            if alarm is None:
+                # The camera caught it. Date the change by when measurement and
+                # model started to separate, within the window since the last look.
+                lo_t = self._last_scene_t - self.scene_check_s
+                onset = lo_t
+                for x in reversed(self.samples):
+                    if x["t"] < lo_t:
+                        break
+                    if "pred" in x and abs(x["T_obj"] - x["pred"]) < 0.2:
+                        onset = x["t"]
+                        break
+                alarm = {"t_detected": round(self.rig.now(), 1), "onset_estimate_t": round(onset, 1),
+                         "direction": "scene changed"}
             self.anomaly = {"kind": "prediction_divergence" if status == "anomaly" else "scene_change",
                             **alarm, "during": plan_id,
                             "scene": {k: v for k, v in (self.scene_last or {}).items() if k != "objects"}}

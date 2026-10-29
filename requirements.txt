@@ -1,0 +1,8 @@
+# Core (the simulator, agent, dashboard and benchmark need only these)
+numpy>=1.24
+scipy>=1.10
+
+# Optional
+# pyserial>=3.5          # hardware rig over USB serial
+# opencv-python>=4.8     # hardware rig camera
+# meta-sam-parser>=0.1   # full SAM 3.1 mask decoding (WorldLab itself only needs the boxes)
