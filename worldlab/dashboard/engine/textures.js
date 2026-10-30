@@ -92,10 +92,10 @@ export function makeTextures(quality) {
   });
   out.sand = fromField(S, (x, y) => {
     const g = hash2(x, y, 11), n = fbm(x / S * 6, y / S * 6, 6, 3, 2), h = sandH[y * S + x];
-    const r = mix(212, 236, n) + (g - 0.5) * 22 + h * 8, gg = mix(170, 196, n) + (g - 0.5) * 20 + h * 6, b = mix(122, 148, n) + (g - 0.5) * 18;
+    const r = mix(214, 232, n) + (g - 0.5) * 16 + h * 5, gg = mix(186, 204, n) + (g - 0.5) * 15 + h * 4, b = mix(148, 168, n) + (g - 0.5) * 13;
     return [r, gg, b];
   });
-  out.sandN = normalFromHeight(S, sandH, 3.2);
+  out.sandN = normalFromHeight(S, sandH, 1.8);
 
   // Tilled field soil: furrows along v, clods
   const soilH = heightField(S, (u, v) => {

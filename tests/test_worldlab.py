@@ -304,5 +304,87 @@ class PerceptionTests(unittest.TestCase):
         self.assertEqual(farm.image(0)[:8], b"\x89PNG\r\n\x1a\n")
 
 
+class ProgressionTests(unittest.TestCase):
+    """Missions and achievements come only from ledger events; rewards can't be farmed by replaying."""
+
+    @classmethod
+    def setUpClass(cls):
+        from worldlab.session import Session, Settings
+        sess = Session(Settings(agent="scripted", seed=7, speed=0, perturb=["clog@90"], perception="sim",
+                                runs_dir=tempfile.mkdtemp()))
+        sess.start()
+        sess.thread.join(600)
+        assert sess.error is None, sess.error
+        cls.lab, cls.farm, cls.dir = sess.lab, sess.farm, sess.run_dir
+
+    def test_missions_follow_the_ledger(self):
+        from worldlab.progression import evaluate
+        ev = evaluate(self.lab.ledger.entries, list(self.farm.events), self.lab.result)
+        self.assertEqual([c["id"] for c in ev["chapters"]], ["discover", "strategize", "survive", "recover", "harvest"])
+        self.assertTrue(ev["complete"])
+        ids = {a["id"] for a in ev["achievements"]}
+        self.assertTrue({"first_sprout", "scientific_detective", "resilience_architect", "harvest_guardian"} <= ids)
+        fault = ev["metrics"]["faults"][0]
+        self.assertTrue(fault["detected"] and fault["diagnosed"] and fault["recovered"])
+        for a in ev["achievements"]:
+            self.assertTrue(a["evidence"])
+        # before anything happens nothing is earned
+        empty = evaluate([], [], None)
+        self.assertEqual(empty["achievements"], [])
+        self.assertEqual(empty["current_chapter"], "discover")
+        self.assertFalse(empty["complete"])
+
+    def test_an_undetected_fault_earns_no_detective_badge(self):
+        from worldlab.progression import evaluate
+        entries = [e for e in self.lab.ledger.entries if e["kind"] not in ("anomaly", "field_test", "look", "conclusion", "adjust", "model_update")]
+        ev = evaluate(entries, list(self.farm.events), self.lab.result)
+        ids = {a["id"] for a in ev["achievements"]}
+        self.assertNotIn("scientific_detective", ids)
+        self.assertNotIn("resilience_architect", ids)
+        self.assertFalse(ev["metrics"]["faults"][0]["detected"])
+
+    def test_award_is_once_per_scenario(self):
+        from worldlab.progression import evaluate, award, scenario_key, level_for
+        ev = evaluate(self.lab.ledger.entries, list(self.farm.events), self.lab.result)
+        key = scenario_key(7, [])
+        first = award({}, ev, key)
+        self.assertGreater(first["gained"], 0)
+        self.assertEqual(len(first["new_achievements"]), len(ev["achievements"]))
+        again = award(first["progress"], ev, key)
+        self.assertEqual(again["gained"], 0)
+        self.assertEqual(again["new_achievements"], [])
+        self.assertEqual(again["progress"]["xp"], first["progress"]["xp"])
+        # a different scenario earns season XP again, but no repeated achievements
+        other = award(first["progress"], ev, scenario_key(8, []))
+        self.assertGreater(other["gained"], 0)
+        self.assertEqual(other["new_achievements"], [])
+        self.assertEqual(level_for(0)["level"], 1)
+        self.assertEqual(level_for(100)["level"], 2)
+        self.assertEqual(level_for(399)["level"], 2)
+
+    def test_account_progress_persists(self):
+        from worldlab.accounts import Accounts
+        from worldlab.progression import evaluate, award, scenario_key
+        acc = Accounts(Path(tempfile.mkdtemp()) / "a.db")
+        uid = acc.signup("ada@example.com", "a long passphrase", "Ada")["id"]
+        ev = evaluate(self.lab.ledger.entries, list(self.farm.events), self.lab.result)
+        r = award(acc.progress(uid), ev, scenario_key(7, []))
+        acc.save_progress(uid, r["progress"])
+        self.assertEqual(acc.progress(uid)["xp"], r["progress"]["xp"])
+        self.assertEqual(set(acc.progress(uid)["achievements"]), {a["id"] for a in ev["achievements"]})
+
+    def test_replay_carries_mission_events(self):
+        from worldlab.replay import build
+        data = build(self.dir)
+        kinds = [m["kind"] for m in data["messages"]]
+        self.assertIn("mission", kinds)
+        last = [m for m in data["messages"] if m["kind"] == "mission"][-1]["data"]
+        self.assertTrue(last["complete"])
+        day = next(m["data"] for m in data["messages"] if m["kind"] == "day")
+        for k in ("u2", "clearness", "world", "water_used_m3", "energy_used_kwh"):
+            self.assertIn(k, day)
+        self.assertTrue(0 <= day["clearness"] <= 1)
+
+
 if __name__ == "__main__":
     unittest.main()

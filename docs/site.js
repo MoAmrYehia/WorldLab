@@ -1,4 +1,4 @@
-import { api, apiJson, setToken, PAGES } from "./client.js?v=e18ccb051a";
+import { api, apiJson, setToken, PAGES } from "./client.js?v=01ca7ed07b";
 // WorldLab site: account state in the nav, the log-in and sign-up forms, and the season calendar.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

@@ -1,6 +1,6 @@
 // Desert terrain near Al Ain: a levelled farm, dunes beyond, and the Jebel Hafeet ridge on the horizon.
 import * as THREE from "three";
-import { fbm2, ridged, noise2 } from "./textures.js?v=e18ccb051a";
+import { fbm2, ridged, noise2 } from "./textures.js?v=01ca7ed07b";
 
 export const FARM = { x0: -62, x1: 40, z0: -42, z1: 30 };     // levelled farm area (scene units ~ 6 m)
 
@@ -46,7 +46,7 @@ export function buildTerrain(tex, quality) {
   g.computeVertexNormals();
   const sand = tex.sand.clone(); sand.needsUpdate = true; sand.repeat.set(size / 9, size / 9);
   const sandN = tex.sandN.clone(); sandN.needsUpdate = true; sandN.repeat.copy(sand.repeat);
-  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: sand, normalMap: sandN, normalScale: new THREE.Vector2(0.9, 0.9),
+  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: sand, normalMap: sandN, normalScale: new THREE.Vector2(0.55, 0.55),
     vertexColors: true, roughness: 0.96, metalness: 0 }));
   ground.receiveShadow = true;
   ground.name = "terrain";

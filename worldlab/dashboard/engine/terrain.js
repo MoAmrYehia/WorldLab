@@ -46,7 +46,7 @@ export function buildTerrain(tex, quality) {
   g.computeVertexNormals();
   const sand = tex.sand.clone(); sand.needsUpdate = true; sand.repeat.set(size / 9, size / 9);
   const sandN = tex.sandN.clone(); sandN.needsUpdate = true; sandN.repeat.copy(sand.repeat);
-  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: sand, normalMap: sandN, normalScale: new THREE.Vector2(0.9, 0.9),
+  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: sand, normalMap: sandN, normalScale: new THREE.Vector2(0.55, 0.55),
     vertexColors: true, roughness: 0.96, metalness: 0 }));
   ground.receiveShadow = true;
   ground.name = "terrain";

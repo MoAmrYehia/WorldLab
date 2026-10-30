@@ -1,4 +1,6 @@
-# WorldLab Crops
+# WorldLab: Green Frontier
+
+*Grow the future. Outsmart the desert.*
 
 **An AI agronomist that learns a desert farm by experiment, trains its own irrigation policy by reinforcement learning, runs a season to feed as many people as possible, and notices when something in the field goes wrong. A full website: sign up, pick your crops for each sowing season, and watch your farm in 3D.**
 
@@ -12,19 +14,19 @@ The local varieties don't behave quite like the published values, and the agent 
 4. **Learn a policy.** Train a daily irrigation and water-blend policy by reinforcement learning inside its own calibrated model of the farm, and use it only if it beats the fixed rule on held-out imagined seasons.
 5. **Run the season and stay honest.** Run the season day by day against its own predictions. When a field drifts out of the predicted band, it forms hypotheses, runs the field test that tells them apart, fixes the cause, corrects its model and re-plans its water.
 
-Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live in the web app: a stylized low-poly 3D farm where plants grow with the simulation, soil darkens when wet and crusts white with salt, water glows through the drip lines (red when clogged), a drone flies out to inspect, and an alarm ring marks the field whose measurements left the model's predicted band.
+Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live in the web app: a dark command-centre interface over an interactive 3D farm at golden hour. Everything in the 3D world is real geometry driven by the simulation, not a picture: ten botanically distinct crops that grow through their stages, wilt under water stress, pale under salt and heat, show pest damage and sway with the measured wind; soil that darkens around wet emitters and crusts with salt; drip lines that turn red when clogged; dust, clouds and rain driven by the weather record; a drone that flies out to scan a field; a service truck that drives out to repair a line; an alarm ring on the field whose measurements left the model's predicted band. Orbit, zoom and pan, click a field to inspect it, or switch to scientific overlays of crop health, soil moisture, salinity and irrigation (with units).
 
 ![WorldLab web app: the scientist's notebook, field charts and RL policy panel at the end of a season](docs/app.png)
 
-*Panels at the end of the recorded run in `docs/app` (the 3D farm fills the middle of the screen). Violet is what the agent's model predicts; orange is what the sensors and drone measure. On 4 January a drip line in field F4 clogs. The agent isn't told, and the water meter can't see it. Soil salinity rises out of the predicted band, because less water reaching the roots leaches less salt, and the alarm fires. A water test is normal; an emitter flow test reads 45% of design flow, so the agent concludes the line is clogged. It repairs it, teaches its model what happened and re-plans irrigation. Before sowing it had trained an RL irrigation policy that, in its own model, keeps the farm inside the water quota in every imagined year (the fixed rule overran in 18%) for 1% fewer people fed. The harvest feeds 458 people within the water and energy limits.*
+*Panels at the end of the recorded run in `docs/app` (the 3D farm fills the middle of the screen). Cyan is what the agent's model predicts; orange is what the sensors and drone measure. On 4 January a drip line in field F4 clogs. The agent isn't told, and the water meter can't see it. Soil salinity rises out of the predicted band, because less water reaching the roots leaches less salt, and the alarm fires. A water test is normal; an emitter flow test reads 45% of design flow, so the agent concludes the line is clogged. It repairs it, teaches its model what happened and re-plans irrigation. Before sowing it had trained an RL irrigation policy that, in its own model, keeps the farm inside the water quota in every imagined year (the fixed rule overran in 18%) for 1% fewer people fed. The harvest feeds 458 people within the water and energy limits.*
 
 ### The website
 
 | Page | What it does |
 |---|---|
-| `/` | Landing page: the 3D farm replaying a season, how a season runs, the sowing calendar for all ten crops, benchmark results |
+| `/` | Landing page: a cinematic 3D flyover of the farm replaying a season, numbers from that season, how a season runs, the sowing calendar, benchmark results |
 | `/signup`, `/login` | Accounts. Each account gets its own farm, its own runs and a history of past seasons |
-| `/app` | Your farm. **Plan a new season** opens the crop planner; the 3D view, charts and the scientist's notebook follow the run live |
+| `/app` | Your farm. **Plan a new season** opens the season planner with 3D previews of your crops; missions, field gauges, the incident investigation, the research lab and the results screen follow the run live |
 | `/demo` | A recorded season, no account needed |
 
 **Choosing crops by season.** The growing year runs from 1 October to 30 June; open fields rest through the summer. The planner has three sowing seasons:
@@ -36,6 +38,10 @@ Every hypothesis, prediction, trial, test, decision and result is written to a h
 | Late-winter sowing | 25 Jan to 15 Mar | rice, soybeans, sorghum, millet |
 
 For each of the six fields you pick a season and a crop, leave it fallow, or let the scientist decide. Each crop card shows its sowing window, days to harvest, the needs it covers (calories, protein, vitamin A), its salt limit, and the yield the crop model expects on every field. The scientist still runs trial plots, then plans sowing day, irrigation, water blend and nitrogen for your crops and chooses crops for the fields you left open. It also reports how many people its own free choice would feed, so you can see what your picks cost or gain.
+
+**Missions and progression.** A season runs through five chapters: Discover (trial plots), Strategize (plan within the water and energy limits), Survive (run the season), Recover (detect, diagnose and repair hidden faults) and Harvest. Objectives, achievements and experience are computed from the run's audit ledger by `worldlab/progression.py`, the same code for live seasons and recorded replays, so nothing is awarded that the ledger doesn't show. Achievements: First Sprout, Diverse Farm, Adaptive Intelligence, Scientific Detective, Resilience Architect, Water Steward and Harvest Guardian. Progress is saved per account; season experience counts once per farm and crop choice, replays earn nothing, and beating your best on the same scenario earns only the difference.
+
+**Controls and performance.** Drag to orbit, scroll or pinch to zoom, right-drag to pan, arrow keys to move. Keys: `1`–`6` fly to a field, `O` overview, `D` follow the drone, `I` close-up, `R` reset, `V` cycle overlays, space play or pause a replay, `Esc` close a panel. Settings offer Low, Medium, High and Ultra quality or automatic (it steps down when the measured frame rate drops), time of day (morning, noon, golden hour, night) and 3D labels; the measured frame rate is shown there. Crops and palms are instanced, geometry is shared and disposed on quality changes, and reduced-motion settings stop the camera flights. Without WebGL the panels still show the season.
 
 **Accounts** are stored in SQLite (`WORLDLAB_DATA`, default `./data`). Passwords are hashed with scrypt and a per-user salt; sessions are random tokens in an HttpOnly cookie, stored only as SHA-256 digests; cross-site POSTs are refused and repeated failed logins are throttled.
 
@@ -273,7 +279,10 @@ worldlab/
   server.py          website and API server (standard library, server-sent events), one farm per account
   replay.py          turns a recorded run into a static replay
   site/              landing, log-in and sign-up pages (index.html, login.html, signup.html, site.css, site.js, hero.js)
-  dashboard/         the 3D farm app (index.html, app.js, scene.js, style.css), replay.json, classic 2D dashboard
+  progression.py     missions, achievements and experience, computed from ledger events
+  dashboard/         the farm app (index.html, app.js, style.css), replay.json, classic 2D dashboard
+  dashboard/scene.js 3D facade: sky and time of day, cameras, picking, overlays, adaptive quality
+  dashboard/engine/  procedural 3D assets: textures, terrain, flora, ten crops, fields and infrastructure, effects
 docs/                static copy of the landing page, with the replay app in docs/app/ (GitHub Pages)
 Dockerfile           Hugging Face Spaces / container deployment
 tests/               unit tests, including the agent loop against a mock OpenAI-compatible endpoint

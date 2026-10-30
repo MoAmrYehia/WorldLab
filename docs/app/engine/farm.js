@@ -1,8 +1,8 @@
 // The six fields (soil, drip irrigation, crops, labels) and the farm's infrastructure.
 import * as THREE from "three";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { FieldCrop, CROP_INFO } from "./crops.js?v=e18ccb051a";
-import { GeoBuilder, V, C } from "./geo.js?v=e18ccb051a";
+import { FieldCrop, CROP_INFO } from "./crops.js?v=01ca7ed07b";
+import { GeoBuilder, V, C } from "./geo.js?v=01ca7ed07b";
 
 export const PLOT_W = 15, PLOT_D = 10;
 export const FIELD_POS = [[-18, -7.5], [0, -7.5], [18, -7.5], [-18, 7.5], [0, 7.5], [18, 7.5]];
