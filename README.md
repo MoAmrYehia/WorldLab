@@ -126,15 +126,18 @@ The 3D view loads three.js from cdn.jsdelivr.net, so the browser needs internet 
 
 ### Deploy: GitHub Pages + Hugging Face
 
-**1. The server on a Hugging Face Space.** The `Dockerfile` serves the API (and the full site) on port 7860.
+**The website** is published automatically. The workflow `.github/workflows/pages.yml` copies `docs/` to the `gh-pages` branch on every push to `main`, and GitHub Pages serves it at https://moamryehia.github.io/WorldLab/. (If Pages is ever switched off: **Settings → Pages → Deploy from a branch → `gh-pages`**, folder `/`.)
 
-1. On Hugging Face, create a Space named `worldlab` with the **Docker** SDK. Its address becomes `https://<user>-worldlab.hf.space`.
-2. In the Space settings, turn on persistent storage and add the variable `WORLDLAB_DATA=/data`, so accounts survive restarts. Optionally add the secret `MODEL_API_KEY` so Muse Spark runs the farm.
-3. In this GitHub repository, add the secret `HF_TOKEN` (a Hugging Face token with write access) and the variable `HF_SPACE` (for example `moamryehia/worldlab`) under **Settings → Secrets and variables → Actions**. The workflow in `.github/workflows/huggingface.yml` then deploys the server on every push to `main`.
+**The server** (accounts, crop planning, live seasons) runs on a Hugging Face Space, deployed by `.github/workflows/huggingface.yml`:
+
+1. Create a Hugging Face token with **write** access (huggingface.co → Settings → Access Tokens).
+2. In this GitHub repository, add it as the secret `HF_TOKEN` under **Settings → Secrets and variables → Actions**.
+3. Run **Deploy server to Hugging Face** from the **Actions** tab. It creates the Space `<your Hugging Face user>/worldlab` with the `Dockerfile`, and redeploys on every push.
+4. If your Hugging Face user name isn't `moamryehia`, add the repository variable `HF_SPACE` (for example `yourname/worldlab`) and re-run **Publish website**, so the site points at your Space.
+
+Optional: add the Space secret `MODEL_API_KEY` so Muse Spark runs the farm, and turn on persistent storage with the variable `WORLDLAB_DATA=/data` so accounts survive restarts (on free hardware they reset when the Space restarts).
 
 The server only accepts browser calls from the sites in `WORLDLAB_ALLOWED_ORIGINS` (set to `https://moamryehia.github.io` in the Dockerfile). From another site the session token travels in an `Authorization` header, so login works even where third-party cookies are blocked. `WORLDLAB_MAX_RUNS` (default 3) caps how many seasons run at once.
-
-**2. The website on GitHub Pages.** Under **Settings → Pages**, choose **Deploy from a branch**, branch `main`, folder `/docs`. The site appears at `https://moamryehia.github.io/WorldLab/`. If your Space has a different address, change `SERVER` in `docs/config.js`.
 
 ### Record a replay
 
