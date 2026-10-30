@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=db3520d84a";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=d20cd99018";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -1447,7 +1447,7 @@ function showTour() {
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=db3520d84a");
+    const mod = await import("./scene.js?v=d20cd99018");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {

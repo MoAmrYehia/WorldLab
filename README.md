@@ -309,6 +309,17 @@ What the numbers say:
 
 An earlier version of this benchmark caught a real gap. A clogged line first shows up as *rising soil salinity* (less water means less leaching), not as dry soil. The scripted agent only tested the groundwater, so it never found the clog. It now tests both causes, and clog diagnosis went from 2/5 to 5/5.
 
+### Hard-budget rerun
+
+After the hard water and energy budget was added, the two headline agents were rerun on the same 5 farm seeds × 5 scenarios (`python -m worldlab bench --farms 5 --agents scripted,scripted-rl`; raw runs in `docs/bench/hard/runs.json`, table in `docs/bench/hard/summary.md`).
+
+| scripted agent, hard budget | runs | people fed, mean | groundwater m³, mean | energy kWh, mean | within both limits | faults detected and diagnosed |
+|---|---|---|---|---|---|---|
+| with the learned irrigation policy | 25 | 471.3 | 57,580 | 85,501 | 25/25 | 15/15 |
+| with the fixed irrigation rule | 25 | 421.6 | 56,108 | 83,284 | 25/25 | 15/15 |
+
+No run exceeded a limit. Trained and compared under the same cap, the policy learned to use more of the allowance (about 3% more water and energy) and fed 12% more people on average; the policy was deployed in all 25 farm-scenarios. The oracle (true traits, fixed rule, no faults) averages 441 people, so the policy's gain comes from irrigation timing, not from knowing the traits. These remain scripted-agent results on simulated farms; the soft-budget table above is kept as the historical record.
+
 These are scripted-agent numbers. The same harness runs Muse Spark and Muse Glimmer (`--agents spark,glimmer,scripted`) once an API key or endpoint is set.
 
 
