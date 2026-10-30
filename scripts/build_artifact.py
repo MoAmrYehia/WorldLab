@@ -67,8 +67,16 @@ if not app_only:
     for name in ("login.html", "signup.html"):
         page(root / "site" / name, out / name,
              lambda h: h.replace('<link rel="stylesheet" href="site.css">', '<link rel="stylesheet" href="site.css">\n<script src="config.js"></script>'))
-    for f in ("site.css", "seasons.json", "favicon.svg"):
+    for f in ("site.css", "seasons.json", "favicon.svg", "favicon.ico", "apple-touch-icon.png", "icon-192.png",
+              "icon-512.png", "og-image.jpg", "site.webmanifest"):
         shutil.copy(root / "site" / f, out / f)
+    # search engines: a sitemap of the public pages (login and sign-up are noindex)
+    base = "https://moamryehia.github.io/WorldLab/"
+    today = __import__("time").strftime("%Y-%m-%d")
+    (out / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "".join(f"  <url><loc>{base}{u}</loc><lastmod>{today}</lastmod><priority>{pr}</priority></url>\n" for u, pr in (("", "1.0"), ("app/", "0.8")))
+        + "</urlset>\n")
+    (out / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {base}sitemap.xml\n")
     for f in ("site.js", "hero.js"):
         versioned_js(root / "site" / f, out / f)
     versioned_js(root / "dashboard" / "client.js", out / "client.js")

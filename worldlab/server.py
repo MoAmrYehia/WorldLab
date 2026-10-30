@@ -52,9 +52,11 @@ HERE = Path(__file__).parent
 APP = HERE / "dashboard"
 SITE = HERE / "site"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon"}
+         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
+         ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json"}
 STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "classic.html")}
-STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json")})
+STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json", "favicon.ico",
+                                               "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og-image.jpg", "site.webmanifest")})
 PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SITE / "signup.html",
          "/demo": APP / "index.html", "/app": APP / "index.html"}
 COOKIE = "wl_session"

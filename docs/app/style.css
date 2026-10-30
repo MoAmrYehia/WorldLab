@@ -465,3 +465,8 @@ body.incident-on .inspector, body.incident-on .investigation { top: calc(var(--t
 .src.rule { background: rgba(255, 255, 255, 0.06); color: var(--ink-2); }
 .src.on { background: rgba(61, 220, 132, 0.14); color: var(--emerald-2); }
 @media (max-width: 760px) { .agent-top, .drone-feed { grid-template-columns: 1fr; } .agent-who { grid-template-columns: 1fr; } }
+
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; display: block; }
+.modechip, #xpPill, #xpPill * { white-space: nowrap; }
+@media (max-width: 1320px) { .modechip { display: none; } }
+@media (max-width: 1180px) { .brand .sub { display: none; } }

@@ -1,8 +1,32 @@
+<p align="center"><img src="docs/screens/banner.jpg" alt="WorldLab: Green Frontier. Grow the future. Outsmart the desert." width="100%"></p>
+
 # WorldLab: Green Frontier
 
 *Grow the future. Outsmart the desert.*
 
-**An AI agronomist that learns a desert farm by experiment, trains its own irrigation policy by reinforcement learning, runs a season to feed as many people as possible, and notices when something in the field goes wrong. A full website: sign up, pick your crops for each sowing season, and watch your farm in 3D.**
+**An AI scientist that runs a desert farm in 3D. You choose the crops; it plants trial plots, learns how the crops really behave, trains its own irrigation policy, and finds and fixes what goes wrong in the field. Every decision is on the record.**
+
+**[Open the website](https://moamryehia.github.io/WorldLab/)** · **[Watch a recorded season](https://moamryehia.github.io/WorldLab/app/?demo)** (no account needed) · Built for the Meta Global AI Developer Hackathon, theme *Push the Frontier*
+
+| | |
+|---|---|
+| ![The landing page: a 3D flyover of the farm at golden hour](docs/screens/landing.jpg) | ![Six crop fields, palms, tanks, the greenhouse and trial plots in 3D](docs/screens/fields.jpg) |
+| **Landing page.** A live 3D flyover of the farm, replaying a recorded season. | **The farm.** Six fields, ten crops that grow with the simulation, trial plots, and the infrastructure that waters them. |
+| ![Incident close-up: a clogged drip line in red, an alarm ring and the drone scanning](docs/screens/incident.jpg) | ![Salinity overlay with readings in dS/m on each field](docs/screens/overlay.jpg) |
+| **An incident.** Salinity in F4 leaves the model's band; the camera flies in, the drone scans, the investigation panel lists hypotheses, tests and the repair. | **Scientific overlays.** Crop health, soil moisture, salinity and irrigation, with units, from the latest sensor readings. |
+| ![The Agent tab: the agent loop and every tool call with its reason and result](docs/screens/agent.jpg) | ![The farm at night with lamps and field lights](docs/screens/night.jpg) |
+| **The agent.** Its observe, hypothesize, experiment, decide, act, learn loop and every tool call with its reason, result and engine. | **Time of day.** Morning, noon, golden hour and night, with lights that switch on after dark. |
+
+## What you can do
+
+- **Plan a season.** Pick crops for six fields across three sowing seasons. Each crop card shows a picture rendered from its 3D model, the sowing window, days to harvest, the needs it covers, its salt limit and the expected yield on every field; your picks appear as 3D previews in the fields.
+- **Watch the AI scientist work.** Five chapters (Discover, Strategize, Survive, Recover, Harvest) with objectives that tick off only when the audit ledger shows they happened.
+- **Follow the agent.** The Agent tab shows each tool call it makes and why, and a table of every AI component and whether it is active.
+- **See through the drone.** The Drone feed shows the drone's live camera in the 3D farm beside the frames it captures on survey and inspection flights.
+- **Investigate incidents.** When measurements leave the model's predicted band, the season pauses and the investigation panel shows the competing hypotheses, the evidence and the fix.
+- **Earn achievements.** First Sprout, Water Steward, Scientific Detective, Resilience Architect, Harvest Guardian, Adaptive Intelligence and Diverse Farm, each backed by ledger evidence. With an account, progress is saved and rewards can't be farmed by replaying.
+
+## The challenge
 
 The farm is 12 hectares near Al Ain in the UAE: six fields with different soils, some already saline, irrigated by drip from brackish groundwater that can be blended with desalinated water. Water and energy are capped. The agent chooses among ten food-security crops: wheat, rice, maize, potatoes, cassava, soybeans, sorghum, millet, common beans and sweet potatoes.
 
@@ -16,9 +40,9 @@ The local varieties don't behave quite like the published values, and the agent 
 
 Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live in the web app: a dark command-centre interface over an interactive 3D farm at golden hour. Everything in the 3D world is real geometry driven by the simulation, not a picture: ten botanically distinct crops that grow through their stages, wilt under water stress, pale under salt and heat, show pest damage and sway with the measured wind; soil that darkens around wet emitters and crusts with salt; drip lines that turn red when clogged; dust, clouds and rain driven by the weather record; a drone that flies out to scan a field; a service truck that drives out to repair a line; an alarm ring on the field whose measurements left the model's predicted band. Orbit, zoom and pan, click a field to inspect it, or switch to scientific overlays of crop health, soil moisture, salinity and irrigation (with units).
 
-![WorldLab web app: the scientist's notebook, field charts and RL policy panel at the end of a season](docs/app.png)
 
-*Panels at the end of the recorded run in `docs/app` (the 3D farm fills the middle of the screen). Cyan is what the agent's model predicts; orange is what the sensors and drone measure. On 4 January a drip line in field F4 clogs. The agent isn't told, and the water meter can't see it. Soil salinity rises out of the predicted band, because less water reaching the roots leaches less salt, and the alarm fires. A water test is normal; an emitter flow test reads 45% of design flow, so the agent concludes the line is clogged. It repairs it, teaches its model what happened and re-plans irrigation. Before sowing it had trained an RL irrigation policy that, in its own model, keeps the farm inside the water quota in every imagined year (the fixed rule overran in 18%) for 1% fewer people fed. The harvest feeds 458 people within the water and energy limits.*
+**The recorded season** (the demo on the website): on 4 January a drip line in field F4 is silently clogged. The water meter can't see it, and the scientist isn't told. Less water reaches the roots, so less salt is leached, and on 27 January soil salinity leaves the model's predicted band. The scientist pauses, writes two hypotheses, and runs the test that separates them: the groundwater test reads normal (4.43 dS/m against an assumed 4.5) and the emitter flow test reads 45% of design. It concludes the line is clogged, repairs it, teaches its model the delivered fraction and re-plans water. Before sowing it had trained an RL irrigation policy (322 parameters, 39,000 imagined seasons in 51 s) and deployed it. The harvest feeds 458 people, using 54,384 m³ of a 60,000 m³ groundwater quota and 74,263 kWh of a 90,000 kWh energy budget.
+
 
 ### The website
 
@@ -167,6 +191,10 @@ The 3D view loads three.js from cdn.jsdelivr.net, so the browser needs internet 
 Optional: add the Space secret `MODEL_API_KEY` so Muse Spark runs the farm, and turn on persistent storage with the variable `WORLDLAB_DATA=/data` so accounts survive restarts (on free hardware they reset when the Space restarts).
 
 The server only accepts browser calls from the sites in `WORLDLAB_ALLOWED_ORIGINS` (set to `https://moamryehia.github.io` in the Dockerfile). From another site the session token travels in an `Authorization` header, so login works even where third-party cookies are blocked. `WORLDLAB_MAX_RUNS` (default 3) caps how many seasons run at once.
+
+### Search and sharing
+
+Every public page has a title, a description, a canonical URL, Open Graph and Twitter card tags with a 1200 x 630 share image (`og-image.jpg`), and the landing page carries schema.org `WebApplication` data. The build writes `sitemap.xml` and `robots.txt` into `docs/`; log-in and sign-up pages are `noindex`. Icons: `favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and `site.webmanifest`. To speed up Google indexing, add the site in [Google Search Console](https://search.google.com/search-console) as a URL-prefix property (`https://moamryehia.github.io/WorldLab/`), verify it with the HTML-tag method (paste the `google-site-verification` meta tag into `worldlab/site/index.html` and rebuild), then submit `https://moamryehia.github.io/WorldLab/sitemap.xml`.
 
 ### Record a replay
 
