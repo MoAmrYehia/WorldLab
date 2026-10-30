@@ -14,13 +14,14 @@ app_dir = out if app_only else out / "app"
 app_dir.mkdir(parents=True, exist_ok=True)
 
 
-import subprocess
+import hashlib
 
-try:
-    VERSION = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
-                             cwd=root.parent).stdout.strip() or "dev"
-except OSError:
-    VERSION = "dev"
+# version = hash of the front-end sources, so a changed file always gets a new URL
+_h = hashlib.sha1()
+for _f in sorted(list((root / "dashboard").rglob("*")) + list((root / "site").rglob("*"))):
+    if _f.is_file() and _f.suffix in (".js", ".css", ".html", ".json"):
+        _h.update(_f.name.encode()); _h.update(_f.read_bytes())
+VERSION = _h.hexdigest()[:10]
 
 
 def page(src: Path, dst: Path, sub=None):

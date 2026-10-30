@@ -1,4 +1,4 @@
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=94e95ba";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=e18ccb051a";
 // WorldLab web app: live run (Python backend over SSE) or recorded replay (static replay.json).
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -589,7 +589,7 @@ async function startReplay(url) {
 // ------------------------------------------------------------ boot
 async function loadScene() {
   try {
-    const mod = await import("./scene.js?v=94e95ba");
+    const mod = await import("./scene.js?v=e18ccb051a");
     const dark = document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
     scene = mod.createScene($("stage"), { onSelect: select, theme: dark ? "dusk" : "day", reducedMotion });
     scene.setSelected(sel);
