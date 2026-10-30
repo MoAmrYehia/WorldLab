@@ -159,7 +159,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
   container.appendChild(labels.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(P.fog, 90, 260);
+  scene.fog = new THREE.Fog(P.fog, 150, 420);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 800);
   const home = new THREE.Vector3(...homePos);

@@ -14,10 +14,21 @@ app_dir = out if app_only else out / "app"
 app_dir.mkdir(parents=True, exist_ok=True)
 
 
+import subprocess
+
+try:
+    VERSION = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
+                             cwd=root.parent).stdout.strip() or "dev"
+except OSError:
+    VERSION = "dev"
+
+
 def page(src: Path, dst: Path, sub=None):
     html = src.read_text()
     if sub:
         html = sub(html)
+    # cache-busting for static hosts: refer to this build's stylesheets and scripts
+    html = re.sub(r'((?:href|src)=")((?:\.\./)?(?:site|style|app|hero|config)\.(?:css|js))"', rf'\1\2?v={VERSION}"', html)
     if "--fragment" in sys.argv:
         html = re.sub(r"<!doctype html>\s*|</?html[^>]*>\s*|</?head>\s*|</?body[^>]*>\s*", "", html, flags=re.I)
         html = re.sub(r'<meta charset="utf-8">\s*<meta name="viewport"[^>]*>\s*', "", html)
