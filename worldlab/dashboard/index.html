@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WorldLab Farm</title>
-<meta name="description" content="An AI scientist runs a desert farm: it experiments, learns, trains an irrigation policy, and catches what its model gets wrong.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WorldLab Simulator</title>
+<meta name="description" content="WorldLab: Green Frontier. An AI scientist runs a desert farm near Al Ain; you choose the crops and watch it experiment, learn and recover.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230d1a14' stroke='%233ddc84' stroke-width='2'/%3E%3Cpath d='M10 21c2-8 8-11 13-11-1 7-6 11-13 11z' fill='%233ddc84'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
 { "imports": {
@@ -17,140 +18,212 @@
 </script>
 </head>
 <body>
-<div id="stage" aria-label="3D view of the farm"></div>
-<div id="noGL" class="glass nogl" hidden>
-  <b>The 3D view could not start.</b>
-  <span>It needs WebGL and access to cdn.jsdelivr.net. The panels below still show the run.</span>
+<div id="stage" aria-label="3D farm. Drag to orbit, scroll to zoom, click a field to inspect it."></div>
+<div id="noGL" class="panel nogl" hidden>
+  <b>The 3D world could not start.</b>
+  <span id="noGLWhy">It needs WebGL and access to cdn.jsdelivr.net.</span>
+  <span>The panels still show the season.</span>
 </div>
 
-<div class="col left">
-<header class="glass brand" id="brand">
-  <div class="brand-row">
-    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><path d="M6 20c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="11" r="3" fill="var(--belief)"/></svg>
-    <div>
-      <h1><a href="./" class="home-link">WorldLab</a></h1>
-      <p class="sub">An AI scientist runs a 12-hectare farm near Al Ain</p>
+<header class="topbar">
+  <a class="brand home-link" href="./">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 21c2-8 8-11 13-11-1 7-6 11-13 11z" fill="currentColor"/><path d="M10 21c3-3 6-5 9-7" stroke="#0b1210" stroke-width="1.4" fill="none"/></svg>
+    <span class="wordmark">WorldLab</span><span class="sub">Green Frontier</span>
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <a class="home-link" href="./">Overview</a>
+    <button class="on" id="navSim" type="button">Simulator</button>
+    <button id="navMissions" type="button">Missions</button>
+    <button id="navResearch" type="button">Research</button>
+  </nav>
+  <div class="tb-right">
+    <span class="modechip" id="modeChip">Recorded season</span>
+    <button class="xp" id="xpPill" type="button" title="Level and experience"><span id="xpLevel">LVL 1</span><span class="xp-bar"><i id="xpBar"></i></span><span id="xpText">0 XP</span></button>
+    <button class="iconbtn" id="settingsBtn" type="button" aria-label="View settings" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7.4-2.5.1-1-.1-1 2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6-.1 1 .1 1-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="iconbtn avatar" id="profileBtn" type="button" aria-label="Account" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 20c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="incident" id="incident" role="alert" hidden>
+  <span class="dot" aria-hidden="true"></span><b>Incident detected</b><span id="incidentText"></span>
+  <button class="ghost sm" id="incidentFocus" type="button">Show me</button>
+</div>
+
+<!-- left: missions and season controls -->
+<aside class="panel left" id="missionPanel" aria-label="Missions">
+  <div class="ph"><h2>Missions</h2><button class="collapse" type="button" aria-label="Collapse missions" data-collapse="missionPanel">–</button></div>
+  <div class="pbody">
+    <p class="eyebrow" id="seasonEyebrow">Season</p>
+    <h1 class="headline" id="headline">Build a better harvest.</h1>
+    <p class="lede" id="lede">Choose crops for the season, then watch the AI scientist experiment, plan, run the farm and recover from what goes wrong.</p>
+    <ol class="chapters" id="chapters"></ol>
+    <div class="controls" id="liveControls" hidden>
+      <button class="primary" id="planBtn" type="button">Plan a new season</button>
+      <button class="ghost" id="stopBtn" type="button" hidden>Stop</button>
+      <label class="speed">Days per second <input id="speed" type="range" min="1" max="30" value="12"></label>
+    </div>
+    <div class="controls" id="replayControls" hidden>
+      <button class="primary" id="playBtn" type="button">Play</button>
+      <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+      <button class="ghost" id="tryPlanBtn" type="button">Season planner</button>
+      <a class="ghost" id="demoCta" href="signup">Plan your own season</a>
+    </div>
+    <p class="note" id="modeNote"></p>
+  </div>
+</aside>
+
+<!-- right: outcome, resources, the scientist -->
+<aside class="panel right" id="impactPanel" aria-label="Impact">
+  <div class="ph"><h2>Impact</h2><button class="collapse" type="button" aria-label="Collapse impact" data-collapse="impactPanel">–</button></div>
+  <div class="pbody">
+    <div class="lives">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5M10.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5"/></svg>
+      <div><span class="eyebrow" id="livesLabel">Lives sustained</span><b id="livesN">–</b><span class="lives-sub" id="livesSub">people fed in a bad year</span></div>
+    </div>
+    <p class="limit" id="limitNote"></p>
+    <ul class="metrics">
+      <li><span>Groundwater</span><b id="waterTxt">–</b><i class="bar water"><i id="waterBar"></i></i></li>
+      <li><span>Energy</span><b id="energyTxt">–</b><i class="bar energy"><i id="energyBar"></i></i></li>
+      <li><span>People fed, goal 500</span><b id="goalTxt">–</b><i class="bar people"><i id="goalBar"></i></i></li>
+      <li class="row"><span>Irrigation control</span><span class="pill" id="ctrlPill">Fixed rule</span></li>
+    </ul>
+    <div class="scientist">
+      <div class="sc-head"><span class="sc-avatar" aria-hidden="true"></span><div><b>AI scientist</b><span id="agentName"></span></div><span class="live" id="scLive">Idle</span></div>
+      <p class="sc-quote" id="scQuote">Waiting for the season to start.</p>
+      <button class="ghost sm" id="reasoningBtn" type="button">View reasoning</button>
     </div>
   </div>
-  <div class="account" id="account" hidden><span id="userName"></span><button class="linkish" id="logoutBtn">Log out</button></div>
-  <ol class="phases" id="phases">
-    <li data-p="trials">Trials</li><li data-p="planning">Plan</li><li data-p="season">Season</li><li data-p="harvested">Harvest</li>
-  </ol>
-  <div class="clock">
-    <span id="date" class="date">Before sowing</span>
-    <span id="weather" class="weather"></span>
-  </div>
-  <div class="timeline" id="timeline" aria-label="Season timeline"><div class="tl-fill" id="tlFill"></div></div>
-  <div class="controls" id="liveControls" hidden>
-    <button id="planBtn" class="btn primary">Plan a new season</button>
-    <button id="stopBtn" class="btn" hidden>Stop</button>
-    <label class="speed">Speed <input id="speed" type="range" min="1" max="30" value="12" aria-label="Season speed, days per second"></label>
-  </div>
-  <div class="controls" id="demoControls" hidden>
-    <a class="btn primary" href="signup">Plan your own season</a>
-  </div>
-  <div class="controls" id="replayControls" hidden>
-    <button id="playBtn" class="btn primary" aria-label="Play">Play</button>
-    <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Replay position">
-    <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
-  </div>
-  <p class="mode" id="modeNote"></p>
-</header>
-<aside class="glass side left" id="scientist">
-  <div class="side-head"><h2>Scientist</h2><span class="agent-name" id="agentName"></span></div>
-  <div class="hyps" id="hyps"></div>
-  <ol class="stream" id="stream"></ol>
 </aside>
-</div>
 
-<div class="col right">
-<section class="glass kpi" id="kpi" aria-live="polite">
-  <div class="fed">
-    <span class="fed-n" id="fedN">–</span>
-    <span class="fed-l" id="fedL">people fed in a bad year</span>
+<!-- bottom dock: field analytics, timeline, activity -->
+<section class="panel dock" id="dock" aria-label="Season details">
+  <div class="dock-tabs" role="tablist">
+    <button role="tab" data-dt="fields" class="on">Field analytics</button>
+    <button role="tab" data-dt="timeline">Season timeline</button>
+    <button role="tab" data-dt="activity">Recent activity</button>
+    <button class="collapse" type="button" aria-label="Collapse details" data-collapse="dock">–</button>
   </div>
-  <p class="limit" id="fedLimit"></p>
-  <div class="meter"><div class="m-top"><span>Groundwater</span><span id="waterTxt">–</span></div><div class="bar"><i id="waterBar"></i></div></div>
-  <div class="meter"><div class="m-top"><span>Energy</span><span id="energyTxt">–</span></div><div class="bar"><i id="energyBar"></i></div></div>
-  <div class="ctrl-row"><span>Irrigation</span><span class="pill" id="ctrlPill">Fixed rule</span></div>
+  <div class="dock-body">
+    <div class="dt-pane" data-pane="fields">
+      <div class="metric-tabs" id="metricTabs">
+        <button data-m="health" class="on">Crop health</button><button data-m="moisture">Soil moisture</button><button data-m="salinity">Salinity</button><button data-m="water">Irrigation</button>
+      </div>
+      <div class="gauges" id="gauges"></div>
+    </div>
+    <div class="dt-pane" data-pane="timeline" hidden>
+      <div class="timeline" id="timeline"><div class="tl-track"><i class="tl-fill" id="tlFill"></i></div><div class="tl-months" id="tlMonths"></div></div>
+      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Replay position" hidden>
+    </div>
+    <div class="dt-pane" data-pane="activity" hidden><ol class="activity" id="activity"></ol></div>
+  </div>
 </section>
 
-
-
-<aside class="glass side right" id="fieldPanel">
-  <div class="side-head">
-    <h2 id="fieldTitle">Fields</h2>
-    <div class="seg" id="fieldTabs" role="tablist"></div>
-  </div>
-  <p class="field-sub" id="fieldSub">Click a plot in the 3D view.</p>
-  <div class="legend"><span class="lg belief">Model, 90% band</span><span class="lg measured">Measured</span></div>
-  <figure class="chart"><figcaption>Soil moisture, top 50 cm</figcaption><svg id="chSw" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
-  <figure class="chart"><figcaption>Canopy cover, from drone</figcaption><svg id="chCc" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
-  <figure class="chart"><figcaption>Soil salinity, dS/m</figcaption><svg id="chEc" viewBox="0 0 300 96" preserveAspectRatio="none"></svg></figure>
-  <figure class="chart short"><figcaption>Irrigation, mm per day</figcaption><svg id="chIrr" viewBox="0 0 300 44" preserveAspectRatio="none"></svg></figure>
-  <div class="tip" id="tip" hidden></div>
-  <figure class="drone" id="droneFig" hidden><img id="droneImg" alt="Drone image of the field"><figcaption id="droneCap"></figcaption></figure>
-  <div class="perturb" id="perturb" hidden>
-    <h3>Change the farm</h3>
-    <p>The scientist is not told. Watch whether its model notices.</p>
-    <div class="pbtns">
-      <button class="btn" data-kind="clog">Clog the drip line</button>
-      <button class="btn" data-kind="pest">Release pests</button>
-      <button class="btn" data-kind="salinity">Saltier groundwater</button>
-      <button class="btn" data-kind="heatwave">Heat wave</button>
+<!-- field inspector -->
+<aside class="panel inspector" id="inspector" hidden aria-label="Field inspector">
+  <div class="ph"><h2 id="fiTitle">Field</h2><button class="collapse" type="button" id="fiClose" aria-label="Close inspector">×</button></div>
+  <div class="pbody">
+    <p class="fi-sub" id="fiSub"></p>
+    <div class="fi-cams"><button class="ghost sm" id="fiFocus" type="button">Focus</button><button class="ghost sm" id="fiClose2" type="button">Close-up</button><button class="ghost sm" id="fiDrone" type="button">Drone view</button></div>
+    <div class="legend"><span class="lg model">Model, 90% band</span><span class="lg meas">Measured</span></div>
+    <figure class="chart"><figcaption>Soil moisture, top 50 cm (m³/m³)</figcaption><svg id="chSw" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption>Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption>Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart short"><figcaption>Irrigation (mm per day), darker share desalinated</figcaption><svg id="chIrr" viewBox="0 0 300 40" preserveAspectRatio="none"></svg></figure>
+    <figure class="drone" id="droneFig" hidden><img id="droneImg" alt="Drone image of the field"><figcaption id="droneCap"></figcaption></figure>
+    <div class="perturb" id="perturb" hidden>
+      <h3>Change the farm</h3>
+      <p>The scientist is not told. See whether its model notices.</p>
+      <div class="pbtns"><button data-kind="clog" type="button">Clog the drip line</button><button data-kind="pest" type="button">Release pests</button><button data-kind="salinity" type="button">Saltier groundwater</button><button data-kind="heatwave" type="button">Heat wave</button></div>
     </div>
   </div>
 </aside>
+
+<!-- investigation (shown during an incident) -->
+<aside class="panel investigation" id="investigation" hidden aria-label="Investigation">
+  <div class="ph"><h2 class="alarm-t">Investigation</h2><button class="collapse" type="button" id="invClose" aria-label="Hide investigation">×</button></div>
+  <div class="pbody" id="invBody"></div>
+</aside>
+
+<!-- view controls over the 3D world -->
+<div class="viewbar" id="viewbar" role="toolbar" aria-label="View">
+  <div class="vb-group" role="group" aria-label="Camera">
+    <button type="button" data-cam="overview" title="Aerial overview (O)">Overview</button>
+    <button type="button" data-cam="drone" title="Follow the drone (D)">Drone</button>
+    <button type="button" data-cam="home" title="Reset the camera (R)">Reset</button>
+  </div>
+  <div class="vb-group" role="group" aria-label="Scientific overlay">
+    <button type="button" data-ov="" class="on" title="Realistic view (V cycles)">Realistic</button>
+    <button type="button" data-ov="health">Health</button>
+    <button type="button" data-ov="moisture">Moisture</button>
+    <button type="button" data-ov="salinity">Salinity</button>
+    <button type="button" data-ov="water">Water</button>
+  </div>
+</div>
+<div class="panel legendbox" id="ovLegend" hidden></div>
+
+<!-- popovers -->
+<div class="panel popover" id="settings" hidden>
+  <h3>View settings</h3>
+  <label>Quality <select id="qualitySel"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+  <p class="fps" id="fpsTxt">Measuring frame rate…</p>
+  <label>Time of day <select id="timeSel"><option value="golden">Golden hour</option><option value="morning">Morning</option><option value="noon">Noon</option><option value="night">Night</option></select></label>
+  <p class="note">The simulation steps whole days; time of day is a viewing choice.</p>
+  <label class="check"><input type="checkbox" id="labelsChk" checked> Field labels</label>
+  <button class="ghost sm" id="tourBtn" type="button">Replay the guided tour</button>
+  <p class="note">Keys: 1–6 fields, O overview, D drone, R reset, V overlay, I close-up, Space play or pause.</p>
+</div>
+<div class="panel popover" id="profile" hidden>
+  <p id="profileName">Not signed in</p>
+  <button class="ghost sm" id="historyBtn" type="button">Your seasons</button>
+  <button class="ghost sm" id="badgesBtn" type="button">Achievements</button>
+  <button class="ghost sm" id="logoutBtn" type="button">Log out</button>
+  <a class="ghost sm" id="loginLink" href="login">Log in</a>
 </div>
 
-<div class="toast" id="toast" role="status" hidden></div>
-
-<nav class="glass dock" id="dock" aria-label="Details">
-  <button data-tab="trials">Trials</button>
-  <button data-tab="beliefs">Beliefs</button>
-  <button data-tab="plan">Plan</button>
-  <button data-tab="rl">RL policy</button>
-  <button data-tab="ledger">Ledger</button>
-  <button data-tab="history" id="historyTab" hidden>Your seasons</button>
-</nav>
-<section class="glass drawer" id="drawer" hidden>
-  <div class="drawer-head"><h2 id="drawerTitle"></h2><button class="x" id="drawerClose" aria-label="Close">×</button></div>
+<!-- large drawers -->
+<section class="panel drawer" id="drawer" hidden role="dialog" aria-modal="false" aria-labelledby="drawerTitle">
+  <div class="ph"><h2 id="drawerTitle"></h2><div class="drawer-tabs" id="drawerTabs"></div><button class="collapse" id="drawerClose" type="button" aria-label="Close">×</button></div>
   <div class="drawer-body" id="drawerBody"></div>
 </section>
 
-<div class="planner-backdrop" id="planner" hidden>
-  <section class="glass planner" role="dialog" aria-modal="true" aria-labelledby="plannerTitle">
-    <div class="pl-head">
-      <div>
-        <h2 id="plannerTitle">Plan a new season</h2>
-        <p class="pl-sub">Choose a sowing season and a crop for any field, or let the scientist decide. It runs trial plots first, then plans everything you left open.</p>
-      </div>
-      <button class="x" id="plannerClose" aria-label="Close">×</button>
-    </div>
-    <div class="pl-body">
-      <div class="pl-crops">
-        <div class="seasons" id="seasonTabs" role="tablist" aria-label="Sowing season"></div>
-        <p class="season-about" id="seasonAbout"></p>
-        <div class="crop-cards" id="cropCards" aria-live="polite"></div>
-      </div>
-      <div class="pl-fields">
-        <h3>Fields</h3>
-        <p class="pl-hint" id="plHint">Pick a crop card, then click a field to sow it there.</p>
-        <ol class="field-rows" id="fieldRows"></ol>
-        <label class="pl-agent">Scientist
-          <select id="agentSel">
-            <option value="scripted-rl">Scripted scientist with RL</option>
-            <option value="scripted">Scripted scientist</option>
-            <option value="spark">Muse Spark</option>
-            <option value="glimmer">Muse Glimmer</option>
-          </select>
-        </label>
-        <p class="err" id="plErr" role="alert" hidden></p>
-        <button class="btn primary big" id="startBtn">Start the season</button>
-      </div>
-    </div>
+<!-- season planner -->
+<div class="planner" id="planner" hidden role="dialog" aria-modal="true" aria-labelledby="plannerTitle">
+  <aside class="panel pl-left">
+    <p class="eyebrow">Season planner</p>
+    <h2 id="plannerTitle">Plan your season</h2>
+    <p class="lede">Pick a sowing season, choose a crop, then click fields in the 3D view (or use the list) to sow it. Fields you leave open are planned by the scientist.</p>
+    <div class="seasons" id="seasonTabs" role="tablist" aria-label="Sowing season"></div>
+    <p class="note" id="seasonAbout"></p>
+    <ol class="pl-fields" id="fieldRows"></ol>
+    <label class="pl-agent">Scientist
+      <select id="agentSel"><option value="scripted-rl">Scripted scientist with RL</option><option value="scripted">Scripted scientist</option><option value="spark">Muse Spark</option><option value="glimmer">Muse Glimmer</option></select>
+    </label>
+    <p class="err" id="plErr" role="alert" hidden></p>
+    <div class="pl-actions"><button class="ghost" id="plannerClose" type="button">Cancel</button><button class="primary" id="startBtn" type="button">Start the season</button></div>
+  </aside>
+  <section class="panel pl-crops">
+    <div class="pl-ch"><h3>Choose your crops</h3><p class="note" id="plHint"></p></div>
+    <div class="crop-strip" id="cropCards"></div>
   </section>
 </div>
+
+<!-- season results -->
+<div class="results-wrap" id="results" hidden role="dialog" aria-modal="true" aria-labelledby="resTitle">
+  <section class="panel results">
+    <p class="eyebrow">Season complete</p>
+    <h2 id="resTitle">Harvest</h2>
+    <div class="res-body" id="resBody"></div>
+    <div class="res-actions"><button class="ghost" id="resReplay" type="button">Watch again</button><button class="primary" id="resPlan" type="button">Plan the next season</button><button class="ghost" id="resClose" type="button">Close</button></div>
+  </section>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tour" id="tour" hidden><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
+<div class="tip" id="tip" hidden></div>
 
 <script type="module" src="app.js"></script>
 </body>

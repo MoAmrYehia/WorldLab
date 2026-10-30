@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>WorldLab Farm</title>
+<title>WorldLab: Green Frontier</title>
 <meta name="description" content="An AI scientist that learns a desert farm by experiment, trains its own irrigation policy, and catches what goes wrong in the field.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=e18ccb051a">
-<script src="config.js?v=e18ccb051a"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css?v=01ca7ed07b">
+<script src="config.js?v=01ca7ed07b"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -21,8 +21,8 @@
 <body class="landing" data-app="app/">
 <header class="nav">
   <a class="logo" href="./" aria-label="WorldLab home">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><path d="M6 20c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="11" r="3" fill="var(--belief)"/></svg>
-    WorldLab
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.5" fill="none" stroke="var(--emerald)" stroke-width="1.6"/><path d="M10 21c0-7 5-11 12-11-1 7-5 11-12 11Zm0 0 6-6" fill="none" stroke="var(--emerald)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    WorldLab<span class="logo-sub">Green Frontier</span>
   </a>
   <nav class="links" aria-label="Sections">
     <a href="#how">How it works</a>
@@ -38,15 +38,28 @@
 <section class="hero">
   <div class="hero-scene" id="heroScene" aria-hidden="true"></div>
   <div class="hero-copy">
-    <p class="place">Al Ain, United Arab Emirates. 12 hectares, brackish groundwater, a fixed water quota.</p>
-    <h1>A scientist for the desert farm.</h1>
-    <p class="lede">WorldLab plants trial plots, learns how the local crops really behave, trains its own irrigation policy, and catches what goes wrong in the field. You choose the crops for each season. It runs the farm and shows its working.</p>
+    <h1>Grow the future. <span>Outsmart the desert.</span></h1>
+    <p class="lede">Choose the crops for a 12-hectare farm near Al Ain. An AI scientist plants trial plots, learns how the crops really behave, trains its own irrigation policy, and hunts down whatever goes wrong in the field. Every decision is on the record.</p>
     <div class="cta">
       <a class="btn solid big" href="signup" data-needs-server>Plan your first season</a>
       <a class="btn glassy big" href="demo" id="demoLink">Watch a recorded season</a>
     </div>
+    <p class="place">Brackish groundwater, a fixed water quota, and summer highs above 45 °C.</p>
   </div>
-  <p class="hero-caption" id="heroCaption">The farm in this view is the simulation itself, replaying a recorded season.</p>
+  <p class="hero-caption" id="heroCaption">This flyover is the simulation itself, replaying a recorded season.</p>
+</section>
+
+<section class="status" aria-labelledby="statusTitle">
+  <div class="wrap">
+    <h2 class="sr-only" id="statusTitle">The recorded season</h2>
+    <div class="status-grid" id="worldStatus">
+      <div class="p"><b>–</b><span>people fed for a year</span></div>
+      <div class="w"><b>–</b><span>m³ groundwater of a 60,000 quota</span></div>
+      <div class="e"><b>–</b><span>kWh of a 90,000 budget</span></div>
+      <div class="a"><b>–</b><span>hidden fault, found and fixed</span></div>
+    </div>
+    <p class="status-note" id="statusNote">From the recorded season on this page.</p>
+  </div>
 </section>
 
 <section class="band" id="how">
@@ -54,7 +67,7 @@
     <h2>How a season runs</h2>
     <p class="intro">The scientist never sees the true crop traits or the faults we hide in the field. It works from sensors, drone images, harvests and tests, the way an agronomist would.</p>
     <ol class="steps">
-      <li><span class="when">Trial season</span><h3>Trial plots</h3><p>Sixteen small plots, each with a predicted yield range written down before planting. A saline plot exposes salt tolerance; a late sowing exposes heat at flowering.</p></li>
+      <li><span class="when">Trial season</span><h3>Trial plots</h3><p>Up to sixteen small plots, each with a predicted yield range written down before planting. A saline plot exposes salt tolerance; a late sowing exposes heat at flowering.</p></li>
       <li><span class="when">After the trials</span><h3>Calibrate</h3><p>Missed predictions update its beliefs about four hidden traits per crop, and only for traits a plot actually tested.</p></li>
       <li><span class="when">Before sowing</span><h3>Plan for a bad year</h3><p>It chooses sowing day, irrigation, water blend and nitrogen for every field, maximising the people fed in the worst tenth of years, within the water and energy limits.</p></li>
       <li><span class="when">Before sowing</span><h3>Learn an irrigation policy</h3><p>Reinforcement learning inside its own model of the farm: about 40,000 imagined seasons in a minute. It uses the policy only if it beats the fixed rule.</p></li>
@@ -131,7 +144,7 @@
   </div>
 </footer>
 
-<script type="module" src="site.js?v=e18ccb051a"></script>
-<script type="module" src="hero.js?v=e18ccb051a"></script>
+<script type="module" src="site.js?v=01ca7ed07b"></script>
+<script type="module" src="hero.js?v=01ca7ed07b"></script>
 </body>
 </html>

@@ -7,16 +7,18 @@ async function hero() {
   if (!el) return;
   let mod, data;
   try {
-    [mod, data] = await Promise.all([import(`./${base}scene.js?v=e18ccb051a`), fetch(`${base}replay.json`).then((r) => r.json())]);
+    [mod, data] = await Promise.all([import(`./${base}scene.js?v=01ca7ed07b`), fetch(`${base}replay.json`).then((r) => r.json())]);
   } catch (e) {
     console.warn("Hero scene unavailable:", e);
     const cap = document.getElementById("heroCaption"); if (cap) cap.hidden = true;
+    statusOnly();
     return;
   }
   const scene = mod.createScene(el, { time: "golden", reducedMotion: reduced, interactive: false, labels: false, flyover: true,
     homePos: [46, 26, 58], shiftX: (w) => (w > 960 ? 0.2 : w > 600 ? 0.26 : 0), onFps: (f, q) => { window.__wlFps = [Math.round(f), q]; } });
   window.__wlScene = scene;
   const msgs = data.messages || data;
+  worldStatus(msgs);
   const fields = msgs.find((m) => m.kind === "fields");
   const trials = msgs.filter((m) => m.kind === "trials").map((m) => m.data);
   const timeline = msgs.filter((m) => m.kind === "day" || (m.kind === "status" && m.data.phase === "season"));
@@ -49,5 +51,24 @@ async function hero() {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+// The strip under the hero: numbers from the recorded season's ledger, never invented.
+function worldStatus(msgs) {
+  const box = document.getElementById("worldStatus");
+  if (!box) return;
+  const fmt = (x) => Math.round(x).toLocaleString("en-US");
+  const res = msgs.filter((m) => m.kind === "ledger" && m.data.kind === "season_result").map((m) => m.data.data).pop();
+  const mis = msgs.filter((m) => m.kind === "mission").map((m) => m.data).pop();
+  if (!res) return;
+  const faults = (mis && mis.metrics.faults) || [];
+  const fixed = faults.filter((f) => f.detected && f.diagnosed && f.recovered).length;
+  const vals = [fmt(res.people_fed), fmt(res.water_used_m3), fmt(res.energy_used_kwh), faults.length ? `${fixed} of ${faults.length}` : "None"];
+  box.querySelectorAll("b").forEach((b, k) => (b.textContent = vals[k]));
+  box.querySelector(".a span").textContent = faults.length ? `hidden ${faults.map((f) => f.label).join(", ")}, found and fixed` : "hidden faults this season";
+  const note = document.getElementById("statusNote");
+  if (note) note.textContent = "From the recorded season replaying above: one farm, one growing year, October to June.";
+}
+async function statusOnly() {     // when the 3D scene can't load, still fill the strip
+  try { const d = await fetch(`${base}replay.json`).then((r) => r.json()); worldStatus(d.messages || d); } catch (e) { /* no recording */ }
 }
 hero();
