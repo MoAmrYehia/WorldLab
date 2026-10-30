@@ -1,7 +1,7 @@
 // The ten crops, each with recognisable geometry for four growth stages plus the harvested field.
 // Stage, size, colour, droop and damage all come from the simulation's state for that field.
 import * as THREE from "three";
-import { GeoBuilder, V, C, rng, polar } from "./geo.js?v=94e95ba";
+import { GeoBuilder, V, C, rng, polar } from "./geo.js?v=e18ccb051a";
 
 // Published thresholds the visuals use (same values as worldlab/farm/crops.py).
 export const CROP_INFO = {
