@@ -88,7 +88,7 @@ export function makeTextures(quality) {
   // Desert sand: fine grain plus wind ripples
   const sandH = heightField(S, (u, v) => {
     const ripple = Math.sin((u * 18 + fbm(u * 4, v * 4, 4, 3, 5) * 2.5) * Math.PI * 2) * 0.5 + 0.5;
-    return ripple * 0.55 + fbm(u * 32, v * 32, 32, 2, 7) * 0.45;
+    return ripple * 0.3 + fbm(u * 32, v * 32, 32, 2, 7) * 0.7;
   });
   out.sand = fromField(S, (x, y) => {
     const g = hash2(x, y, 11), n = fbm(x / S * 6, y / S * 6, 6, 3, 2), h = sandH[y * S + x];

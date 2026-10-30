@@ -382,6 +382,8 @@ body.incident-on .inspector, body.incident-on .investigation { top: calc(var(--t
 .fmark-repair .fm-ic, .fmark-adjust .fm-ic { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
 .fmark-flow .fm-ic, .fmark-lab .fm-ic, .fmark-leaf .fm-ic { background: var(--measured); box-shadow: 0 0 8px var(--measured); }
 .areatag { font-size: 11.5px; color: var(--ink-2); background: rgba(10, 18, 15, 0.7); padding: 3px 9px; border-radius: 999px; }
+.ftag.empty .ft-txt { display: none; }
+.ftag.empty { padding-right: 4px; }
 .ttag { font-size: 11px; font-weight: 700; color: #1a0c04; background: var(--measured); padding: 2px 8px; border-radius: 999px; }
 
 /* smaller screens */
