@@ -5,20 +5,28 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 async function hero() {
   const el = document.getElementById("heroScene");
   if (!el) return;
-  let mod, data;
+  // 1. the recorded season's numbers, independent of the 3D view
+  let data = null;
+  try { data = await fetch(`${base}replay.json`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  catch (e) { console.warn("Recording unavailable:", e); }
+  if (data) worldStatus(data.messages || data);
+  // 2. the 3D flyover; anything that fails falls back to a still image of the same farm
+  let scene = null;
   try {
-    [mod, data] = await Promise.all([import(`./${base}scene.js?v=3e51a05a34`), fetch(`${base}replay.json`).then((r) => r.json())]);
+    if (!data) throw new Error("no recording");
+    const mod = await import(`./${base}scene.js?v=db3520d84a`);
+    scene = mod.createScene(el, { time: "golden", reducedMotion: reduced, interactive: false, labels: false, flyover: true,
+      homePos: [46, 26, 58], shiftX: (w) => (w > 960 ? 0.2 : w > 600 ? 0.26 : 0), onFps: (f, q) => { window.__wlFps = [Math.round(f), q]; } });
   } catch (e) {
     console.warn("Hero scene unavailable:", e);
-    const cap = document.getElementById("heroCaption"); if (cap) cap.hidden = true;
-    statusOnly();
+    stillHero();
     return;
   }
-  const scene = mod.createScene(el, { time: "golden", reducedMotion: reduced, interactive: false, labels: false, flyover: true,
-    homePos: [46, 26, 58], shiftX: (w) => (w > 960 ? 0.2 : w > 600 ? 0.26 : 0), onFps: (f, q) => { window.__wlFps = [Math.round(f), q]; } });
   window.__wlScene = scene;
+  if ("IntersectionObserver" in window && scene.setPaused) {          // stop drawing when the hero is off screen
+    new IntersectionObserver(([en]) => scene.setPaused(!en.isIntersecting)).observe(el);
+  }
   const msgs = data.messages || data;
-  worldStatus(msgs);
   const fields = msgs.find((m) => m.kind === "fields");
   const trials = msgs.filter((m) => m.kind === "trials").map((m) => m.data);
   const timeline = msgs.filter((m) => m.kind === "day" || (m.kind === "status" && m.data.phase === "season"));
@@ -68,7 +76,9 @@ function worldStatus(msgs) {
   const note = document.getElementById("statusNote");
   if (note) note.textContent = "From the recorded season replaying above: one farm, one growing year, October to June.";
 }
-async function statusOnly() {     // when the 3D scene can't load, still fill the strip
-  try { const d = await fetch(`${base}replay.json`).then((r) => r.json()); worldStatus(d.messages || d); } catch (e) { /* no recording */ }
+function stillHero() {
+  document.querySelector(".hero").classList.add("still");
+  const cap = document.getElementById("heroCaption");
+  if (cap) cap.textContent = "A still image of the 3D farm. This browser couldn't start the live 3D view; the recorded season still plays.";
 }
 hero();

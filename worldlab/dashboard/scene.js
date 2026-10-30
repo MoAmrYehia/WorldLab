@@ -48,6 +48,7 @@ export function createScene(container, opts = {}) {
   let auto = o.quality === "auto";
   const cache = { fields: null, rec: null, trials: [], anomaly: [-1, ""], selected: -1, overlay: null, time: o.time, preview: null, labels: o.labels };
   let W = null;                      // the built world
+  let follow = true;                 // camera flies to events unless the user turned it off
   let running = true;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -282,14 +283,14 @@ export function createScene(container, opts = {}) {
     if (!W) return;
     const fi = typeof data.field === "string" ? Number(String(data.field).replace(/\D/g, "")) - 1 : data.field_index ?? -1;
     switch (kind) {
-      case "anomaly": if (fi >= 0) { if (o.interactive) views.incident(fi); W.markers.add(fi, "alarm", `${data.signal_label} ${data.direction}`, 7); } break;
+      case "anomaly": if (fi >= 0) { if (o.interactive && follow) views.incident(fi); W.markers.add(fi, "alarm", `${data.signal_label} ${data.direction}`, 7); } break;
       case "look": if (fi >= 0) scan(fi); break;
       case "field_test": if (fi >= 0) W.markers.add(fi, data.test === "emitter_flow" ? "flow" : data.test === "leaf_inspection" ? "leaf" : "lab", testText(data), 7); break;
       case "hypothesis": if (fi >= 0) W.markers.add(fi, "idea", "New hypothesis", 4); break;
       case "adjust": if (fi >= 0 && data.repair) W.truck.go(fi); else if (fi >= 0) W.markers.add(fi, "adjust", data.pest_control ? "Pest control applied" : "Irrigation adjusted", 4); break;
       case "model_update": W.pulse.fire(fi >= 0 ? FIELD_POS[fi][0] : CENTER.x, fi >= 0 ? FIELD_POS[fi][1] : CENTER.z); break;
       case "harvest": if (fi >= 0) W.burst.fire(fi); break;
-      case "season_result": if (o.interactive) views.harvest(); break;
+      case "season_result": if (o.interactive && follow) views.harvest(); break;
     }
   }
   const testText = (d) => d.test === "emitter_flow" ? `Emitter flow ${Math.round((d.delivered_vs_design || 0) * 100)}% of design`
@@ -344,9 +345,11 @@ export function createScene(container, opts = {}) {
   let clock = 0, last = performance.now(), fpsAcc = 0, fpsN = 0, fps = 60, fpsT = 0, autoChecked = 0;
   const intro = { t: o.reducedMotion ? 1 : 0, from: camera.position.clone() };
   const sph = new THREE.Spherical();
+  let paused = false;
   function frame(now) {
     if (!running) return;
     requestAnimationFrame(frame);
+    if (paused || document.hidden) { last = now; return; }
     const dt = Math.min((now - last) / 1000, 0.1); last = now; clock += dt;
     fpsAcc += dt; fpsN++;
     if (fpsAcc > 1) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; o.onFps && o.onFps(fps, quality); fpsT++; maybeAuto(); }
@@ -493,7 +496,7 @@ export function createScene(container, opts = {}) {
   return {
     setFields, update, setSelected, setAnomaly, scan, hover, addTrial, reset, setOverlay, setLabels, previewPlan, event, view,
     setTime: (k) => applyTime(TIMES[k] ? k : "golden"),
-    droneView, setQuality, getQuality: () => quality, isAuto: () => auto, getFps: () => fps,
+    droneView, setPaused: (p) => { paused = !!p; }, setFollow: (f) => { follow = !!f; }, setQuality, getQuality: () => quality, isAuto: () => auto, getFps: () => fps,
     focus: (i, mode = "field") => views[mode] && views[mode](i),
     home() { rig.mode = "free"; views.home(); },
     dispose() {

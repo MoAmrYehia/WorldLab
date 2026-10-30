@@ -24,7 +24,7 @@ from .farm.belief import CropBelief, calibrate, trial_information, typical_year,
 from .farm.crops import CROPS, CROP_IDS, NUTRIENTS, NEEDS, TRAITS, TRAIT_IDS, nutrients_per_ha, people_fed
 from .farm.optimize import evaluate, optimise, allowed_options, MG_KEYS
 from .farm import seasons as SEASONS
-from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL
+from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL, cap_to_budget
 from .farm.world import Farm, FIELDS, FIELD_HA, EC_GROUNDWATER
 from .farm import rl as RL
 from .ledger import Ledger
@@ -42,6 +42,7 @@ class Limits:
     water_quota_m3: float = 60000.0
     energy_kwh: float = 90000.0
     max_advance_days: int = 60
+    hard_budget: bool = True        # cap every day's irrigation at what remains of the quota and energy budget
 
 
 # ---------------------------------------------------------------------- bus
@@ -156,6 +157,8 @@ class Lab:
         self.wx_typ = typical_year()
         self.water_used = 0.0
         self.energy_used = 0.0
+        self.curtailed_m3 = 0.0
+        self.curtail_logged = False
         self.harvest: dict[str, dict] = {}
         self.season_plan = None
         self.result = None
@@ -209,6 +212,7 @@ class Lab:
             "energy_used_kwh": round(self.energy_used), "energy_kwh": self.limits.energy_kwh,
             "anomaly": self.anomaly, "done": self.done, "hypotheses": list(self.hyps.values()),
             "harvest": self.harvest, "result": self.result, "controller": self.controller,
+            "budget_mode": "hard" if self.limits.hard_budget else "soft", "curtailed_m3": round(self.curtailed_m3),
         })
 
     def _publish_beliefs(self):
@@ -591,7 +595,8 @@ class Lab:
                 rows.append(i)
         L = self.limits
         seed = 300 + self._ids["P"]
-        mk = lambda E, s: RL.Envs(fp, rows, self.beliefs, E, seed=s, quota_m3=L.water_quota_m3, energy_kwh=L.energy_kwh)
+        mk = lambda E, s: RL.Envs(fp, rows, self.beliefs, E, seed=s, quota_m3=L.water_quota_m3, energy_kwh=L.energy_kwh,
+                                    hard_budget=L.hard_budget)
         envs, val, test = mk(12, seed), mk(16, seed + 1), mk(40, seed + 2)
         self._log("rl_train_start", {"plan_id": plan_id, "iterations": iterations, "rationale": rationale,
                                      "method": "evolution strategies (32 antithetic pairs, Adam) inside the belief model"})
@@ -615,6 +620,15 @@ class Lab:
                "policy_irrigation_multiplier_by_week": cmp["irrigation_multiplier_by_week"],
                "policy_desal_fraction_by_week": cmp["desal_fraction_by_week"],
                "recommend": "rl_policy" if better else "rule",
+               "budget_mode": "hard" if L.hard_budget else "soft",
+               "samples": {"training_seasons_per_field": envs.E, "validation_seasons_per_field": val.E,
+                           "test_seasons_per_field": test.E, "seeds": [seed, seed + 1, seed + 2]},
+               "reward": (f"people fed (the scarcest of calories, protein and vitamin A) minus {RL.PENALTY_WATER} per m3 over the "
+                          f"quota and {RL.PENALTY_ENERGY} per kWh over the energy budget, plus {RL.CREDIT_WATER} per m3 and "
+                          f"{RL.CREDIT_ENERGY} per kWh left unused"),
+               "deployment_criterion": ("deploy only if the best checkpoint on validation seasons improved on the rule, and the "
+                                        "policy's mean reward on the held-out test seasons is higher than the rule's; "
+                                        "otherwise keep the rule"),
                "note": ("held-out seasons come from the agent's own model of the farm; the real farm may differ, "
                         "and the monitoring keeps checking" if better else
                         "the policy did not beat the plan's rule on held-out seasons; keep the rule")}
@@ -673,6 +687,21 @@ class Lab:
     def _one_day(self):
         d = self.day
         g = self._controller(d)
+        curtail = 1.0
+        if self.limits.hard_budget:
+            demand = g.copy()
+            g, f = cap_to_budget(g, self.desal_hist[:, d], self.limits.water_quota_m3 - self.water_used,
+                                 self.limits.energy_kwh - self.energy_used, FIELD_HA)
+            curtail = float(f)
+            if curtail < 0.999 and float(demand.sum()) > 0:
+                self.curtailed_m3 += float((demand - g).sum()) * 10 * FIELD_HA
+                if not self.curtail_logged:
+                    self.curtail_logged = True
+                    self._log("curtailment", {"day": d, "fraction_applied": round(curtail, 3),
+                        "water_left_m3": round(max(self.limits.water_quota_m3 - self.water_used, 0)),
+                        "energy_left_kwh": round(max(self.limits.energy_kwh - self.energy_used, 0)),
+                        "rule": "every field scaled by the same factor so the day's use fits the remaining budget",
+                        "note": "Hard budget reached: irrigation is curtailed from today; yield losses that follow are counted."})
         obs = self.farm.step(g)
         for k, v in obs["weather"].items():
             self.wx_obs[k][0, d] = v
@@ -733,6 +762,8 @@ class Lab:
         rec["world"] = self.farm.world_state()
         rec["controller"] = self.controller
         rec["water_used_m3"] = round(self.water_used)
+        if curtail < 0.999:
+            rec["curtailed"] = round(curtail, 3)
         rec["energy_used_kwh"] = round(self.energy_used)
         self.bus.publish("day", rec)
         if drone_day and d % 12 == 7:          # every third survey flight, keep one camera frame for people to see
@@ -787,7 +818,9 @@ class Lab:
                        "by_nutrient": {n: round(pf[n], 1) for n in NUTRIENTS},
                        "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
                        "within_quota": self.water_used <= self.limits.water_quota_m3 * 1.001,
-                       "within_energy": self.energy_used <= self.limits.energy_kwh * 1.001}
+                       "within_energy": self.energy_used <= self.limits.energy_kwh * 1.001,
+                       "budget_mode": "hard" if self.limits.hard_budget else "soft",
+                       "curtailed_m3": round(self.curtailed_m3)}
         self.phase = "harvested"
         self._log("season_result", self.result)
         self._status()
@@ -1062,6 +1095,7 @@ class Lab:
             return {"error": "no season running"}
         dd = min(self.day, D - 1)
         y, w, e = self._season_batch([(self.irr_hist[:, dd], self.desal_hist[:, dd])], 20, seed=500 + self.day)
+        energy = self.energy_used + e[:, 0].sum(0)
         P = self._people_arrays(y)[:, 0]
         fed = P.sum(0).min(-1)
         water = self.water_used + w[:, 0].sum(0)
@@ -1069,6 +1103,9 @@ class Lab:
                "people_p50": round(float(np.median(fed)), 1),
                "by_nutrient_p50": {n: round(float(np.median(P.sum(0)[:, j])), 1) for j, n in enumerate(NUTRIENTS)},
                "water_total_p90_m3": round(float(np.percentile(water, 90))),
+               "water_total_p50_m3": round(float(np.median(water))),
+               "energy_total_p90_kwh": round(float(np.percentile(energy, 90))),
+               "energy_total_p50_kwh": round(float(np.median(energy))),
                "field_yield_p50": {FIELDS[i]["id"]: round(float(np.median(y[i, 0])), 2) for i in range(NF) if self.run_plan[i]["crop"]}}
         if publish:
             self.bus.publish("projection", out)

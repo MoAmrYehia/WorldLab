@@ -145,6 +145,18 @@ h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
 .foot p { margin: 0 0 6px; }
 .fine { font-size: 13px; color: var(--ink-3); }
 
+/* landing additions */
+.prov { margin: 14px 0 0; font-size: 13.5px; color: var(--ink-2); }
+.hero.still { background: #0b1210 url("hero-still.jpg") center right / cover no-repeat; }
+.steps a { display: inline-block; margin-top: 8px; font-size: 14px; color: var(--emerald-2); }
+details.more { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 14px; color: var(--ink-2); max-width: 80ch; }
+details.more summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+.cal-table { overflow-x: auto; margin-top: 10px; }
+.cal-table table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cal-table th, .cal-table td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); }
+.cal-table .n { text-align: right; }
+.results caption { caption-side: top; }
+
 /* AI components table */
 .ai-wrap { overflow-x: auto; border: 1px solid var(--card-edge); border-radius: 16px; background: var(--card); }
 .ai { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15px; }

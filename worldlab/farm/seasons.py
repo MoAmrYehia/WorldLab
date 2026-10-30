@@ -105,6 +105,8 @@ def crop_guide(sid: str, S: int = 10, seed: int = 5) -> dict:
         y = sim.fresh_yield().reshape(len(crops), len(FIELDS), S)
         water = (sim.water_m3_ha() * FIELD_HA).reshape(len(crops), len(FIELDS), S)
         hd = sim.harvest_day.reshape(len(crops), len(FIELDS), S)
+        heat = sim.hi_heat.reshape(len(crops), len(FIELDS), S)                       # 1 = no heat loss at flowering
+        ece = sim.ece_layers()[:, :2].mean(1).reshape(len(crops), len(FIELDS), S)  # root-zone salinity at season end
     for ci, c in enumerate(crops):
         k = CROPS[c]
         lo, hi = window(c, sid)
@@ -114,6 +116,10 @@ def crop_guide(sid: str, S: int = 10, seed: int = 5) -> dict:
             yy = float(np.median(y[ci, fi]))
             kg = yy * 1000 * FIELD_HA
             fields.append({"field": f["id"], "yield_t_ha_p50": round(yy, 2),
+                           "yield_t_ha_p10": round(float(np.percentile(y[ci, fi], 10)), 2),
+                           "yield_t_ha_p90": round(float(np.percentile(y[ci, fi], 90)), 2),
+                           "heat_factor": round(float(np.median(heat[ci, fi])), 2),
+                           "ece_root_zone_end": round(float(np.median(ece[ci, fi])), 1),
                            "water_m3_p50": round(float(np.median(water[ci, fi]))),
                            "people_by_need_p50": {"calories": round(kg * k["kcal"] / (NEEDS["kcal"] * 365), 1),
                                                   "protein": round(kg * k["prot"] / (NEEDS["protein_g"] * 365), 1),

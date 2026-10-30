@@ -269,6 +269,13 @@ class ServerTests(unittest.TestCase):
                 urllib.request.build_opener(NoRedirect).open(base + "/app")
             self.assertEqual(cm.exception.code, 302)
             self.assertEqual(urllib.request.urlopen(base + "/").status, 200)
+            with urllib.request.urlopen(base + "/api/capabilities") as r:      # no account needed
+                capd = json.loads(r.read())
+            self.assertEqual(capd["service"], "ok")
+            self.assertTrue(capd["agents"]["scripted"])
+            self.assertEqual(capd["budget_mode"], "hard")
+            for name in ("favicon.ico", "og-image.jpg", "site.webmanifest", "hero-still.jpg"):
+                self.assertEqual(urllib.request.urlopen(f"{base}/{name}").status, 200)
             self.assertEqual(post("/api/start", {})[0], 401)
             st, d = post("/api/auth/signup", {"name": "Mo", "email": "mo@example.com", "password": "longenough1"})
             self.assertEqual(st, 200, d)
@@ -334,6 +341,22 @@ class ProgressionTests(unittest.TestCase):
         self.assertEqual(empty["current_chapter"], "discover")
         self.assertFalse(empty["complete"])
 
+    def test_delegated_and_fault_free_seasons_complete_coherently(self):
+        from worldlab.progression import evaluate
+        ev = evaluate(self.lab.ledger.entries, list(self.farm.events), self.lab.result)
+        ch = {c["id"]: c for c in ev["chapters"]}
+        # the farmer left every crop to the scientist and the farm goal may be missed: chapters still complete
+        self.assertEqual(ch["strategize"]["status"], "done")
+        self.assertEqual(ch["harvest"]["status"], "done")
+        self.assertTrue(ev["outcome"].startswith("Season complete"))
+        kinds = {o["label"]: o["kind"] for c in ev["chapters"] for o in c["objectives"]}
+        self.assertEqual(kinds["Choose your own crops"], "optional")
+        self.assertEqual(kinds["Farm goal: feed 500 people"], "stretch")
+        clean = evaluate(self.lab.ledger.entries, [], self.lab.result)          # no hidden fault
+        self.assertEqual({c["id"]: c for c in clean["chapters"]}["recover"]["status"], "na")
+        self.assertEqual(len(ev["catalog"]), 7)
+        self.assertTrue(all(c["about"] for c in ev["catalog"]))
+
     def test_an_undetected_fault_earns_no_detective_badge(self):
         from worldlab.progression import evaluate
         entries = [e for e in self.lab.ledger.entries if e["kind"] not in ("anomaly", "field_test", "look", "conclusion", "adjust", "model_update")]
@@ -391,6 +414,58 @@ class ProgressionTests(unittest.TestCase):
         calls = [m["data"]["data"] for m in data["messages"] if m["kind"] == "ledger" and m["data"]["kind"] == "agent_step"]
         self.assertTrue(any(c["role"] == "tool_call" for c in calls))
         self.assertTrue(any(c["role"] == "tool_result" for c in calls))
+
+
+class HardBudgetTests(unittest.TestCase):
+    """Execution never exceeds the remaining water or energy, for the real farm and imagined seasons."""
+
+    def test_allocation_rule(self):
+        from worldlab.farm.sim import cap_to_budget, KWH_PUMP
+        g = np.array([10.0, 20.0, 0.0])
+        out, f = cap_to_budget(g, np.zeros(3), 1e9, 1e9, 2.0)
+        self.assertTrue(np.allclose(out, g)) and self.assertEqual(float(f), 1.0)
+        out, f = cap_to_budget(g, np.zeros(3), 300.0, 1e9, 2.0)          # demand 600 m3, 300 left
+        self.assertAlmostEqual(float((out * 10 * 2.0).sum()), 300.0, places=6)
+        self.assertTrue(np.allclose(out / g[:2].sum() * g[:2].sum(), out))
+        self.assertAlmostEqual(out[0] / out[1], 0.5)                       # proportional
+        out, f = cap_to_budget(g, np.zeros(3), 0.0, 1e9, 2.0)
+        self.assertTrue(np.all(out == 0))
+        out, f = cap_to_budget(g, np.zeros(3), -50.0, -1.0, 2.0)           # overdrawn: nothing, never negative
+        self.assertTrue(np.all(out == 0))
+        out, f = cap_to_budget(g, np.zeros(3), 1e9, 600 * KWH_PUMP / 2, 2.0)   # energy binds
+        self.assertAlmostEqual(float((out * 10 * 2.0).sum()), 300.0, places=6)
+        out, f = cap_to_budget(np.zeros(3), np.zeros(3), 0.0, 0.0, 2.0)    # no demand, no budget: no divide by zero
+        self.assertTrue(np.all(out == 0)) and self.assertEqual(float(f), 1.0)
+
+    def test_farm_stops_at_the_quota(self):
+        farm = Farm(seed=7)
+        lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
+        plan = lab.plan_season("test")
+        lab.start_season(plan["plan_id"], "test", "rule")
+        lab.advance(40, "test")
+        lab.limits.water_quota_m3 = lab.water_used + 400.0          # almost nothing left
+        for _ in range(8):
+            if lab.done or lab.phase == "harvested":
+                break
+            r = lab.advance(60, "test")
+            if lab.anomaly:
+                lab.dismiss_anomaly("test")
+        self.assertLessEqual(lab.water_used, lab.limits.water_quota_m3 + 1e-6)
+        self.assertGreater(lab.curtailed_m3, 0)
+        self.assertTrue(any(e["kind"] == "curtailment" for e in lab.ledger.entries))
+
+    def test_imagined_seasons_obey_the_same_cap(self):
+        from worldlab.farm import rl as RL
+        farm = Farm(seed=7)
+        lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
+        plan = lab.plan_season("test")
+        rows = [i for i, f in enumerate(lab.plans[plan["plan_id"]]["fields"]) if f["crop"]]
+        fp = [{"crop": f["crop"], **f["mgmt"]} for f in (lab.plans[plan["plan_id"]]["fields"][i] for i in rows)]
+        envs = RL.Envs(fp, rows, lab.beliefs, 4, seed=1, quota_m3=15000, energy_kwh=90000, hard_budget=True)
+        res = RL.rollout(envs, np.zeros((2, RL.N_PARAMS)))
+        self.assertTrue(np.all(res["water"] <= 15000 + 1e-6))
+        soft = RL.Envs(fp, rows, lab.beliefs, 4, seed=1, quota_m3=15000, energy_kwh=90000, hard_budget=False)
+        self.assertTrue(np.any(RL.rollout(soft, np.zeros((2, RL.N_PARAMS)))["water"] > 15000))
 
 
 if __name__ == "__main__":

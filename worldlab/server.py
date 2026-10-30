@@ -56,7 +56,7 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
          ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json"}
 STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "classic.html")}
 STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json", "favicon.ico",
-                                               "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og-image.jpg", "site.webmanifest")})
+                                               "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og-image.jpg", "site.webmanifest", "hero-still.jpg")})
 PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SITE / "signup.html",
          "/demo": APP / "index.html", "/app": APP / "index.html"}
 COOKIE = "wl_session"
@@ -285,6 +285,15 @@ def make_handler(app: App):
                 if sid not in SEASON_IDS:
                     return self._json({"error": "unknown season"}, 400)
                 return self._json(crop_guide(sid))
+            if path == "/api/capabilities":       # what this server can do right now, no account needed
+                return self._json({"service": "ok", "schema": 2, "accounts": True,
+                                   "agents": {"scripted": True, "scripted-rl": True,
+                                              "spark": bool(os.environ.get("MODEL_API_KEY")),
+                                              "glimmer": bool(os.environ.get("WORLDLAB_GLIMMER_BASE_URL"))},
+                                   "perception": "meta" if os.environ.get("MODEL_API_KEY") else "simulated",
+                                   "budget_mode": "hard", "run_capacity": app.max_runs,
+                                   "runs_active": app.active_runs(),
+                                   "busy": app.active_runs() >= app.max_runs})
             if path == "/api/me":
                 user = self._user()
                 return self._json({"user": user}, 200 if user else 401)

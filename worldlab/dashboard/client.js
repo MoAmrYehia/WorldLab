@@ -13,13 +13,14 @@ const KEY = "worldlab_token";
 export function token() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
 export function setToken(t) { try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked */ } }
 
-export function api(path, { method = "GET", body, headers = {}, ...rest } = {}) {
+export function api(path, { method = "GET", body, headers = {}, timeout, ...rest } = {}) {
   const h = { ...headers };
   const t = token();
   if (t) h.Authorization = `Bearer ${t}`;
   if (body !== undefined) h["Content-Type"] = "application/json";
   return fetch(API + path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body),
-    credentials: API ? "include" : "same-origin", cache: "no-store", ...rest });
+    credentials: API ? "include" : "same-origin", cache: "no-store",
+    ...(timeout && typeof AbortSignal !== "undefined" && AbortSignal.timeout ? { signal: AbortSignal.timeout(timeout) } : {}), ...rest });
 }
 
 export async function apiJson(path, opts) {
@@ -30,16 +31,19 @@ export async function apiJson(path, opts) {
 }
 
 // Server-sent events over fetch, so the Authorization header can be sent. Reconnects on drop.
-export function stream(path, onBatch, onReconnect) {
+// onStatus receives "connecting" | "connected" | "reconnecting".
+export function stream(path, onBatch, onReconnect, onStatus = () => {}) {
   let stopped = false;
   (async () => {
     let first = true;
     while (!stopped) {
       try {
+        onStatus(first ? "connecting" : "reconnecting");
         const r = await api(path, { headers: { Accept: "text/event-stream" } });
         if (!r.ok || !r.body) throw new Error(`stream ${r.status}`);
         if (!first && onReconnect) await onReconnect();
         first = false;
+        onStatus("connected");
         const reader = r.body.getReader();
         const dec = new TextDecoder();
         let buf = "";
@@ -55,7 +59,7 @@ export function stream(path, onBatch, onReconnect) {
           }
         }
       } catch (e) { /* fall through to retry */ }
-      if (!stopped) await new Promise((res) => setTimeout(res, 2500));
+      if (!stopped) { onStatus("reconnecting"); await new Promise((res) => setTimeout(res, 2500)); }
     }
   })();
   return () => { stopped = true; };
