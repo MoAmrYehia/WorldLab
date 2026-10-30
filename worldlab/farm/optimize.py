@@ -23,17 +23,18 @@ from . import weather as WX
 MG_KEYS = ("sow", "density", "irr", "desal", "nfert", "mulch")
 
 
-def options_for(crop: str) -> list[dict]:
+def options_for(crop: str, extra_sows=()) -> list[dict]:
     c = CROPS[crop]
     nf = [round(0.25 * c["nreq"])] if c["legume"] else [round(0.6 * c["nreq"]), c["nreq"]]
     out = []
-    for sow, irr, desal, n in itertools.product(sow_options(crop), (0.7, 0.9, 1.1), (0.0, 0.5), nf):
+    sows = sorted(set(sow_options(crop)) | set(int(x) for x in extra_sows))
+    for sow, irr, desal, n in itertools.product(sows, (0.7, 0.9, 1.1), (0.0, 0.5), nf):
         out.append({"crop": crop, "sow": sow, "density": 1.0, "irr": irr, "desal": desal, "nfert": n, "mulch": 1.0})
     return out
 
 
 def evaluate(beliefs: dict, S: int = 24, seed: int = 99, crops=None, ecgw: float = EC_GROUNDWATER,
-             fields=None, field_idx=None) -> dict:
+             fields=None, field_idx=None, extra_sows: dict | None = None) -> dict:
     """Simulate every (field, crop, option) under S belief/weather samples."""
     crops = crops or CROP_IDS
     fields = fields or FIELDS
@@ -41,7 +42,8 @@ def evaluate(beliefs: dict, S: int = 24, seed: int = 99, crops=None, ecgw: float
     rng = np.random.default_rng(seed)
     wx = WX.generate(S, seed)
     samples = {c: beliefs[c].sample(S, rng) for c in crops}
-    opts = [(c, o) for c in crops for o in options_for(c)]
+    extra_sows = extra_sows or {}
+    opts = [(c, o) for c in crops for o in options_for(c, extra_sows.get(c, ()))]
     F, O = len(field_idx), len(opts)
     B = F * O * S
     crop_list, tr = [], {k: np.zeros(B) for k in TRAIT_IDS}
@@ -81,9 +83,27 @@ def _score(people_tot, water_tot, energy_tot, quota, ebudget, q=10):
     return p - pen * (1 + np.abs(p)), p, w90, e90
 
 
+def allowed_options(ev: dict, choices: list[dict | None]) -> dict:
+    """Farmer choices per field position -> {field_pos: [option indices]} ([] = fallow).
+    A choice is None (the scientist decides), {"fallow": True}, or {"crop": c, "sows": [days]}."""
+    out = {}
+    for f, ch in enumerate(choices):
+        if not ch:
+            continue
+        if ch.get("fallow"):
+            out[f] = []
+            continue
+        sows = set(ch.get("sows") or [])
+        out[f] = [k for k, (c, o) in enumerate(ev["opts"]) if c == ch["crop"] and (not sows or o["sow"] in sows)]
+        if not out[f]:
+            raise ValueError(f"no planning option for {ch['crop']} on field {f + 1} in that season")
+    return out
+
+
 def optimise(ev: dict, quota_m3: float, energy_kwh: float, restarts: int = 10, seed: int = 0,
-             fixed: dict | None = None) -> dict:
-    """Pick one option (or fallow, -1) per field. fixed: {field_pos: option index} kept as is."""
+             fixed: dict | None = None, allowed: dict | None = None) -> dict:
+    """Pick one option (or fallow, -1) per field. fixed: {field_pos: option index} kept as is.
+    allowed: {field_pos: [option indices]} restricts a field to those options ([] = fallow only)."""
     F = len(ev["field_idx"])
     P, Wt, E = ev["people"], ev["water"], ev["energy"]
     S = ev["S"]
@@ -91,11 +111,22 @@ def optimise(ev: dict, quota_m3: float, energy_kwh: float, restarts: int = 10, s
     rng = np.random.default_rng(seed)
     best = None
     fixed = fixed or {}
+    allowed = allowed or {}
+    masks = {}
+    for f, ks in allowed.items():
+        m = np.full(len(ev["opts"]) + 1, -np.inf)
+        if ks:
+            m[np.array(ks) + 1] = 0.0
+        else:
+            m[0] = 0.0
+        masks[f] = m
     for r in range(restarts):
         if r == 0:
             choice = np.full(F, -1)
         else:
             choice = rng.integers(-1, len(ev["opts"]), F)
+        for f, ks in allowed.items():
+            choice[f] = rng.choice(ks) if ks else -1
         for f, o in fixed.items():
             choice[f] = o
         for _ in range(8):
@@ -110,6 +141,8 @@ def optimise(ev: dict, quota_m3: float, energy_kwh: float, restarts: int = 10, s
                 candW = np.concatenate([tw[None], tw[None] + Wt[f]], axis=0)
                 candE = np.concatenate([te[None], te[None] + E[f]], axis=0)
                 sc, _, _, _ = _score(candP, candW, candE, quota_m3, energy_kwh)
+                if f in masks:
+                    sc = sc + masks[f]
                 k = int(np.argmax(sc)) - 1
                 if k != choice[f]:
                     choice[f], changed = k, True

@@ -22,7 +22,8 @@ import numpy as np
 from .farm import weather as WX
 from .farm.belief import CropBelief, calibrate, trial_information, typical_year, predict_trials
 from .farm.crops import CROPS, CROP_IDS, NUTRIENTS, NEEDS, TRAITS, TRAIT_IDS, nutrients_per_ha, people_fed
-from .farm.optimize import evaluate, optimise, MG_KEYS
+from .farm.optimize import evaluate, optimise, allowed_options, MG_KEYS
+from .farm import seasons as SEASONS
 from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL
 from .farm.world import Farm, FIELDS, FIELD_HA, EC_GROUNDWATER
 from .farm import rl as RL
@@ -160,6 +161,7 @@ class Lab:
         self.controller = "rule"
         self.run_plan_id = None
         self.policy_trace: list[dict] = []
+        self.crop_choices: list[dict | None] = [None] * NF   # the farmer's picks per field
         self._log("run_start", {"limits": asdict(self.limits), "fields": [
             {k: f[k] for k in ("id", "name", "layers", "ece", "soil_n")} for f in FIELDS],
             "goal": "maximise people fed (scarcest of calories, protein, vitamin A) in a bad year (P10), "
@@ -386,20 +388,34 @@ class Lab:
         if self.phase in ("season", "harvested"):
             return {"refused": "the season has started; use rebalance_water to change irrigation"}
         L = self.limits
-        ev = evaluate(self.beliefs, S=24, seed=seed)
-        plan = optimise(ev, L.water_quota_m3, L.energy_kwh)
+        chosen = self._choice_specs()
+        extra = {ch["crop"]: ch["sows"] for ch in chosen if ch and ch.get("crop")}
+        ev = evaluate(self.beliefs, S=24, seed=seed, extra_sows=extra)
+        allowed = allowed_options(ev, chosen) if any(chosen) else None
+        plan = optimise(ev, L.water_quota_m3, L.energy_kwh, allowed=allowed)
         # what certainty would be worth: same weather years, traits fixed at their means
         sure = {c: CropBelief(c) for c in CROP_IDS}
         for c in CROP_IDS:
             sure[c].mean = self.beliefs[c].mean.copy()
             sure[c].cov = np.eye(4) * 1e-10
-        plan2 = optimise(evaluate(sure, S=24, seed=seed), L.water_quota_m3, L.energy_kwh)
+        ev2 = evaluate(sure, S=24, seed=seed, extra_sows=extra)
+        plan2 = optimise(ev2, L.water_quota_m3, L.energy_kwh, allowed=allowed_options(ev2, chosen) if allowed else None)
+        free = optimise(ev, L.water_quota_m3, L.energy_kwh) if allowed else None
         pid = self._id("P")
         untested = sorted({f["crop"] for f in plan["fields"] if f.get("crop") and not self.trial_data[f["crop"]]})
         rec = {"plan_id": pid, **{k: v for k, v in plan.items() if k != "fed_samples"},
                "people_p10_if_traits_known": plan2["people_p10"],
                "cost_of_uncertainty_people": round(plan2["people_p10"] - plan["people_p10"], 1),
                "untested_crops": untested, "rationale": rationale}
+        if allowed:
+            for f in rec["fields"]:
+                f["farmer_choice"] = f["field_index"] in allowed
+            rec["farmer_choices"] = self.choices_summary()
+            rec["scientist_choice"] = {"people_p10": free["people_p10"],
+                                       "fields": [{"field": f["field"], "crop": f["crop"]} for f in free["fields"]]}
+            rec["note_on_choices"] = (f"The farmer chose the crops on {len(allowed)} field(s); this plan keeps them and sets "
+                                      f"sowing day, irrigation, water blend and nitrogen. With a free choice the scientist "
+                                      f"would feed {free['people_p10']} people in a bad year, against {plan['people_p10']} here.")
         if untested:
             rec["note"] = (f"the plan relies on crops never trialled on this farm: {', '.join(untested)}; their predictions "
                            "rest on published values only. Consider trialling them before committing.")
@@ -765,6 +781,38 @@ class Lab:
                         "desal_fraction": round(float(self.desal_hist[i, dd]), 2)})
         return out
 
+    def set_crop_choices(self, choices: list) -> list:
+        """choices: one entry per field (F1..F6): None or {"mode": "scientist"} (the scientist decides),
+        {"mode": "fallow"}, or {"mode": "crop", "crop": c, "season": season id}."""
+        out = normalize_choices(choices)
+        self.crop_choices = out
+        if any(out):
+            self._log("farmer_choices", {"fields": self.choices_summary()})
+        return out
+
+    def _choice_specs(self) -> list[dict | None]:
+        specs = []
+        for ch in self.crop_choices:
+            if not ch:
+                specs.append(None)
+            elif ch["mode"] == "fallow":
+                specs.append({"fallow": True})
+            else:
+                specs.append({"crop": ch["crop"], "sows": SEASONS.sow_days(ch["crop"], ch["season"])})
+        return specs
+
+    def choices_summary(self) -> list[dict]:
+        out = []
+        for i, ch in enumerate(self.crop_choices):
+            if not ch:
+                out.append({"field": FIELDS[i]["id"], "choice": "scientist decides"})
+            elif ch["mode"] == "fallow":
+                out.append({"field": FIELDS[i]["id"], "choice": "fallow"})
+            else:
+                out.append({"field": FIELDS[i]["id"], "choice": CROPS[ch["crop"]]["label"],
+                            "crop": ch["crop"], "season": SEASONS.season(ch["season"])["label"]})
+        return out
+
     def observe(self) -> dict:
         out = {"phase": self.phase, "day": self.day, "date": WX.day_label(min(self.day, D - 1)),
                "trial_plots_left": self.limits.trial_plots - self.plots_used,
@@ -784,6 +832,10 @@ class Lab:
             out["fields"] = [{"field": f["id"], "name": f["name"], "soil": f["layers"], "ece_dS_m": f["ece"],
                               "soil_n_kg_ha": f["soil_n"]} for f in FIELDS]
             out["crops"] = [{"crop": c, "label": CROPS[c]["label"], "trial_plots": len(self.trial_data[c])} for c in CROP_IDS]
+            if any(self.crop_choices):
+                out["farmer_choices"] = self.choices_summary()
+                out["note"] = ("The farmer chose crops for some fields. plan_season keeps those crops and their sowing season; "
+                               "you set management there and choose crops for the other fields. Trial the farmer's crops too.")
         return out
 
     # ---------------------------------------------------------- in-season tools
@@ -1058,3 +1110,30 @@ class Lab:
         self._log("run_end", out)
         self._status()
         return out
+
+
+def normalize_choices(choices) -> list:
+    """Validate the farmer's per-field picks; raises ValueError with a message for the farmer."""
+    out: list[dict | None] = [None] * NF
+    if not isinstance(choices, list):
+        raise ValueError("choices must be a list, one entry per field")
+    for i, ch in enumerate(choices[:NF]):
+        if ch is not None and not isinstance(ch, dict):
+            raise ValueError("each field choice must be an object")
+        if not ch or ch.get("mode", "scientist") == "scientist":
+            continue
+        if ch.get("mode") == "fallow":
+            out[i] = {"mode": "fallow"}
+            continue
+        if ch.get("mode") != "crop":
+            raise ValueError("a field choice's mode must be scientist, fallow or crop")
+        c, sid = ch.get("crop"), ch.get("season")
+        if c not in CROPS:
+            raise ValueError(f"unknown crop {c!r}")
+        if sid not in SEASONS.SEASON_IDS:
+            raise ValueError(f"unknown season {sid!r}")
+        if not SEASONS.in_season(c, sid):
+            ok = ", ".join(SEASONS.season(x)["label"].lower() for x in SEASONS.seasons_for(c))
+            raise ValueError(f"{CROPS[c]['label']} is not sown in {SEASONS.season(sid)['label'].lower()}; choose {ok}")
+        out[i] = {"mode": "crop", "crop": c, "season": sid}
+    return out

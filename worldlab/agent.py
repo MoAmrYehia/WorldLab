@@ -25,6 +25,7 @@ Method:
 2. Before trials, record_hypothesis with a numeric prediction and a falsification condition.
 3. evaluate_trials (pass your own designs or an empty list for a menu). Choose plots that cut the uncertainty that matters for the plan (production_yield_sd_cut_pct), not just bits. A trait is only learned if a plot exposes it: saline plots expose salt tolerance; sowing late so flowering hits the spring heat exposes heat tolerance. Budget: 16 plots in total.
 4. run_trials, then fit_crop_models, then conclude your hypothesis citing predicted vs measured yields.
+   If observe shows farmer_choices, the farmer picked the crop (and sowing season) for those fields: plan_season keeps them, so make sure your trials cover those crops, and tell the farmer honestly how their choice compares with yours (plan_season reports scientist_choice).
 5. plan_season again. If it relies on crops you never trialled (untested_crops), consider trialling them first.
    Then consider train_irrigation_policy for the final plan: reinforcement learning (evolution strategies) inside your calibrated model learns a daily irrigation and water-blend policy from the sensors, and reports it against the plan's fixed rule on held-out imagined seasons. Start the season with controller rl_policy only if it is recommended; remember it was trained in your model, not on the real farm.
    Then start_season.

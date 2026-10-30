@@ -1,6 +1,6 @@
 # WorldLab Crops
 
-**An AI agronomist that learns a desert farm by experiment, trains its own irrigation policy by reinforcement learning, runs a season to feed as many people as possible, and notices when something in the field goes wrong. Watch it in a 3D web app.**
+**An AI agronomist that learns a desert farm by experiment, trains its own irrigation policy by reinforcement learning, runs a season to feed as many people as possible, and notices when something in the field goes wrong. A full website: sign up, pick your crops for each sowing season, and watch your farm in 3D.**
 
 The farm is 12 hectares near Al Ain in the UAE: six fields with different soils, some already saline, irrigated by drip from brackish groundwater that can be blended with desalinated water. Water and energy are capped. The agent chooses among ten food-security crops: wheat, rice, maize, potatoes, cassava, soybeans, sorghum, millet, common beans and sweet potatoes.
 
@@ -18,7 +18,28 @@ Every hypothesis, prediction, trial, test, decision and result is written to a h
 
 *Panels at the end of the recorded run in `docs/app` (the 3D farm fills the middle of the screen). Violet is what the agent's model predicts; orange is what the sensors and drone measure. On 4 January a drip line in field F4 clogs. The agent isn't told, and the water meter can't see it. Soil salinity rises out of the predicted band, because less water reaching the roots leaches less salt, and the alarm fires. A water test is normal; an emitter flow test reads 45% of design flow, so the agent concludes the line is clogged. It repairs it, teaches its model what happened and re-plans irrigation. Before sowing it had trained an RL irrigation policy that, in its own model, keeps the farm inside the water quota in every imagined year (the fixed rule overran in 18%) for 1% fewer people fed. The harvest feeds 458 people within the water and energy limits.*
 
-**No server needed to watch a run:** `docs/app/` is a static copy of the web app that replays a recorded run. Serve the folder from any static host (GitHub Pages works), or run `python -m http.server -d docs/app` and open http://localhost:8000.
+### The website
+
+| Page | What it does |
+|---|---|
+| `/` | Landing page: the 3D farm replaying a season, how a season runs, the sowing calendar for all ten crops, benchmark results |
+| `/signup`, `/login` | Accounts. Each account gets its own farm, its own runs and a history of past seasons |
+| `/app` | Your farm. **Plan a new season** opens the crop planner; the 3D view, charts and the scientist's notebook follow the run live |
+| `/demo` | A recorded season, no account needed |
+
+**Choosing crops by season.** The growing year runs from 1 October to 30 June; open fields rest through the summer. The planner has three sowing seasons:
+
+| Season | Sowing dates | Crops that can be sown |
+|---|---|---|
+| Autumn sowing | 1 Oct to 15 Nov | maize, cassava, sweet potatoes, potatoes, common beans, wheat |
+| Winter sowing | 16 Nov to 31 Dec | wheat, potatoes, common beans |
+| Late-winter sowing | 25 Jan to 15 Mar | rice, soybeans, sorghum, millet |
+
+For each of the six fields you pick a season and a crop, leave it fallow, or let the scientist decide. Each crop card shows its sowing window, days to harvest, the needs it covers (calories, protein, vitamin A), its salt limit, and the yield the crop model expects on every field. The scientist still runs trial plots, then plans sowing day, irrigation, water blend and nitrogen for your crops and chooses crops for the fields you left open. It also reports how many people its own free choice would feed, so you can see what your picks cost or gain.
+
+**Accounts** are stored in SQLite (`WORLDLAB_DATA`, default `./data`). Passwords are hashed with scrypt and a per-user salt; sessions are random tokens in an HttpOnly cookie, stored only as SHA-256 digests; cross-site POSTs are refused and repeated failed logins are throttled.
+
+**No server needed to watch a run:** `docs/` is a static copy of the landing page with the replay app in `docs/app/`. Turn on GitHub Pages for the `docs` folder, or run `python -m http.server -d docs` and open http://localhost:8000. Accounts and planning need the Python server.
 
 Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (agriculture, food security).
 
@@ -93,13 +114,13 @@ cd WorldLab
 python -m worldlab serve --open
 ```
 
-Open http://127.0.0.1:8765, choose an agent, and press **Start run**. Drag to orbit the farm, scroll to zoom, and click a plot to see its charts. Once the season starts:
+Open http://127.0.0.1:8765, create an account, and the season planner opens. Pick crops for any fields (or leave them all to the scientist) and press **Start the season**. Drag to orbit the farm, scroll to zoom, and click a plot to see its charts. Once the season starts:
 
 1. Select a field.
 2. Choose **Change the farm** to clog its drip line, release pests, make the groundwater saltier or send a heat wave.
 3. Watch the agent notice, investigate and recover.
 
-The dock at the bottom opens the trial plots, beliefs, season plan, RL policy and audit ledger. The previous 2D dashboard is still at `/classic.html`.
+The dock at the bottom opens the trial plots, beliefs, season plan, RL policy, audit ledger and your past seasons (each can be replayed). The previous 2D dashboard is still at `/classic.html`.
 
 The 3D view loads three.js from cdn.jsdelivr.net, so the browser needs internet access; the panels work without it. Without an API key, the agent falls back to the **scripted scientist with RL** and drone perception to a labelled **simulated perception**. Everything else is identical.
 
@@ -110,15 +131,17 @@ The repository includes a `Dockerfile` that serves the app on port 7860.
 1. Create a Space with the **Docker** SDK.
 2. Push this repository to it, replacing the Space's `README.md` with `deploy/huggingface/README.md` (the Space card).
 3. Optionally add `MODEL_API_KEY` as a Space secret so Muse Spark runs the farm.
+4. Turn on persistent storage and set the variable `WORLDLAB_DATA=/data`, or accounts are lost when the Space restarts.
 
-Everyone who opens the Space watches and controls the same run.
+Each visitor signs up and runs their own farm. `WORLDLAB_MAX_RUNS` (default 3) caps how many seasons run at once.
 
 ### Record a replay
 
 ```bash
 python -m worldlab run --agent scripted-rl --seed 7 --perturb clog@95 --perception sim
 python -m worldlab export-replay runs/<run> --out worldlab/dashboard/replay.json --note "What this run shows"
-python scripts/build_artifact.py docs/app                  # refresh the static copy
+python scripts/build_site_data.py                          # refresh the landing page's season calendar
+python scripts/build_artifact.py docs                      # refresh the static site in docs/
 ```
 
 ### Muse Spark (Meta Model API)
@@ -241,10 +264,13 @@ worldlab/
   ledger.py          hash-chained audit ledger and verifier
   bench.py           ground-truth benchmark across random farms and scenarios
   farm/rl.py         reinforcement learning: evolution-strategies irrigation policy trained in the belief model
-  server.py          web app server (standard library, server-sent events)
+  farm/seasons.py    sowing seasons, which crops fit each, and the crop guide shown in the planner
+  accounts.py        accounts, sessions and run history (SQLite, scrypt)
+  server.py          website and API server (standard library, server-sent events), one farm per account
   replay.py          turns a recorded run into a static replay
-  dashboard/         3D web app (index.html, app.js, scene.js, style.css), replay.json, classic 2D dashboard
-docs/app/            static copy of the web app that plays a recorded run without a server
+  site/              landing, log-in and sign-up pages (index.html, login.html, signup.html, site.css, site.js, hero.js)
+  dashboard/         the 3D farm app (index.html, app.js, scene.js, style.css), replay.json, classic 2D dashboard
+docs/                static copy of the landing page, with the replay app in docs/app/ (GitHub Pages)
 Dockerfile           Hugging Face Spaces / container deployment
 tests/               unit tests, including the agent loop against a mock OpenAI-compatible endpoint
 ```

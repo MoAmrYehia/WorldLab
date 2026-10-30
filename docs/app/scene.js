@@ -141,7 +141,8 @@ function vineGeo() {
 }
 
 // ------------------------------------------------------------------- scene
-export function createScene(container, { onSelect, theme = "day", reducedMotion = false } = {}) {
+export function createScene(container, { onSelect, theme = "day", reducedMotion = false, interactive = true, labels: showLabels = true,
+  target = [-2, 0, -4], homePos = [30, 36, 58], shiftX = 0 } = {}) {
   const P = PALETTES[theme] || PALETTES.day;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -153,17 +154,21 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
 
   const labels = new CSS2DRenderer();
   labels.domElement.className = "scene-labels";
+  if (!showLabels) labels.domElement.style.visibility = "hidden";
+  if (!interactive) labels.domElement.style.pointerEvents = "none";
   container.appendChild(labels.domElement);
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(P.fog, 90, 260);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 800);
-  const home = new THREE.Vector3(30, 36, 58);
+  const home = new THREE.Vector3(...homePos);
   camera.position.copy(reducedMotion ? home : new THREE.Vector3(120, 95, 170));
 
   const controls = new OrbitControls(camera, labels.domElement);
-  controls.target.set(-2, 0, -4);
+  controls.target.set(...target);
+  controls.enabled = interactive;
+  if (!interactive) controls.autoRotate = !reducedMotion;
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.maxPolarAngle = Math.PI * 0.46;
@@ -604,6 +609,8 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
     renderer.setSize(w, h, false);
     labels.setSize(w, h);
     camera.aspect = w / Math.max(h, 1);
+    const sx = typeof shiftX === "function" ? shiftX(w, h) : shiftX;
+    if (sx) camera.setViewOffset(w, h, -sx * w, 0, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(container);
@@ -621,7 +628,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
       const e = 1 - Math.pow(1 - intro, 3);
       camera.position.lerpVectors(introFrom, home, e);
     }
-    if (!reducedMotion && intro >= 1 && performance.now() - lastInteract > 12000) controls.autoRotate = true;
+    if (!reducedMotion && intro >= 1 && (!interactive || performance.now() - lastInteract > 12000)) controls.autoRotate = true;
     controls.update();
 
     heat += (heatTarget - heat) * Math.min(1, dt * 1.5);
@@ -675,7 +682,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
 
   return {
     setFields, update, setSelected, setAnomaly, scan, hover, addTrial, reset,
-    home() { intro = 0; introFrom.copy(camera.position); controls.target.set(-2, 0, -4); },
+    home() { intro = 0; introFrom.copy(camera.position); controls.target.set(...target); },
     dispose() { running = false; renderer.dispose(); },
   };
 }

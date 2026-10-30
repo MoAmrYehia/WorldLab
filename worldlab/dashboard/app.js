@@ -145,7 +145,8 @@ function streamItem(e) {
     case "trial_start": return ["decide", `Plants ${d.plots.length} trial plots`, why(d.rationale)];
     case "trial_result": { const held = d.plots.filter((p) => p.prediction_held).length; return [held < d.plots.length ? "test" : "learn", `${held} of ${d.plots.length} trial predictions held`, why(d.plots.filter((p) => !p.prediction_held).slice(0, 3).map((p) => `${crop(p.crop)} (${p.plot}): predicted ${p.predicted_yield_90pct[0]}–${p.predicted_yield_90pct[1]}, measured ${p.measured_yield_t_ha} t/ha`).join("; "))]; }
     case "model_update": return ["learn", d.crops ? `Calibrates ${d.crops.map((c) => crop(c.crop)).join(", ")}` : `Teaches the model: ${esc(String(d.finding).replace(/_/g, " "))} = ${d.value} in ${d.field} since ${dayLabel(d.since_day)}`, why(d.rationale)];
-    case "plan": return ["decide", `Plan ${d.plan_id}: <span class="num-b">${fmt(d.people_p10)}</span> people in a bad year`, why(`Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people. ${d.rationale || ""}`)];
+    case "plan": return ["decide", `Plan ${d.plan_id}: <span class="num-b">${fmt(d.people_p10)}</span> people in a bad year`, why(d.scientist_choice ? `Keeps your crops. With a free choice the scientist would feed ${fmt(d.scientist_choice.people_p10)}. Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people.` : `Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people. ${d.rationale || ""}`)];
+    case "farmer_choices": return ["decide", "Your crop choices", why(d.fields.filter((f) => f.crop || f.choice === "fallow").map((f) => `${f.field}: ${f.choice}${f.season ? `, ${f.season.toLowerCase()}` : ""}`).join("; "))];
     case "rl_train_start": return ["rl", `Trains an irrigation policy for ${d.plan_id} by reinforcement learning`, why(d.rationale)];
     case "rl_policy": { const c = d.held_out_comparison || {}; return ["rl", d.recommend === "rl_policy" ? `Policy beats the fixed rule in its model: people fed ${signed(c.people_mean_change_pct)}% on average, water ${signed(c.water_change_pct)}%, energy ${signed(c.energy_change_pct)}%` : "Policy did not beat the fixed rule; keeps the rule", why(d.note)]; }
     case "controller": return ["rl", d.controller === "rl_policy" ? "Hands daily irrigation to the RL policy" : "Hands daily irrigation back to the fixed rule", why(d.rationale)];
@@ -298,7 +299,7 @@ function renderToast() {
 }
 
 // ------------------------------------------------------------ drawer
-const TITLES = { trials: "Trial plots: predicted before planting, measured at harvest", beliefs: "What the scientist believes about the local varieties", plan: "Season plan", rl: "Irrigation policy learned by reinforcement learning", ledger: "Audit ledger" };
+const TITLES = { history: "Your seasons", trials: "Trial plots: predicted before planting, measured at harvest", beliefs: "What the scientist believes about the local varieties", plan: "Season plan", rl: "Irrigation policy learned by reinforcement learning", ledger: "Audit ledger" };
 function openDrawer(tab) {
   drawerTab = tab;
   document.querySelectorAll(".dock button").forEach((b) => { b.classList.toggle("on", b.dataset.tab === tab); if (b.dataset.tab === tab) b.classList.remove("fresh"); });
@@ -317,6 +318,7 @@ function renderDrawer() {
   else if (drawerTab === "plan") b.innerHTML = planHtml();
   else if (drawerTab === "rl") { b.innerHTML = rlHtml(); drawRl(); }
   else if (drawerTab === "ledger") { b.innerHTML = ledgerHtml(); const v = $("verifyBtn"); if (v) v.onclick = verifyLedger; }
+  else if (drawerTab === "history") { b.innerHTML = `<p class="empty">Loading…</p>`; historyHtml().then((h) => { if (drawerTab === "history") b.innerHTML = h; }); }
 }
 
 function rangeSvg(lo, hi, med, meas, max) {
@@ -341,7 +343,8 @@ function beliefsHtml() {
 function planHtml() {
   const p = S.plan;
   if (!p) return `<p class="empty">No plan yet.</p>`;
-  return `<p style="margin:0 0 8px">Plan ${p.plan_id} feeds <b>${fmt(p.people_p10)}</b> people in a bad year and ${fmt(p.people_p50)} in a typical one. Not knowing the varieties exactly costs ${fmt(p.cost_of_uncertainty_people)} people. Bad-year water ${fmt(p.water_p90_m3)} m³, energy ${fmt(p.energy_p90_kwh)} kWh.</p><table><thead><tr><th>Field</th><th>Crop</th><th>Sowing</th><th class="n">Irrigation</th><th class="n">Desalinated</th><th class="n">Nitrogen</th><th class="n">Yield, typical</th></tr></thead><tbody>${p.fields.map((f, i) => f.crop ? `<tr><td>${f.field} ${NAMES[i]}</td><td>${crop(f.crop)}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="n">${Math.round(f.mgmt.irr * 100)}%</td><td class="n">${Math.round(f.mgmt.desal * 100)}%</td><td class="n">${fmt(f.mgmt.nfert)} kg/ha</td><td class="n">${fmt(f.yield_t_ha_p10_p50_p90[1], 1)} t/ha</td></tr>` : `<tr><td>${f.field} ${NAMES[i]}</td><td colspan="6" style="color:var(--ink-3)">Left fallow</td></tr>`).join("")}</tbody></table>`;
+  const cmp = p.scientist_choice ? ` With a free choice of crops the scientist would feed ${fmt(p.scientist_choice.people_p10)} (${p.scientist_choice.fields.filter((f) => f.crop).map((f) => `${f.field} ${crop(f.crop)}`).join(", ")}).` : "";
+  return `<p style="margin:0 0 8px">Plan ${p.plan_id} feeds <b>${fmt(p.people_p10)}</b> people in a bad year and ${fmt(p.people_p50)} in a typical one. Not knowing the varieties exactly costs ${fmt(p.cost_of_uncertainty_people)} people. Bad-year water ${fmt(p.water_p90_m3)} m³, energy ${fmt(p.energy_p90_kwh)} kWh.${cmp}</p><table><thead><tr><th>Field</th><th>Crop</th><th>Sowing</th><th class="n">Irrigation</th><th class="n">Desalinated</th><th class="n">Nitrogen</th><th class="n">Yield, typical</th></tr></thead><tbody>${p.fields.map((f, i) => f.crop ? `<tr><td>${f.field} ${NAMES[i]}</td><td>${crop(f.crop)}${f.farmer_choice ? ' <span class="pill">your pick</span>' : ""}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="n">${Math.round(f.mgmt.irr * 100)}%</td><td class="n">${Math.round(f.mgmt.desal * 100)}%</td><td class="n">${fmt(f.mgmt.nfert)} kg/ha</td><td class="n">${fmt(f.yield_t_ha_p10_p50_p90[1], 1)} t/ha</td></tr>` : `<tr><td>${f.field} ${NAMES[i]}</td><td colspan="6" style="color:var(--ink-3)">Left fallow</td></tr>`).join("")}</tbody></table>`;
 }
 function rlHtml() {
   if (!S.rl && !S.rl_train.length) return `<p class="empty">No policy trained yet. After planning, the scientist can train a daily irrigation policy inside its own model of the farm, then decide whether to use it.</p>`;
@@ -392,23 +395,138 @@ async function post(path, body) { const r = await fetch(path, { method: "POST", 
 async function startLive(state) {
   info = state.info || {};
   $("liveControls").hidden = false;
+  $("historyTab").hidden = false;
+  if (info.user) { $("account").hidden = false; $("userName").textContent = info.user.name; }
+  $("logoutBtn").onclick = async () => { await post("api/auth/logout"); location.href = "./"; };
   const opt = $("agentSel").querySelector('option[value="spark"]');
-  if (!info.has_api_key) { opt.textContent = "Muse Spark (needs MODEL_API_KEY)"; opt.disabled = true; }
+  if (!info.has_api_key) { opt.textContent = "Muse Spark (needs MODEL_API_KEY on the server)"; opt.disabled = true; }
+  const glim = $("agentSel").querySelector('option[value="glimmer"]'); glim.textContent = "Muse Glimmer (needs a Glimmer endpoint)";
   if (info.agent && [...$("agentSel").options].some((o) => o.value === info.agent && !o.disabled)) $("agentSel").value = info.agent;
   $("speed").value = info.speed || 12;
-  $("modeNote").textContent = info.running ? "" : "Live: start a run to watch the scientist work.";
   S = { ...fresh(), ...state, events: state.events || [], agentKind: info.agent };
   delete S.info; delete S.agent; delete S.beliefs_hist;
   sceneSync();
   dirty = true;
-  $("startBtn").onclick = async () => { $("modeNote").textContent = ""; await post("api/start", { agent: $("agentSel").value, speed: Number($("speed").value) }); };
+  setRunning(info.running);
+  if (!info.running && !(S.status && S.status.phase)) { $("modeNote").textContent = "Your farm is ready. Plan a season to start."; openPlanner(); }
+  $("planBtn").onclick = openPlanner;
+  $("stopBtn").onclick = async () => { await post("api/stop"); };
+  $("startBtn").onclick = startSeason;
   $("speed").oninput = () => post("api/speed", { speed: Number($("speed").value) });
   document.querySelectorAll("#perturb .btn").forEach((b) => (b.onclick = async () => {
     const r = await post("api/perturb", { kind: b.dataset.kind, field: FIELD_IDS[sel] });
     if (!r.ok) $("modeNote").textContent = r.error || "Could not change the farm";
   }));
   const es = new EventSource("api/stream");
-  es.onmessage = (ev) => { JSON.parse(ev.data).forEach((m) => apply(m, true)); };
+  es.onmessage = (ev) => { JSON.parse(ev.data).forEach((m) => { apply(m, true); if (m.kind === "reset") setRunning(true); if (m.kind === "status" && (m.data.done || m.data.phase === "harvested")) setRunning(false); }); };
+}
+function setRunning(on) { $("planBtn").textContent = on ? "Plan a different season" : "Plan a new season"; $("stopBtn").hidden = !on; }
+
+// ------------------------------------------------------------ season planner
+const SEASON_ORDER = ["autumn", "winter", "late_winter"];
+const P = { seasons: null, guide: {}, season: "autumn", brush: null, picks: FIELD_IDS.map(() => ({ mode: "scientist" })) };
+const SOILS = ["North, loamy sand", "Palm edge, sandy loam", "Dune, sand", "Old wadi, saline", "Loam block", "Sabkha rim, very saline"];
+async function openPlanner() {
+  $("planner").hidden = false; $("plErr").hidden = true;
+  $("plannerClose").onclick = closePlanner;
+  $("planner").onclick = (e) => { if (e.target === $("planner")) closePlanner(); };
+  document.addEventListener("keydown", escClose);
+  if (!P.seasons) {
+    try { P.seasons = await (await fetch("api/seasons")).json(); } catch (e) { $("seasonAbout").textContent = "Could not load the seasons. Check your connection."; return; }
+  }
+  renderSeasonTabs(); await showSeason(P.season); renderFieldRows();
+  setTimeout(() => $("seasonTabs").querySelector("button.on")?.focus(), 30);
+}
+function escClose(e) { if (e.key === "Escape") closePlanner(); }
+function closePlanner() { $("planner").hidden = true; document.removeEventListener("keydown", escClose); }
+function seasonLabel(id) { const x = P.seasons && P.seasons.seasons.find((s) => s.id === id); return x ? x.label : id; }
+function renderSeasonTabs() {
+  const box = $("seasonTabs");
+  box.innerHTML = P.seasons.seasons.map((x) => `<button role="tab" data-s="${x.id}" class="${x.id === P.season ? "on" : ""}" aria-selected="${x.id === P.season}" style="--c:var(--s-${x.id})"><span class="dot"></span>${esc(x.label)}</button>`).join("")
+    + `<button class="rest" disabled title="${esc(P.seasons.summer.about)}">Summer: fields rest</button>`;
+  box.querySelectorAll("button[data-s]").forEach((b) => (b.onclick = () => { P.season = b.dataset.s; P.brush = null; renderSeasonTabs(); showSeason(P.season); renderFieldRows(); }));
+}
+async function showSeason(id) {
+  const meta = P.seasons.seasons.find((s) => s.id === id);
+  $("seasonAbout").textContent = meta.about;
+  const cards = $("cropCards");
+  if (!P.guide[id]) {
+    cards.innerHTML = `<p class="season-about">Asking the crop model what grows in this season…</p>`;
+    try { P.guide[id] = await (await fetch(`api/crop-guide?season=${id}`)).json(); } catch (e) { cards.innerHTML = `<p class="err">Could not load the crop guide.</p>`; return; }
+  }
+  if (P.season !== id) return;
+  const g = P.guide[id];
+  const ymax = Math.max(...g.crops.flatMap((c) => c.fields.map((f) => f.yield_t_ha_p50)), 0.1);
+  cards.innerHTML = g.crops.map((c) => {
+    const cmax = Math.max(...c.fields.map((f) => f.yield_t_ha_p50), 0.1);
+    return `<button class="crop-card ${P.brush === c.crop ? "on" : ""}" data-c="${c.crop}" aria-pressed="${P.brush === c.crop}">
+      <h4>${esc(c.label)}<span class="meta">${c.cycle_days ? `${c.cycle_days} days` : ""}</span></h4>
+      <span class="meta">Sow ${esc(c.sow_window_label)}${c.harvest_label ? `, harvest around ${esc(c.harvest_label)}` : ""}</span>
+      <span class="needs">${c.good_for.map((n) => `<span class="need">${esc(n)}</span>`).join("")}<span class="need">salt limit ${c.salt_threshold_ds_m} dS/m</span></span>
+      <span class="meta">Expected yield per field, t/ha</span>
+      <span class="yields">${c.fields.map((f) => `<span><i><b style="height:${Math.round((100 * f.yield_t_ha_p50) / cmax)}%"></b></i>${f.field}<br>${fmt(f.yield_t_ha_p50, f.yield_t_ha_p50 < 10 ? 1 : 0)}</span>`).join("")}</span>
+    </button>`;
+  }).join("") || `<p class="season-about">No crop on the list is sown in this season.</p>`;
+  cards.querySelectorAll(".crop-card").forEach((b) => (b.onclick = () => { P.brush = P.brush === b.dataset.c ? null : b.dataset.c; showSeason(P.season); renderFieldRows(); }));
+  void ymax;
+}
+function renderFieldRows() {
+  const box = $("fieldRows");
+  const g = P.guide[P.season];
+  const inSeason = g ? g.crops.map((c) => c.crop) : [];
+  $("plHint").textContent = P.brush ? `Choose the fields for ${crop(P.brush)} in ${seasonLabel(P.season).toLowerCase()}. Click the card again when you're done.` : "Pick a crop card to sow it on several fields, or use the menu on each field.";
+  box.innerHTML = FIELD_IDS.map((id, i) => {
+    const p = P.picks[i];
+    const opts = [`<option value="scientist" ${p.mode === "scientist" ? "selected" : ""}>Scientist decides</option>`,
+      `<option value="fallow" ${p.mode === "fallow" ? "selected" : ""}>Leave fallow</option>`];
+    if (p.mode === "crop" && (p.season !== P.season || !inSeason.includes(p.crop))) opts.push(`<option value="keep" selected>${esc(crop(p.crop))}, ${esc(seasonLabel(p.season).toLowerCase())}</option>`);
+    inSeason.forEach((c) => opts.push(`<option value="c:${c}" ${p.mode === "crop" && p.crop === c && p.season === P.season ? "selected" : ""}>${esc(crop(c))}, ${esc(seasonLabel(P.season).toLowerCase())}</option>`));
+    const tag = p.mode === "crop" ? `<span class="sz" style="--c:var(--s-${p.season})">${esc(seasonLabel(p.season))}</span>` : "";
+    if (P.brush) {
+      const here = p.mode === "crop" && p.crop === P.brush && p.season === P.season;
+      const now = p.mode === "crop" ? `${crop(p.crop)}, ${seasonLabel(p.season).toLowerCase()}` : p.mode === "fallow" ? "Fallow" : "Scientist decides";
+      return `<li class="field-row target" data-i="${i}"><span class="fid">${id}</span><span class="soil">${esc(SOILS[i])}: ${esc(now)}</span>
+        <span class="pick"><button class="btn sow ${here ? "" : "primary"}" data-i="${i}">${here ? `Remove ${esc(crop(P.brush))}` : `Sow ${esc(crop(P.brush))} here`}</button>${tag}</span></li>`;
+    }
+    return `<li class="field-row" data-i="${i}"><span class="fid">${id}</span><span class="soil">${esc(SOILS[i])}</span>
+      <span class="pick"><select aria-label="Crop for ${id}" data-i="${i}">${opts.join("")}</select>${tag}</span></li>`;
+  }).join("");
+  box.querySelectorAll("select").forEach((sel) => (sel.onchange = (e) => {
+    const i = Number(sel.dataset.i), v = sel.value;
+    if (v === "scientist" || v === "fallow") P.picks[i] = { mode: v };
+    else if (v.startsWith("c:")) P.picks[i] = { mode: "crop", crop: v.slice(2), season: P.season };
+    renderFieldRows(); e.stopPropagation();
+  }));
+  box.querySelectorAll("button.sow").forEach((btn) => (btn.onclick = () => {
+    const i = Number(btn.dataset.i);
+    const p = P.picks[i];
+    P.picks[i] = p.mode === "crop" && p.crop === P.brush && p.season === P.season ? { mode: "scientist" } : { mode: "crop", crop: P.brush, season: P.season };
+    renderFieldRows();
+  }));
+}
+async function startSeason() {
+  const btn = $("startBtn"); btn.disabled = true; $("plErr").hidden = true;
+  try {
+    const r = await fetch("api/start", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ agent: $("agentSel").value, speed: Number($("speed").value), choices: P.picks }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.href = "login?next=/app"; return; }
+    if (!r.ok || !d.ok) throw new Error(d.error || "The season could not start.");
+    closePlanner(); $("modeNote").textContent = ""; drawerUserClosed.clear();
+  } catch (e) { $("plErr").textContent = e.message; $("plErr").hidden = false; }
+  finally { btn.disabled = false; }
+}
+
+// ------------------------------------------------------------ past seasons
+async function historyHtml() {
+  let d;
+  try { d = await (await fetch("api/runs", { cache: "no-store" })).json(); } catch (e) { return `<p class="empty">Could not load your seasons.</p>`; }
+  if (!d.runs || !d.runs.length) return `<p class="empty">No seasons yet. Plan one to start.</p>`;
+  const when = (t) => new Date(t * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `<table><thead><tr><th>Started</th><th>Scientist</th><th>Your crops</th><th class="n">People fed</th><th></th></tr></thead><tbody>${d.runs.map((r) => {
+    const mine = (r.choices || []).filter((c) => c.crop).map((c) => `${c.field} ${esc(c.choice)}`).join(", ") || "Scientist chose all";
+    return `<tr><td>${when(r.created)}</td><td>${esc(agentName(r.agent))}</td><td>${mine}</td><td class="n">${r.result ? fmt(r.result.people_fed) : r.id === info.run_id ? "running" : "stopped"}</td><td class="hist-actions">${r.result ? `<a href="app?run=${r.id}">Replay</a>` : ""}</td></tr>`;
+  }).join("")}</tbody></table>`;
 }
 
 // ------------------------------------------------------------ replay mode
@@ -482,10 +600,23 @@ async function boot() {
   $("drawerClose").onclick = closeDrawer;
   await loadScene();
   const q = new URLSearchParams(location.search);
-  const replay = q.get("replay") || window.WORLDLAB_REPLAY;
+  const isDemo = /\/demo\/?$/.test(location.pathname);
+  let replay = q.get("replay") || window.WORLDLAB_REPLAY || (isDemo ? "replay.json" : null);
+  if (q.get("run")) replay = `api/runs/${encodeURIComponent(q.get("run"))}/replay`;
   let state = null;
-  if (!replay) { try { const r = await fetch("api/state", { cache: "no-store" }); if (r.ok) state = await r.json(); } catch (e) { /* static hosting */ } }
-  if (state) await startLive(state); else await startReplay(replay || "replay.json").catch((e) => { $("modeNote").textContent = `No live server and no recording found (${e.message}).`; });
+  if (!replay) {
+    try {
+      const r = await fetch("api/state", { cache: "no-store", credentials: "same-origin" });
+      if (r.status === 401) { location.href = "login?next=/app"; return; }
+      if (r.ok) state = await r.json();
+    } catch (e) { /* static hosting */ }
+  }
+  if (state) await startLive(state);
+  else {
+    $("demoControls").hidden = false;
+    if (q.get("run")) { $("demoControls").hidden = false; $("demoControls").innerHTML = `<a class="btn primary" href="app">Back to your farm</a>`; }
+    await startReplay(replay || "replay.json").catch((e) => { $("modeNote").textContent = `No live server and no recording found (${e.message}).`; });
+  }
   const loop = () => { render(); requestAnimationFrame(loop); };
   loop();
 }

@@ -23,6 +23,7 @@ class Settings:
     perception: str = "auto"       # auto | meta | sim | none
     runs_dir: str = "runs"
     limits: dict = field(default_factory=dict)
+    choices: list = field(default_factory=list)   # the farmer's crop per field: see Lab.set_crop_choices
 
     def resolved_agent(self) -> str:
         if self.agent != "auto":
@@ -63,6 +64,9 @@ class Session:
                        perception=perception, bus=self.bus, speed=settings.speed)
         self.lab._log("session", {"agent": self.agent_kind, "farm_seed": settings.seed,
                                   "perception": type(perception).__name__ if perception else None})
+        if settings.choices:
+            self.lab.set_crop_choices(settings.choices)
+        self.on_finish = None
 
     def _make_perception(self):
         mode = self.settings.perception
@@ -96,6 +100,12 @@ class Session:
         except Exception:
             self.error = traceback.format_exc()
             self.lab.agent_note("error", self.error)
+        finally:
+            if self.on_finish:
+                try:
+                    self.on_finish(self)
+                except Exception:
+                    pass
 
     def stop(self):
         self.lab.stop_flag.set()
