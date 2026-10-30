@@ -38,8 +38,8 @@ def main(argv=None):
     common(s, 12.0)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--http-port", type=int, default=8765)
-    s.add_argument("--start", action="store_true", help="start a run immediately")
     s.add_argument("--open", action="store_true", help="open the browser")
+    s.add_argument("--data-dir", default=None, help="accounts database and runs (default: $WORLDLAB_DATA or ./data)")
 
     r = sub.add_parser("run", help="one headless run")
     common(r, 0.0)
@@ -62,7 +62,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd == "serve":
         from .server import serve
-        serve(_settings(a), host=a.host, port=a.http_port, autostart=a.start, open_browser=a.open)
+        serve(_settings(a), host=a.host, port=a.http_port, open_browser=a.open, data_dir=a.data_dir)
     elif a.cmd == "run":
         sess = Session(_settings(a))
         print(f"agent {sess.agent_kind} · run folder {sess.run_dir}")

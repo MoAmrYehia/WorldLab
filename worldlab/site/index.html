@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WorldLab Farm</title>
+<meta name="description" content="An AI scientist that learns a desert farm by experiment, trains its own irrigation policy, and catches what goes wrong in the field.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body class="landing" data-app="">
+<header class="nav">
+  <a class="logo" href="./" aria-label="WorldLab home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><path d="M6 20c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="11" r="3" fill="var(--belief)"/></svg>
+    WorldLab
+  </a>
+  <nav class="links" aria-label="Sections">
+    <a href="#how">How it works</a>
+    <a href="#crops">Crops and seasons</a>
+    <a href="#results">Results</a>
+  </nav>
+  <div class="auth" id="navAuth">
+    <a class="btn ghost" href="login" data-needs-server>Log in</a>
+    <a class="btn solid" href="signup" data-needs-server>Sign up</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-scene" id="heroScene" aria-hidden="true"></div>
+  <div class="hero-copy">
+    <p class="place">Al Ain, United Arab Emirates. 12 hectares, brackish groundwater, a fixed water quota.</p>
+    <h1>A scientist for the desert farm.</h1>
+    <p class="lede">WorldLab plants trial plots, learns how the local crops really behave, trains its own irrigation policy, and catches what goes wrong in the field. You choose the crops for each season. It runs the farm and shows its working.</p>
+    <div class="cta">
+      <a class="btn solid big" href="signup" data-needs-server>Plan your first season</a>
+      <a class="btn glassy big" href="demo" id="demoLink">Watch a recorded season</a>
+    </div>
+  </div>
+  <p class="hero-caption" id="heroCaption">The farm in this view is the simulation itself, replaying a recorded season.</p>
+</section>
+
+<section class="band" id="how">
+  <div class="wrap">
+    <h2>How a season runs</h2>
+    <p class="intro">The scientist never sees the true crop traits or the faults we hide in the field. It works from sensors, drone images, harvests and tests, the way an agronomist would.</p>
+    <ol class="steps">
+      <li><span class="when">Trial season</span><h3>Trial plots</h3><p>Sixteen small plots, each with a predicted yield range written down before planting. A saline plot exposes salt tolerance; a late sowing exposes heat at flowering.</p></li>
+      <li><span class="when">After the trials</span><h3>Calibrate</h3><p>Missed predictions update its beliefs about four hidden traits per crop, and only for traits a plot actually tested.</p></li>
+      <li><span class="when">Before sowing</span><h3>Plan for a bad year</h3><p>It chooses sowing day, irrigation, water blend and nitrogen for every field, maximising the people fed in the worst tenth of years, within the water and energy limits.</p></li>
+      <li><span class="when">Before sowing</span><h3>Learn an irrigation policy</h3><p>Reinforcement learning inside its own model of the farm: about 40,000 imagined seasons in a minute. It uses the policy only if it beats the fixed rule.</p></li>
+      <li><span class="when">October to June</span><h3>Run and check</h3><p>Every day its model runs beside the farm. When a field drifts out of the predicted band, it stops, tests competing explanations, repairs the cause and corrects itself.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band alt" id="crops">
+  <div class="wrap">
+    <h2>Ten crops, three sowing seasons</h2>
+    <p class="intro">The growing year runs from October to June. Pick a season for each field and the crops that can be sown in it; the scientist plans everything else and tells you how your choice compares with its own.</p>
+    <div class="calendar" id="calendar" role="img" aria-label="Sowing windows and growing periods of the ten crops through the year"></div>
+    <div class="cal-legend" id="calLegend"></div>
+    <div class="picker-demo">
+      <div class="pd-copy">
+        <h3>You pick, it plans</h3>
+        <p>For each of the six fields you can choose a crop and its sowing season, leave the field fallow, or let the scientist decide. Each crop card shows its sowing window, days to harvest, what it covers (calories, protein or vitamin A) and the yield the model expects on every field.</p>
+        <p>A person counts as fed only when all three needs are met, so a farm of wheat alone feeds nobody. The planner keeps your crops and balances the rest.</p>
+      </div>
+      <div class="pd-mock" aria-label="Example of the field picker">
+        <div class="pd-row"><b>F1</b><span>North, loamy sand</span><em class="chip s-winter">Wheat, winter</em></div>
+        <div class="pd-row"><b>F2</b><span>Palm edge, sandy loam</span><em class="chip s-autumn">Maize, autumn</em></div>
+        <div class="pd-row"><b>F3</b><span>Dune, sand</span><em class="chip s-autumn">Sweet potatoes, autumn</em></div>
+        <div class="pd-row"><b>F4</b><span>Old wadi, saline</span><em class="chip s-late_winter">Sorghum, late winter</em></div>
+        <div class="pd-row"><b>F5</b><span>Loam block</span><em class="chip sci">Scientist decides</em></div>
+        <div class="pd-row"><b>F6</b><span>Sabkha rim, very saline</span><em class="chip sci">Scientist decides</em></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="results">
+  <div class="wrap">
+    <h2>Tested on 25 farms with hidden faults</h2>
+    <p class="intro">Each test farm has its own hidden crop traits, drip systems and weather year. On day 90 we clog a drip line, release pests, salt the groundwater or send a heat wave, without telling the scientist.</p>
+    <div class="results">
+      <table>
+        <thead><tr><th>Scientist</th><th class="n">People fed per season</th><th class="n">Groundwater, m³</th><th class="n">Energy, kWh</th><th class="n">Within limits</th></tr></thead>
+        <tbody>
+          <tr><td>With the learned irrigation policy</td><td class="n"><b>423</b></td><td class="n"><b>53,830</b></td><td class="n"><b>76,843</b></td><td class="n">24 of 25</td></tr>
+          <tr><td>With the fixed irrigation rule</td><td class="n">422</td><td class="n">56,208</td><td class="n">83,413</td><td class="n">22 of 25</td></tr>
+          <tr><td>Ignoring its alarms</td><td class="n">414</td><td class="n">55,851</td><td class="n">79,881</td><td class="n">21 of 25</td></tr>
+          <tr><td>Skipping the trial plots</td><td class="n">372</td><td class="n">56,256</td><td class="n">82,856</td><td class="n">21 of 25</td></tr>
+        </tbody>
+      </table>
+      <ul class="facts">
+        <li>Every hidden fault was detected, at a median of 13 to 20 days, and its cause named correctly.</li>
+        <li>Experimenting first feeds about 50 more people a year from the same land and water.</li>
+        <li>The irrigation policy never saw the real farm. It learned only inside the scientist's own model.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="band alt" id="meta">
+  <div class="wrap two">
+    <div>
+      <h2>Built on Meta's models</h2>
+      <p class="intro">The language model decides; numerical code does the agronomy; budgets bound every action. Every decision and its reason goes into a hash-chained ledger anyone can verify.</p>
+    </div>
+    <dl class="models">
+      <div><dt>Muse Spark</dt><dd>The scientist. It runs the farm through tool calls: hypotheses, trial designs, field tests, repairs, conclusions.</dd></div>
+      <div><dt>SAM 3.1</dt><dd>Reads the drone images: counts plants, finds white salt crust and brown leaf damage.</dd></div>
+      <div><dt>Muse Glimmer</dt><dd>The open-weight scientist, with the same tools, on your own GPU.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>Built for the Meta Global AI Developer Hackathon. <a href="https://github.com/MoAmrYehia/WorldLab">Source on GitHub</a>.</p>
+    <p class="fine">Crop and nutrition values are approximate published figures. A demonstration of method, not agronomic advice.</p>
+  </div>
+</footer>
+
+<script type="module" src="site.js"></script>
+<script type="module" src="hero.js"></script>
+</body>
+</html>

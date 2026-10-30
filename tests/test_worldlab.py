@@ -194,6 +194,100 @@ class RLTests(unittest.TestCase):
         self.assertLessEqual(lab.water_used, lab.limits.water_quota_m3 * 1.05)
 
 
+class AccountTests(unittest.TestCase):
+    def test_signup_login_and_sessions(self):
+        from worldlab.accounts import Accounts, AuthError
+        acc = Accounts(":memory:")
+        u = acc.signup("Mo@Example.com", "longenough1", "Mo")
+        self.assertEqual(u["email"], "mo@example.com")
+        with self.assertRaises(AuthError):
+            acc.signup("mo@example.com", "longenough1", "Mo again")
+        with self.assertRaises(AuthError):
+            acc.signup("x@example.com", "short", "X")
+        with self.assertRaises(AuthError):
+            acc.login("mo@example.com", "wrong-password")
+        self.assertEqual(acc.login("mo@example.com", "longenough1")["id"], u["id"])
+        tok = acc.new_session(u["id"])
+        self.assertEqual(acc.user_for(tok)["name"], "Mo")
+        stored = acc.db.execute("SELECT token FROM sessions").fetchone()[0]
+        self.assertNotEqual(stored, tok)                      # only a digest is stored
+        acc.end_session(tok)
+        self.assertIsNone(acc.user_for(tok))
+
+
+class CropChoiceTests(unittest.TestCase):
+    def test_plan_keeps_the_farmers_crops_and_reports_the_alternative(self):
+        lab = Lab(Farm(seed=7))
+        lab.set_crop_choices([{"mode": "crop", "crop": "wheat", "season": "winter"}, {"mode": "fallow"}, None,
+                              {"mode": "crop", "crop": "sorghum", "season": "late_winter"}, None, None])
+        p = lab.plan_season("test")
+        f = {x["field"]: x for x in p["fields"]}
+        self.assertEqual(f["F1"]["crop"], "wheat")
+        self.assertGreaterEqual(f["F1"]["mgmt"]["sow"], 46)
+        self.assertIsNone(f["F2"]["crop"])
+        self.assertEqual(f["F4"]["crop"], "sorghum")
+        self.assertGreaterEqual(p["scientist_choice"]["people_p10"], p["people_p10"] - 1e-6)
+
+    def test_out_of_season_crop_is_refused(self):
+        from worldlab.lab import normalize_choices
+        with self.assertRaises(ValueError):
+            normalize_choices([{"mode": "crop", "crop": "rice", "season": "autumn"}])
+        from worldlab.farm.seasons import crops_for
+        self.assertIn("wheat", crops_for("winter"))
+        self.assertNotIn("rice", crops_for("winter"))
+
+
+class ServerTests(unittest.TestCase):
+    def test_accounts_pages_and_a_run_over_http(self):
+        import http.cookiejar
+        import threading
+        import urllib.error
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from worldlab.server import App, make_handler
+        from worldlab.session import Settings
+        app = App(Settings(agent="scripted", speed=0, perception="sim"), tempfile.mkdtemp())
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        jar = http.cookiejar.CookieJar()
+        op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **k):
+                return None
+
+        def post(path, body, headers=None):
+            req = urllib.request.Request(base + path, json.dumps(body).encode(), {"Content-Type": "application/json", **(headers or {})})
+            try:
+                with op.open(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.build_opener(NoRedirect).open(base + "/app")
+            self.assertEqual(cm.exception.code, 302)
+            self.assertEqual(urllib.request.urlopen(base + "/").status, 200)
+            self.assertEqual(post("/api/start", {})[0], 401)
+            st, d = post("/api/auth/signup", {"name": "Mo", "email": "mo@example.com", "password": "longenough1"})
+            self.assertEqual(st, 200, d)
+            self.assertEqual(post("/api/start", {}, {"Origin": "http://evil.example"})[0], 403)
+            st, d = post("/api/start", {"agent": "scripted", "choices": [{"mode": "crop", "crop": "rice", "season": "autumn"}]})
+            self.assertEqual(st, 400)
+            st, d = post("/api/start", {"agent": "scripted", "speed": 60, "choices": [{"mode": "crop", "crop": "maize", "season": "autumn"}]})
+            self.assertEqual(st, 200, d)
+            app.slot(1).session.thread.join(timeout=600)
+            with op.open(base + "/api/runs") as r:
+                runs = json.loads(r.read())["runs"]
+            self.assertEqual(runs[0]["result"]["people_fed"] > 0, True)
+            self.assertEqual(runs[0]["choices"][0]["crop"], "maize")
+            with op.open(base + f"/api/runs/{runs[0]['id']}/replay") as r:
+                self.assertTrue(json.loads(r.read())["messages"])
+        finally:
+            httpd.shutdown()
+
+
 class PerceptionTests(unittest.TestCase):
     def test_parse_sam_output(self):
         text = ("<0f>0<|box;x1=211;y1=228;x2=270;y2=254;w=320;h=334;c=0.96|><|mask;x=0;y=0;data=27,60,!!!!M|>"

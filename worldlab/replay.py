@@ -12,6 +12,14 @@ DROP_LEDGER = {"trial_options"}              # large and not shown
 
 
 def export(run_dir: str | Path, out: str | Path, max_images: int = 8, note: str | None = None) -> dict:
+    data = build(run_dir, max_images, note)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    return {**data["meta"], "bytes": out.stat().st_size, "file": str(out)}
+
+
+def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> dict:
     run_dir = Path(run_dir)
     src = run_dir / "events.jsonl"
     msgs, images, agent = [], 0, None
@@ -41,7 +49,4 @@ def export(run_dir: str | Path, out: str | Path, max_images: int = 8, note: str 
     meta = {"agent": agent, "run": run_dir.name, "exported": time.strftime("%Y-%m-%d %H:%M"), "messages": len(msgs)}
     if note:
         meta["note"] = note
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"meta": meta, "messages": msgs}, separators=(",", ":")), encoding="utf-8")
-    return {**meta, "bytes": out.stat().st_size, "file": str(out)}
+    return {"meta": meta, "messages": msgs}

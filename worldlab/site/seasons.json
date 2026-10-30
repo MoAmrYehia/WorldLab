@@ -1,0 +1,254 @@
+{
+ "seasons": [
+  {
+   "id": "autumn",
+   "label": "Autumn sowing",
+   "start": 0,
+   "end": 45,
+   "about": "Sow from 1 October to 15 November, as the heat breaks. Warm-season crops finish before the spring heat."
+  },
+  {
+   "id": "winter",
+   "label": "Winter sowing",
+   "start": 46,
+   "end": 91,
+   "about": "Sow from 16 November to 31 December. The coolest months suit wheat, potatoes and beans."
+  },
+  {
+   "id": "late_winter",
+   "label": "Late-winter sowing",
+   "start": 116,
+   "end": 165,
+   "about": "Sow from 25 January to 15 March. Heat-loving crops grow into the spring and are harvested by June."
+  }
+ ],
+ "summer": {
+  "id": "summer",
+  "label": "Summer",
+  "about": "July to September: fields rest. Daytime highs above 45 \u00b0C make open-field crops a poor use of water."
+ },
+ "crops": [
+  {
+   "crop": "wheat",
+   "label": "Wheat",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      30,
+      45
+     ],
+     "cycle_days": 92,
+     "yield_t_ha_p50": 4.1
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      75
+     ],
+     "cycle_days": 94,
+     "yield_t_ha_p50": 4.2
+    }
+   ]
+  },
+  {
+   "crop": "maize",
+   "label": "Maize",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 1.7,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      40
+     ],
+     "cycle_days": 122,
+     "yield_t_ha_p50": 9.0
+    }
+   ]
+  },
+  {
+   "crop": "potato",
+   "label": "Potato",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 1.7,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      15,
+      45
+     ],
+     "cycle_days": 73,
+     "yield_t_ha_p50": 7.7
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      60
+     ],
+     "cycle_days": 80,
+     "yield_t_ha_p50": 18.2
+    }
+   ]
+  },
+  {
+   "crop": "cassava",
+   "label": "Cassava",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 2.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      20
+     ],
+     "cycle_days": 232,
+     "yield_t_ha_p50": 9.2
+    }
+   ]
+  },
+  {
+   "crop": "beans",
+   "label": "Common beans",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 1.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      15,
+      45
+     ],
+     "cycle_days": 91,
+     "yield_t_ha_p50": 1.1
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      60
+     ],
+     "cycle_days": 97,
+     "yield_t_ha_p50": 0.9
+    }
+   ]
+  },
+  {
+   "crop": "sweet_potato",
+   "label": "Sweet potatoes",
+   "good_for": [
+    "vitamin A"
+   ],
+   "salt_threshold_ds_m": 1.5,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      40
+     ],
+     "cycle_days": 183,
+     "yield_t_ha_p50": 29.2
+    }
+   ]
+  },
+  {
+   "crop": "rice",
+   "label": "Rice",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 3.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      130,
+      160
+     ],
+     "cycle_days": 94,
+     "yield_t_ha_p50": 0.0
+    }
+   ]
+  },
+  {
+   "crop": "soybean",
+   "label": "Soybeans",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 5.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      160
+     ],
+     "cycle_days": 80,
+     "yield_t_ha_p50": 1.2
+    }
+   ]
+  },
+  {
+   "crop": "sorghum",
+   "label": "Sorghum",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.8,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      165
+     ],
+     "cycle_days": 92,
+     "yield_t_ha_p50": 6.4
+    }
+   ]
+  },
+  {
+   "crop": "millet",
+   "label": "Millet",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      165
+     ],
+     "cycle_days": 84,
+     "yield_t_ha_p50": 4.0
+    }
+   ]
+  }
+ ]
+}

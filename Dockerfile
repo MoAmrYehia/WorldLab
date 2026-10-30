@@ -1,4 +1,4 @@
-# WorldLab web app for Hugging Face Spaces (Docker SDK) or any container host.
+# WorldLab website for Hugging Face Spaces (Docker SDK) or any container host.
 FROM python:3.11-slim
 RUN useradd -m -u 1000 app
 WORKDIR /home/app/worldlab
@@ -6,7 +6,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app worldlab ./worldlab
 USER app
-ENV PYTHONUNBUFFERED=1
+# Accounts and runs live in WORLDLAB_DATA. On Hugging Face, turn on persistent storage and set it to /data
+# so accounts survive restarts. Set MODEL_API_KEY as a secret to let Muse Spark run the farm.
+ENV PYTHONUNBUFFERED=1 \
+    WORLDLAB_DATA=/tmp/worldlab \
+    WORLDLAB_SECURE_COOKIES=1 \
+    WORLDLAB_COOKIE_SAMESITE=None \
+    WORLDLAB_MAX_RUNS=3
 EXPOSE 7860
-# Set MODEL_API_KEY as a Space secret to run Muse Spark; without it the scripted scientist runs.
-CMD ["python", "-m", "worldlab", "serve", "--host", "0.0.0.0", "--http-port", "7860", "--runs-dir", "/tmp/runs"]
+CMD ["python", "-m", "worldlab", "serve", "--host", "0.0.0.0", "--http-port", "7860"]
