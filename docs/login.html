@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Log in to WorldLab</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+</head>
+<body class="authpage">
+<main class="auth-shell">
+  <a class="logo" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><path d="M6 20c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="11" r="3" fill="var(--belief)"/></svg>WorldLab</a>
+  <form class="card auth-form" id="authForm" data-mode="login" novalidate>
+    <h1>Log in</h1>
+    <p class="sub">Back to your farm near Al Ain.</p>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <p class="err" id="err" role="alert" hidden></p>
+    <button class="btn solid big" type="submit" id="submit">Log in</button>
+    <p class="swap">New here? <a href="signup" id="swapLink">Create an account</a></p>
+  </form>
+  <p class="aside">No account needed to <a href="demo">watch a recorded season</a>.</p>
+</main>
+<script type="module" src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# Deploys the WorldLab server (accounts, crop planning, live seasons) to a Hugging Face Space on every push to main.
+# One-time setup in this GitHub repository:
+#   Settings > Secrets and variables > Actions > Secrets:    HF_TOKEN  (a Hugging Face token with write access)
+#   Settings > Secrets and variables > Actions > Variables:  HF_SPACE  (for example moamryehia/worldlab)
+name: Deploy server to Hugging Face
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "::notice::Set the HF_TOKEN secret and the HF_SPACE variable to deploy the server."
+            exit 0
+          fi
+          cp deploy/huggingface/README.md README.md
+          rm -rf docs tests .github
+          find . -name '*.png' -not -path './.git/*' -delete
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "GitHub Actions"
+          git checkout --orphan space
+          git add -A
+          git commit -qm "Deploy ${GITHUB_SHA::7} from GitHub"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space:main

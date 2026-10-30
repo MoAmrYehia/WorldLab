@@ -1,3 +1,4 @@
+import { api, apiJson, setToken, PAGES } from "./client.js";
 // WorldLab site: account state in the nav, the log-in and sign-up forms, and the season calendar.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -5,16 +6,23 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 // ------------------------------------------------------------- server or static host
 async function me() {
   try {
-    const r = await fetch("api/me", { cache: "no-store", credentials: "same-origin" });
-    if (r.status === 200) return { server: true, user: (await r.json()).user };
-    if (r.status === 401) return { server: true, user: null };
-  } catch (e) { /* static hosting */ }
+    const r = await api("api/me");
+    const json = (r.headers.get("Content-Type") || "").includes("json");
+    if (r.status === 200 && json) return { server: true, user: (await r.json()).user };
+    if (r.status === 401 && json) return { server: true, user: null };
+  } catch (e) { /* static hosting, or the server is unreachable */ }
   return { server: false, user: null };
 }
 
 function safeNext() {
-  const n = new URLSearchParams(location.search).get("next") || "/app";
-  return n.startsWith("/") && !n.startsWith("//") ? n : "/app";
+  const n = new URLSearchParams(location.search).get("next") || PAGES.app;
+  return /^[\w./?=&%-]*$/.test(n) && !n.startsWith("//") ? n : PAGES.app;
+}
+
+function linkPages() {
+  const map = { login: PAGES.login, signup: PAGES.signup, app: PAGES.app, demo: PAGES.demo, "./": PAGES.home };
+  document.querySelectorAll("a[href]").forEach((a) => { const h = a.getAttribute("href"); if (h in map) a.setAttribute("href", map[h]); });
+  document.querySelectorAll("a.logo").forEach((a) => a.setAttribute("href", PAGES.home));
 }
 
 async function nav() {
@@ -26,13 +34,12 @@ async function nav() {
       if (a.closest(".cta")) { a.textContent = "Run it yourself"; a.href = "https://github.com/MoAmrYehia/WorldLab#quick-start"; }
       else a.remove();
     });
-    const demo = $("demoLink"); if (demo) demo.href = (document.body.dataset.app || "") + "index.html";
-    if (box) box.innerHTML = `<a class="btn solid" href="${(document.body.dataset.app || "")}index.html">Watch a season</a>`;
+    if (box) box.innerHTML = `<a class="btn solid" href="${PAGES.demo}">Watch a season</a>`;
     return;
   }
   if (st.user && box) {
-    box.innerHTML = `<span class="who">${esc(st.user.name)}</span><a class="btn solid" href="app">Open your farm</a>`;
-    document.querySelectorAll(".cta [data-needs-server]").forEach((a) => { a.textContent = "Open your farm"; a.href = "app"; });
+    box.innerHTML = `<span class="who">${esc(st.user.name)}</span><a class="btn solid" href="${PAGES.app}">Open your farm</a>`;
+    document.querySelectorAll(".cta [data-needs-server]").forEach((a) => { a.textContent = "Open your farm"; a.href = PAGES.app; });
   }
 }
 
@@ -43,7 +50,7 @@ function authForm() {
   const mode = f.dataset.mode;
   const next = safeNext();
   const swap = $("swapLink");
-  if (swap && next !== "/app") swap.href += `?next=${encodeURIComponent(next)}`;
+  if (swap && next !== PAGES.app) swap.href += `?next=${encodeURIComponent(next)}`;
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
     const err = $("err"); err.hidden = true;
@@ -51,9 +58,10 @@ function authForm() {
     if (mode === "signup" && (body.password || "").length < 8) { err.textContent = "Use a password of at least 8 characters."; err.hidden = false; $("password").focus(); return; }
     const btn = $("submit"); btn.disabled = true; const label = btn.textContent; btn.textContent = mode === "signup" ? "Creating your account…" : "Logging in…";
     try {
-      const r = await fetch(`api/auth/${mode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
-      const d = await r.json().catch(() => ({}));
+      const r = await apiJson(`api/auth/${mode}`, { method: "POST", body });
+      const d = r.data;
       if (!r.ok || !d.ok) throw new Error(d.error || "Something went wrong. Try again.");
+      setToken(d.token);
       location.href = next;
     } catch (ex) {
       err.textContent = ex.message === "Failed to fetch" ? "Can't reach the WorldLab server. Check your connection and try again." : ex.message;
@@ -107,4 +115,4 @@ function navShadow() {
   addEventListener("scroll", f, { passive: true }); f();
 }
 
-nav(); authForm(); calendar(); navShadow();
+linkPages(); nav(); authForm(); calendar(); navShadow();

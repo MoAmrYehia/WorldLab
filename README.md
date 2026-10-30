@@ -39,7 +39,7 @@ For each of the six fields you pick a season and a crop, leave it fallow, or let
 
 **Accounts** are stored in SQLite (`WORLDLAB_DATA`, default `./data`). Passwords are hashed with scrypt and a per-user salt; sessions are random tokens in an HttpOnly cookie, stored only as SHA-256 digests; cross-site POSTs are refused and repeated failed logins are throttled.
 
-**No server needed to watch a run:** `docs/` is a static copy of the landing page with the replay app in `docs/app/`. Turn on GitHub Pages for the `docs` folder, or run `python -m http.server -d docs` and open http://localhost:8000. Accounts and planning need the Python server.
+**Hosting: GitHub Pages for the website, Hugging Face for the server.** `docs/` is a static copy of the whole site (landing page, log in, sign up, and the farm app in `docs/app/`). GitHub Pages serves it; accounts, crop planning and live seasons call the Python server, which runs on a Hugging Face Space. The address of that server is set in `docs/config.js`. If the server can't be reached, the Pages site still shows the landing page and a recorded season. See [Deploy](#deploy-github-pages--hugging-face) below.
 
 Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (agriculture, food security).
 
@@ -124,16 +124,17 @@ The dock at the bottom opens the trial plots, beliefs, season plan, RL policy, a
 
 The 3D view loads three.js from cdn.jsdelivr.net, so the browser needs internet access; the panels work without it. Without an API key, the agent falls back to the **scripted scientist with RL** and drone perception to a labelled **simulated perception**. Everything else is identical.
 
-### Deploy to Hugging Face Spaces
+### Deploy: GitHub Pages + Hugging Face
 
-The repository includes a `Dockerfile` that serves the app on port 7860.
+**1. The server on a Hugging Face Space.** The `Dockerfile` serves the API (and the full site) on port 7860.
 
-1. Create a Space with the **Docker** SDK.
-2. Push this repository to it, replacing the Space's `README.md` with `deploy/huggingface/README.md` (the Space card).
-3. Optionally add `MODEL_API_KEY` as a Space secret so Muse Spark runs the farm.
-4. Turn on persistent storage and set the variable `WORLDLAB_DATA=/data`, or accounts are lost when the Space restarts.
+1. On Hugging Face, create a Space named `worldlab` with the **Docker** SDK. Its address becomes `https://<user>-worldlab.hf.space`.
+2. In the Space settings, turn on persistent storage and add the variable `WORLDLAB_DATA=/data`, so accounts survive restarts. Optionally add the secret `MODEL_API_KEY` so Muse Spark runs the farm.
+3. In this GitHub repository, add the secret `HF_TOKEN` (a Hugging Face token with write access) and the variable `HF_SPACE` (for example `moamryehia/worldlab`) under **Settings → Secrets and variables → Actions**. The workflow in `.github/workflows/huggingface.yml` then deploys the server on every push to `main`.
 
-Each visitor signs up and runs their own farm. `WORLDLAB_MAX_RUNS` (default 3) caps how many seasons run at once.
+The server only accepts browser calls from the sites in `WORLDLAB_ALLOWED_ORIGINS` (set to `https://moamryehia.github.io` in the Dockerfile). From another site the session token travels in an `Authorization` header, so login works even where third-party cookies are blocked. `WORLDLAB_MAX_RUNS` (default 3) caps how many seasons run at once.
+
+**2. The website on GitHub Pages.** Under **Settings → Pages**, choose **Deploy from a branch**, branch `main`, folder `/docs`. The site appears at `https://moamryehia.github.io/WorldLab/`. If your Space has a different address, change `SERVER` in `docs/config.js`.
 
 ### Record a replay
 
