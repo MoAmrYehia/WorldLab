@@ -36,7 +36,7 @@ import numpy as np
 
 from . import weather as WX
 from .crops import CROPS, NEEDS, NUTRIENTS, TRAIT_IDS
-from .sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL
+from .sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, cap_to_budget
 from .world import FIELDS, FIELD_HA, EC_GROUNDWATER
 
 D = WX.SEASON_DAYS
@@ -127,12 +127,13 @@ class Envs:
     Ordering is field-major, so (P*F*E) reshapes to (P, F, E)."""
 
     def __init__(self, fields_plan: list[dict], field_idx: list[int], beliefs: dict, per_field: int, seed: int,
-                 quota_m3: float, energy_kwh: float, ecgw: float = EC_GROUNDWATER):
+                 quota_m3: float, energy_kwh: float, ecgw: float = EC_GROUNDWATER, hard_budget: bool = True):
         rng = np.random.default_rng(seed)
         self.F = len(fields_plan)
         self.E = per_field
         self.field_idx = list(field_idx)
         self.quota, self.energy = float(quota_m3), float(energy_kwh)
+        self.hard_budget = bool(hard_budget)
         self.wx = WX.generate(per_field, seed)
         crops, traits = [], {k: [] for k in TRAIT_IDS}
         mg = {k: [] for k in ("sow", "density", "irr", "desal", "nfert", "mulch")}
@@ -195,7 +196,15 @@ def rollout(envs: Envs, thetas: np.ndarray, seed: int = 0) -> dict:
         mult, desal = actions(forward(thetas, obs).reshape(P * F * E, 2), meta["plan_desal"])
         sim.m["desal"] = desal
         base = sim.irrigation_demand(d)
-        sim.step(base * mult)
+        g = base * mult
+        if envs.hard_budget:          # the same actuator cap as the real farm, per imagined farm-season
+            used_w = (sim.gross_mm * vol).reshape(P, F, E).sum(1)
+            used_e = (sim.kwh_ha * FIELD_HA).reshape(P, F, E).sum(1)
+            gf = g.reshape(P, F, E).transpose(0, 2, 1)
+            df = np.broadcast_to(desal, g.shape).reshape(P, F, E).transpose(0, 2, 1)
+            gf, _ = cap_to_budget(gf, df, envs.quota - used_w, envs.energy - used_e, FIELD_HA)
+            g = gf.transpose(0, 2, 1).reshape(-1)
+        sim.step(g)
         if d % 7 == 0:
             w = (base > 0).astype(float).reshape(P, -1)
             mults.append((mult.reshape(P, -1) * w).sum(1) / np.maximum(w.sum(1), 1))
@@ -280,7 +289,9 @@ def compare(envs: Envs, theta: np.ndarray, seed: int = 7) -> dict:
                 "water_p90_m3": round(float(np.percentile(res["water"][i], 90))),
                 "energy_mean_kwh": round(float(res["kwh"][i].mean())),
                 "energy_p90_kwh": round(float(np.percentile(res["kwh"][i], 90))),
-                "years_over_quota_pct": round(100 * float((res["water"][i] > envs.quota).mean())),
+                "years_over_quota_pct": round(100 * float((res["water"][i] > envs.quota * 1.001).mean())),
+                "years_at_budget_pct": round(100 * float(((res["water"][i] >= envs.quota * 0.999) |
+                                                          (res["kwh"][i] >= envs.energy * 0.999)).mean())),
                 "reward": round(float(res["reward"][i].mean()), 2)}
     rule, pol = summ(0), summ(1)
     pct = lambda a, b: round(100 * (a / max(b, 1e-9) - 1), 1)

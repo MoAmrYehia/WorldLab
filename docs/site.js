@@ -1,4 +1,4 @@
-import { api, apiJson, setToken, PAGES } from "./client.js?v=3e51a05a34";
+import { api, apiJson, setToken, PAGES } from "./client.js?v=db3520d84a";
 // WorldLab site: account state in the nav, the log-in and sign-up forms, and the season calendar.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -21,7 +21,11 @@ function safeNext() {
 
 function linkPages() {
   const map = { login: PAGES.login, signup: PAGES.signup, app: PAGES.app, demo: PAGES.demo, "./": PAGES.home };
-  document.querySelectorAll("a[href]").forEach((a) => { const h = a.getAttribute("href"); if (h in map) a.setAttribute("href", map[h]); });
+  document.querySelectorAll("a[href]").forEach((a) => {
+    const h = a.getAttribute("href");
+    if (h in map) a.setAttribute("href", map[h]);
+    else if (h.startsWith("demo#")) a.setAttribute("href", PAGES.demo + h.slice(4));     // a view inside the recorded season
+  });
   document.querySelectorAll("a.logo").forEach((a) => a.setAttribute("href", PAGES.home));
 }
 
@@ -31,7 +35,7 @@ async function nav() {
   if (!st.server) {
     // Static copy (for example GitHub Pages): accounts need the WorldLab server.
     document.querySelectorAll("[data-needs-server]").forEach((a) => {
-      if (a.closest(".cta")) { a.textContent = "Run it yourself"; a.href = "https://github.com/MoAmrYehia/WorldLab#quick-start"; }
+      if (a.closest(".cta")) { a.textContent = "Run it locally"; a.href = "https://github.com/MoAmrYehia/WorldLab#quick-start"; a.title = "The hosted server isn't available right now; run WorldLab on your own computer"; }
       else a.remove();
     });
     if (box) box.innerHTML = `<a class="btn solid" href="${PAGES.demo}">Watch a season</a>`;
@@ -71,6 +75,12 @@ function authForm() {
 }
 
 // ------------------------------------------------------------- season calendar
+const MLEN = [31, 30, 31, 31, 28, 31, 30, 31, 30, 31, 31, 30];   // the simulator's calendar, from 1 October
+function dateOf(d) {
+  let m = 0; d = Math.max(0, Math.round(d));
+  while (m < 11 && d >= MLEN[m]) { d -= MLEN[m]; m++; }
+  return `${d + 1} ${MONTHS[m]}`;
+}
 const MONTHS = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"];
 const MONTH_START = [0, 31, 61, 92, 123, 151, 182, 212, 243, 273, 304, 335, 365];
 async function calendar() {
@@ -99,11 +109,14 @@ async function calendar() {
       const col = css(`--s-${w.season}`);
       const sowMid = (w.sow[0] + w.sow[1]) / 2;
       if (w.cycle_days) s += `<rect x="${X(sowMid)}" y="${y + 11}" width="${Math.max(2, X(Math.min(sowMid + w.cycle_days, 272)) - X(sowMid))}" height="8" rx="4" fill="${css("--ink")}" opacity="0.14"><title>${esc(c.label)}: about ${w.cycle_days} days to harvest</title></rect>`;
-      s += `<rect x="${X(w.sow[0])}" y="${y + 6}" width="${Math.max(6, X(w.sow[1]) - X(w.sow[0]))}" height="18" rx="5" fill="${col}"><title>${esc(c.label)}: sow ${w.sow[0]}–${w.sow[1]} days after 1 October</title></rect>`;
+      s += `<rect x="${X(w.sow[0])}" y="${y + 6}" width="${Math.max(6, X(w.sow[1]) - X(w.sow[0]))}" height="18" rx="5" fill="${col}"><title>${esc(c.label)}: sow ${dateOf(w.sow[0])} to ${dateOf(w.sow[1])}${w.cycle_days ? `, about ${w.cycle_days} days to harvest` : ""}</title></rect>`;
     });
   });
   s += "</svg>";
   box.innerHTML = s;
+  const SEASON = Object.fromEntries(data.seasons.map((x) => [x.id, x.label]));
+  if ($("calTable")) $("calTable").innerHTML = `<table><thead><tr><th>Crop</th><th>Sowing season</th><th>Sow between</th><th class="n">Days to harvest</th><th class="n">Typical yield, t/ha</th></tr></thead><tbody>${
+    crops.flatMap((c) => c.windows.map((w) => `<tr><td>${esc(c.label)}</td><td>${esc(SEASON[w.season] || w.season)}</td><td>${dateOf(w.sow[0])} and ${dateOf(w.sow[1])}</td><td class="n">${w.cycle_days ?? "–"}</td><td class="n">${w.yield_t_ha_p50 < 0.1 ? (w.yield_t_ha_p50 > 0 ? "&lt;0.1" : "0") : w.yield_t_ha_p50}</td></tr>`)).join("")}</tbody></table><p class="fine">Typical yield: median across the six fields, published crop values, fresh weight.</p>`;
   $("calLegend").innerHTML = data.seasons.map((x) => `<span style="--c:var(--s-${x.id})">${esc(x.label)}</span>`).join("") + `<span class="grow">Growing to harvest, typical</span>`;
 }
 

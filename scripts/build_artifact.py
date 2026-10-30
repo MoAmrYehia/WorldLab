@@ -68,7 +68,7 @@ if not app_only:
         page(root / "site" / name, out / name,
              lambda h: h.replace('<link rel="stylesheet" href="site.css">', '<link rel="stylesheet" href="site.css">\n<script src="config.js"></script>'))
     for f in ("site.css", "seasons.json", "favicon.svg", "favicon.ico", "apple-touch-icon.png", "icon-192.png",
-              "icon-512.png", "og-image.jpg", "site.webmanifest"):
+              "icon-512.png", "og-image.jpg", "site.webmanifest", "hero-still.jpg"):
         shutil.copy(root / "site" / f, out / f)
     # search engines: a sitemap of the public pages (login and sign-up are noindex)
     base = "https://moamryehia.github.io/WorldLab/"

@@ -37,11 +37,20 @@
 </head>
 <body>
 <div id="stage" aria-label="3D farm. Drag to orbit, scroll to zoom, click a field to inspect it."></div>
-<div id="noGL" class="panel nogl" hidden>
-  <b>The 3D world could not start.</b>
-  <span id="noGLWhy">It needs WebGL and access to cdn.jsdelivr.net.</span>
-  <span>The panels still show the season.</span>
+<div id="map2d" class="map2d" hidden aria-label="Field map (2D)"></div>
+<div id="noGL" class="nogl" hidden>
+  <b>2D field map</b>
+  <span id="noGLWhy">The 3D view needs WebGL and access to cdn.jsdelivr.net.</span>
+  <button class="ghost sm" id="retry3d" type="button">Try 3D again</button>
 </div>
+<nav class="bottom-nav" id="bottomNav" aria-label="Sections">
+  <button type="button" data-view="farm" aria-current="page">Farm</button>
+  <button type="button" data-view="plan">Plan</button>
+  <button type="button" data-view="research">Research</button>
+  <button type="button" data-view="incidents">Incidents</button>
+  <button type="button" data-view="agent">Agent</button>
+  <button type="button" data-view="results">Results</button>
+</nav>
 
 <header class="topbar">
   <a class="brand home-link" href="./">
@@ -49,11 +58,12 @@
     <span class="wordmark">WorldLab</span><span class="sub">Green Frontier</span>
   </a>
   <nav class="tabs" aria-label="Sections">
-    <a class="home-link" href="./">Overview</a>
-    <button class="on" id="navSim" type="button">Simulator</button>
-    <button id="navMissions" type="button">Missions</button>
-    <button id="navResearch" type="button">Research</button>
-    <button id="navAgent" type="button">Agent</button>
+    <button type="button" data-view="farm" aria-current="page">Farm</button>
+    <button type="button" data-view="plan">Plan</button>
+    <button type="button" data-view="research">Research</button>
+    <button type="button" data-view="incidents">Incidents</button>
+    <button type="button" data-view="agent">Agent</button>
+    <button type="button" data-view="results">Results</button>
   </nav>
   <div class="tb-right">
     <span class="modechip" id="modeChip">Recorded season</span>
@@ -66,6 +76,30 @@
     </button>
   </div>
 </header>
+
+<!-- run header and transport: always visible -->
+<div class="transport" id="transport" role="region" aria-label="Run controls">
+  <span class="run-state" id="runState" aria-live="polite">Loading</span>
+  <span class="prov-chip" id="provChip" title="Who decides, what reads the drone images, what controls irrigation"></span>
+  <div class="tp-ctrl" id="replayControls" hidden>
+    <button class="tp-btn" id="prevEvt" type="button" aria-label="Previous event" title="Previous event">&#8249;</button>
+    <button class="primary sm" id="playBtn" type="button">Play</button>
+    <button class="tp-btn" id="nextEvt" type="button" aria-label="Next event" title="Next event">&#8250;</button>
+    <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    <input id="dateScrub" type="range" min="0" max="1000" value="0" aria-label="Season date" aria-valuetext="Before sowing">
+    <span class="tp-date" id="tpDate">Before sowing</span>
+    <button class="ghost sm" id="jumpIncident" type="button">Incident</button>
+    <button class="ghost sm" id="jumpHarvest" type="button">Harvest</button>
+  </div>
+  <div class="tp-ctrl" id="liveControls" hidden>
+    <span class="tp-date" id="tpDateLive"></span>
+    <label class="speed">Days per second <input id="speed" type="range" min="1" max="30" value="12"></label>
+    <button class="ghost sm" id="stopBtn" type="button" hidden>Stop</button>
+    <button class="primary sm" id="planBtn" type="button">Plan a new season</button>
+  </div>
+  <button class="primary sm" id="reportBtn" type="button" hidden>Harvest report</button>
+  <span class="tp-metrics" id="tpMetrics"></span>
+</div>
 
 <div class="incident" id="incident" role="alert" hidden>
   <span class="dot" aria-hidden="true"></span><b>Incident detected</b><span id="incidentText"></span>
@@ -80,16 +114,10 @@
     <h1 class="headline" id="headline">Build a better harvest.</h1>
     <p class="lede" id="lede">Choose crops for the season, then watch the AI scientist experiment, plan, run the farm and recover from what goes wrong.</p>
     <ol class="chapters" id="chapters"></ol>
-    <div class="controls" id="liveControls" hidden>
-      <button class="primary" id="planBtn" type="button">Plan a new season</button>
-      <button class="ghost" id="stopBtn" type="button" hidden>Stop</button>
-      <label class="speed">Days per second <input id="speed" type="range" min="1" max="30" value="12"></label>
-    </div>
-    <div class="controls" id="replayControls" hidden>
-      <button class="primary" id="playBtn" type="button">Play</button>
-      <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
-      <button class="ghost" id="tryPlanBtn" type="button">Season planner</button>
-      <a class="ghost" id="demoCta" href="signup">Plan your own season</a>
+    <p class="outcome" id="outcome" hidden></p>
+    <div class="controls" id="demoControls" hidden>
+      <button class="ghost" id="tryPlanBtn" type="button">Open the planner (preview)</button>
+      <a class="ghost" id="demoCta" href="signup">Start your own farm</a>
     </div>
     <p class="note" id="modeNote"></p>
   </div>
@@ -101,50 +129,51 @@
   <div class="pbody">
     <div class="lives">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5M10.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5"/></svg>
-      <div><span class="eyebrow" id="livesLabel">Lives sustained</span><b id="livesN">–</b><span class="lives-sub" id="livesSub">people fed in a bad year</span></div>
+      <div><span class="eyebrow" id="livesLabel">People fed</span><b id="livesN">–</b><span class="lives-sub" id="livesSub">modelled person-years</span></div>
     </div>
+    <dl class="stages" id="stages" aria-label="Planned, projected and realised"></dl>
+    <div class="nutrients" id="nutrients" aria-label="Coverage by nutrient"></div>
     <p class="limit" id="limitNote"></p>
     <ul class="metrics">
-      <li><span>Groundwater</span><b id="waterTxt">–</b><i class="bar water"><i id="waterBar"></i></i></li>
-      <li><span>Energy</span><b id="energyTxt">–</b><i class="bar energy"><i id="energyBar"></i></i></li>
-      <li><span>People fed, goal 500</span><b id="goalTxt">–</b><i class="bar people"><i id="goalBar"></i></i></li>
+      <li><span>Groundwater</span><b id="waterTxt">–</b><i class="bar water"><i id="waterBar"></i><i class="fc" id="waterFc"></i></i><small id="waterSub"></small></li>
+      <li><span>Energy</span><b id="energyTxt">–</b><i class="bar energy"><i id="energyBar"></i><i class="fc" id="energyFc"></i></i><small id="energySub"></small></li>
       <li class="row"><span>Irrigation control</span><span class="pill" id="ctrlPill">Fixed rule</span></li>
     </ul>
+    <p class="budget-note" id="budgetNote"></p>
     <div class="scientist">
       <div class="sc-head"><span class="sc-avatar" aria-hidden="true"></span><div><b>AI scientist</b><span id="agentName"></span></div><span class="live" id="scLive">Idle</span></div>
       <p class="sc-quote" id="scQuote">Waiting for the season to start.</p>
-      <button class="ghost sm" id="reasoningBtn" type="button">View reasoning</button>
+      <button class="ghost sm" id="reasoningBtn" type="button">Decision record</button>
     </div>
   </div>
 </aside>
 
 <!-- bottom dock: field analytics, timeline, activity -->
 <section class="panel dock" id="dock" aria-label="Season details">
-  <div class="dock-tabs" role="tablist">
-    <button role="tab" data-dt="fields" class="on">Field analytics</button>
-    <button role="tab" data-dt="timeline">Season timeline</button>
-    <button role="tab" data-dt="activity">Recent activity</button>
-    <button role="tab" data-dt="drone" id="droneTab">Drone feed <i class="rec-dot" id="droneDot" hidden></i></button>
+  <div class="dock-tabs" role="tablist" aria-label="Season details">
+    <button role="tab" data-dt="fields" class="on" id="dt-fields" aria-selected="true" aria-controls="dp-fields">Field analytics</button>
+    <button role="tab" data-dt="timeline" id="dt-timeline" aria-selected="false" aria-controls="dp-timeline" tabindex="-1">Season timeline</button>
+    <button role="tab" data-dt="activity" id="dt-activity" aria-selected="false" aria-controls="dp-activity" tabindex="-1">Recent activity</button>
+    <button role="tab" data-dt="drone" id="droneTab" aria-selected="false" aria-controls="dp-drone" tabindex="-1">Drone feed <i class="rec-dot" id="droneDot" hidden></i></button>
     <button class="collapse" type="button" aria-label="Collapse details" data-collapse="dock">–</button>
   </div>
   <div class="dock-body">
-    <div class="dt-pane" data-pane="fields">
+    <div class="dt-pane" data-pane="fields" id="dp-fields" role="tabpanel" aria-labelledby="dt-fields">
       <div class="metric-tabs" id="metricTabs">
-        <button data-m="health" class="on">Crop health</button><button data-m="moisture">Soil moisture</button><button data-m="salinity">Salinity</button><button data-m="water">Irrigation</button>
+        <button data-m="health" class="on">Canopy vs model</button><button data-m="moisture">Soil moisture</button><button data-m="salinity">Salinity</button><button data-m="water">Irrigation</button>
       </div>
       <div class="gauges" id="gauges"></div>
     </div>
-    <div class="dt-pane" data-pane="timeline" hidden>
+    <div class="dt-pane" data-pane="timeline" id="dp-timeline" role="tabpanel" aria-labelledby="dt-timeline" hidden>
       <div class="timeline" id="timeline"><div class="tl-track"><i class="tl-fill" id="tlFill"></i></div><div class="tl-months" id="tlMonths"></div></div>
-      <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Replay position" hidden>
     </div>
-    <div class="dt-pane" data-pane="activity" hidden><ol class="activity" id="activity"></ol></div>
-    <div class="dt-pane" data-pane="drone" hidden>
+    <div class="dt-pane" data-pane="activity" id="dp-activity" role="tabpanel" aria-labelledby="dt-activity" hidden><ol class="activity" id="activity"></ol></div>
+    <div class="dt-pane" data-pane="drone" id="dp-drone" role="tabpanel" aria-labelledby="droneTab" hidden>
       <div class="drone-feed">
         <figure class="df-view">
           <div class="df-frame"><canvas id="droneLive" aria-label="Live 3D view from the drone's camera"></canvas>
-            <span class="df-hud tl"><i class="live"></i>Live</span><span class="df-hud br" id="dfLiveTxt">On patrol</span></div>
-          <figcaption>The drone's camera in the 3D farm, live</figcaption>
+            <span class="df-hud tl" id="dfLiveTag"><i class="live"></i>3D camera</span><span class="df-hud br" id="dfLiveTxt">On patrol</span></div>
+          <figcaption id="dfLiveCap">The drone's camera in the 3D farm</figcaption>
         </figure>
         <figure class="df-view">
           <div class="df-frame"><img id="dfImg" alt="" hidden><p class="df-empty" id="dfEmpty">Frames appear here as the drone surveys the fields.</p>
@@ -163,16 +192,20 @@
   <div class="pbody">
     <p class="fi-sub" id="fiSub"></p>
     <div class="fi-cams"><button class="ghost sm" id="fiFocus" type="button">Focus</button><button class="ghost sm" id="fiClose2" type="button">Close-up</button><button class="ghost sm" id="fiDrone" type="button">Drone view</button></div>
-    <div class="legend"><span class="lg model">Model, 90% band</span><span class="lg meas">Measured</span></div>
-    <figure class="chart"><figcaption>Soil moisture, top 50 cm (m³/m³)</figcaption><svg id="chSw" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
-    <figure class="chart"><figcaption>Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
-    <figure class="chart"><figcaption>Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
-    <figure class="chart short"><figcaption>Irrigation (mm per day), darker share desalinated</figcaption><svg id="chIrr" viewBox="0 0 300 40" preserveAspectRatio="none"></svg></figure>
+    <div class="legend"><span class="lg model">Model, 90% prediction band</span><span class="lg meas">Measured</span><button class="ghost sm" id="fiCsv" type="button">Download data (CSV)</button></div>
+    <p class="note">The band is where the scientist's model expects 90% of measurements to fall. Charts are keyboard-accessible: focus one and use the arrow keys.</p>
+    <figure class="chart"><figcaption id="capSw">Soil moisture, top 50 cm (m³/m³)</figcaption><svg id="chSw" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption id="capCc">Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption id="capEc">Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart short"><figcaption>Irrigation applied (mm per day, gross at the meter), darker share desalinated</figcaption><svg id="chIrr" viewBox="0 0 300 40" preserveAspectRatio="none"></svg></figure>
     <figure class="drone" id="droneFig" hidden><img id="droneImg" alt="Drone image of the field"><figcaption id="droneCap"></figcaption></figure>
     <div class="perturb" id="perturb" hidden>
-      <h3>Change the farm</h3>
-      <p>The scientist is not told. See whether its model notices.</p>
-      <div class="pbtns"><button data-kind="clog" type="button">Clog the drip line</button><button data-kind="pest" type="button">Release pests</button><button data-kind="salinity" type="button">Saltier groundwater</button><button data-kind="heatwave" type="button">Heat wave</button></div>
+      <h3>Scenario tool (operator)</h3>
+      <p>Make a hidden change to the simulated farm. The scientist is not told; see whether its model notices. The true cause is revealed after the season.</p>
+      <p class="pgrp">This field</p>
+      <div class="pbtns"><button data-kind="clog" type="button">Clog the drip line</button><button data-kind="pest" type="button">Release pests</button></div>
+      <p class="pgrp">Whole farm</p>
+      <div class="pbtns"><button data-kind="salinity" type="button">Saltier groundwater</button><button data-kind="heatwave" type="button">Heat wave</button></div>
     </div>
   </div>
 </aside>
@@ -192,7 +225,7 @@
   </div>
   <div class="vb-group" role="group" aria-label="Scientific overlay">
     <button type="button" data-ov="" class="on" title="Realistic view (V cycles)">Realistic</button>
-    <button type="button" data-ov="health">Health</button>
+    <button type="button" data-ov="health">Canopy</button>
     <button type="button" data-ov="moisture">Moisture</button>
     <button type="button" data-ov="salinity">Salinity</button>
     <button type="button" data-ov="water">Water</button>
@@ -206,10 +239,12 @@
   <label>Quality <select id="qualitySel"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
   <p class="fps" id="fpsTxt">Measuring frame rate…</p>
   <label>Time of day <select id="timeSel"><option value="golden">Golden hour</option><option value="morning">Morning</option><option value="noon">Noon</option><option value="night">Night</option></select></label>
-  <p class="note">The simulation steps whole days; time of day is a viewing choice.</p>
+  <p class="note">Time of day only changes the view. It does not change the simulated weather or crop growth.</p>
   <label class="check"><input type="checkbox" id="labelsChk" checked> Field labels</label>
+  <label class="check"><input type="checkbox" id="followChk" checked> Camera follows events</label>
+  <label class="ov-mobile">Overlay <select id="ovSel"><option value="">Realistic</option><option value="health">Canopy vs model</option><option value="moisture">Soil moisture</option><option value="salinity">Salinity</option><option value="water">Irrigation</option></select></label>
   <button class="ghost sm" id="tourBtn" type="button">Replay the guided tour</button>
-  <p class="note">Keys: 1–6 fields, O overview, D drone, R reset, V overlay, I close-up, Space play or pause.</p>
+  <p class="note">Keys: 1–6 fields, O overview, D drone, R reset, V overlay, I close-up, Space play or pause, [ and ] previous and next event. Mouse: drag to orbit, scroll to zoom, right-drag to pan. Touch: drag, pinch, two-finger pan.</p>
 </div>
 <div class="panel popover" id="profile" hidden>
   <p id="profileName">Not signed in</p>
@@ -221,19 +256,22 @@
 
 <!-- large drawers -->
 <section class="panel drawer" id="drawer" hidden role="dialog" aria-modal="false" aria-labelledby="drawerTitle">
-  <div class="ph"><h2 id="drawerTitle"></h2><div class="drawer-tabs" id="drawerTabs"></div><button class="collapse" id="drawerClose" type="button" aria-label="Close">×</button></div>
+  <div class="ph"><h2 id="drawerTitle" tabindex="-1"></h2><div class="drawer-tabs" id="drawerTabs"></div><button class="collapse" id="drawerClose" type="button" aria-label="Close">×</button></div>
   <div class="drawer-body" id="drawerBody"></div>
 </section>
 
 <!-- season planner -->
-<div class="planner" id="planner" hidden role="dialog" aria-modal="true" aria-labelledby="plannerTitle">
+<div class="planner" id="planner" hidden role="dialog" aria-modal="true" aria-labelledby="plannerTitle" tabindex="-1">
   <aside class="panel pl-left">
     <p class="eyebrow">Season planner</p>
     <h2 id="plannerTitle">Plan your season</h2>
-    <p class="lede">Pick a sowing season, choose a crop, then click fields in the 3D view (or use the list) to sow it. Fields you leave open are planned by the scientist.</p>
+    <p class="preview-banner" id="previewBanner" hidden></p>
+    <p class="note pl-how">Pick a sowing season and a crop card, then sow it on fields here or in the map. Fields you leave open are planned by the scientist.</p>
     <div class="seasons" id="seasonTabs" role="tablist" aria-label="Sowing season"></div>
     <p class="note" id="seasonAbout"></p>
+    <div class="pl-tools"><button class="ghost sm" id="plUndo" type="button" disabled>Undo</button><button class="ghost sm" id="plClear" type="button">Leave all to the scientist</button></div>
     <ol class="pl-fields" id="fieldRows"></ol>
+    <div class="pl-summary" id="plSummary" aria-live="polite"></div>
     <label class="pl-agent">Scientist
       <select id="agentSel"><option value="scripted-rl">Scripted scientist with RL</option><option value="scripted">Scripted scientist</option><option value="spark">Muse Spark</option><option value="glimmer">Muse Glimmer</option></select>
     </label>
@@ -246,19 +284,9 @@
   </section>
 </div>
 
-<!-- season results -->
-<div class="results-wrap" id="results" hidden role="dialog" aria-modal="true" aria-labelledby="resTitle">
-  <section class="panel results">
-    <p class="eyebrow">Season complete</p>
-    <h2 id="resTitle">Harvest</h2>
-    <div class="res-body" id="resBody"></div>
-    <div class="res-actions"><button class="ghost" id="resReplay" type="button">Watch again</button><button class="primary" id="resPlan" type="button">Plan the next season</button><button class="ghost" id="resClose" type="button">Close</button></div>
-  </section>
-</div>
-
 <div class="toasts" id="toasts" aria-live="polite"></div>
-<div class="tour" id="tour" hidden><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
-<div class="tip" id="tip" hidden></div>
+<div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
+<div class="tip" id="tip" hidden role="tooltip"></div>
 
 <script type="module" src="app.js"></script>
 </body>

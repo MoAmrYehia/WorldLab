@@ -28,8 +28,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=3e51a05a34">
-<script src="config.js?v=3e51a05a34"></script>
+<link rel="stylesheet" href="site.css?v=db3520d84a">
+<script src="config.js?v=db3520d84a"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -46,7 +46,7 @@
   <nav class="links" aria-label="Sections">
     <a href="#how">How it works</a>
     <a href="#crops">Crops and seasons</a>
-    <a href="#results">Results</a>
+    <a href="#results">Benchmark</a>
     <a href="#ai">The AI</a>
   </nav>
   <div class="auth" id="navAuth">
@@ -61,9 +61,10 @@
     <h1>Grow the future. <span>Outsmart the desert.</span></h1>
     <p class="lede">Choose the crops for a 12-hectare farm near Al Ain. An AI scientist plants trial plots, learns how the crops really behave, trains its own irrigation policy, and hunts down whatever goes wrong in the field. Every decision is on the record.</p>
     <div class="cta">
-      <a class="btn solid big" href="signup" data-needs-server>Plan your first season</a>
-      <a class="btn glassy big" href="demo" id="demoLink">Watch a recorded season</a>
+      <a class="btn solid big" href="demo" id="demoLink">Explore the recorded season</a>
+      <a class="btn glassy big" href="signup" data-needs-server data-own>Start your own farm</a>
     </div>
+    <p class="prov">Recorded simulation · scripted decision protocol · learned irrigation policy · no account needed</p>
     <p class="place">Brackish groundwater, a fixed water quota, and summer highs above 45 °C.</p>
   </div>
   <p class="hero-caption" id="heroCaption">This flyover is the simulation itself, replaying a recorded season.</p>
@@ -85,14 +86,32 @@
 <section class="band" id="how">
   <div class="wrap">
     <h2>How a season runs</h2>
-    <p class="intro">The scientist never sees the true crop traits or the faults we hide in the field. It works from sensors, drone images, harvests and tests, the way an agronomist would.</p>
+    <p class="intro">The scientist never sees the true crop traits or the faults hidden in the field. It works from sensors, drone images, harvests and tests.</p>
     <ol class="steps">
-      <li><span class="when">Trial season</span><h3>Trial plots</h3><p>Up to sixteen small plots, each with a predicted yield range written down before planting. A saline plot exposes salt tolerance; a late sowing exposes heat at flowering.</p></li>
-      <li><span class="when">After the trials</span><h3>Calibrate</h3><p>Missed predictions update its beliefs about four hidden traits per crop, and only for traits a plot actually tested.</p></li>
-      <li><span class="when">Before sowing</span><h3>Plan for a bad year</h3><p>It chooses sowing day, irrigation, water blend and nitrogen for every field, maximising the people fed in the worst tenth of years, within the water and energy limits.</p></li>
-      <li><span class="when">Before sowing</span><h3>Learn an irrigation policy</h3><p>Reinforcement learning inside its own model of the farm: about 40,000 imagined seasons in a minute. It uses the policy only if it beats the fixed rule.</p></li>
-      <li><span class="when">October to June</span><h3>Run and check</h3><p>Every day its model runs beside the farm. When a field drifts out of the predicted band, it stops, tests competing explanations, repairs the cause and corrects itself.</p></li>
+      <li><span class="when">Before sowing</span><h3>Experiment</h3><p>Plants trial plots, each with a yield range predicted first.</p><a href="demo#research/trials" data-demo>See the trial plots</a></li>
+      <li><span class="when">After the trials</span><h3>Calibrate</h3><p>Missed predictions narrow its beliefs about each crop's hidden traits.</p><a href="demo#research/traits" data-demo>See the crop traits</a></li>
+      <li><span class="when">Before sowing</span><h3>Plan</h3><p>Chooses sowing, irrigation, water blend and nitrogen for a bad year, within the limits.</p><a href="demo#plan" data-demo>See the season plan</a></li>
+      <li><span class="when">October to June</span><h3>Detect and diagnose</h3><p>Pauses when a field leaves its predicted band, then tests competing explanations.</p><a href="demo#incidents" data-demo>See the incident</a></li>
+      <li><span class="when">June</span><h3>Harvest</h3><p>Reports people fed, water and energy used, and what went wrong.</p><a href="demo#results" data-demo>See the harvest report</a></li>
     </ol>
+    <details class="more"><summary>Method details</summary>
+      <p>Trial plots are scored by how much they would reduce the yield uncertainty that matters for the plan; a saline plot exposes salt tolerance, a late sowing exposes heat at flowering. Calibration is a Bayesian fit of four traits per crop, and only traits a plot actually exposed narrow. The planner maximises the people fed in the worst tenth of simulated years. An irrigation policy is trained by reinforcement learning inside the scientist's own model (about 40,000 imagined seasons in a minute) and used only if its held-out reward beats the fixed rule. During the season an ensemble model runs beside the farm; a CUSUM detector raises an alarm when measurements drift out of its 90% band.</p>
+    </details>
+  </div>
+</section>
+
+<section class="band" id="control">
+  <div class="wrap two">
+    <div>
+      <h2>What can I control?</h2>
+      <p class="intro">In a live season you choose; in the recorded season you watch, inspect and explore.</p>
+    </div>
+    <dl class="models">
+      <div><dt>Your crop choices</dt><dd>For each of six fields: a crop and its sowing season, fallow, or leave it to the scientist. The planner warns about poor fits before you start.</dd></div>
+      <div><dt>The scientist</dt><dd>Plans management, runs experiments, investigates alarms and repairs faults. You can follow every decision, its reason and its evidence.</dd></div>
+      <div><dt>Scenario changes (live seasons)</dt><dd>Clog a drip line, release pests, salt the groundwater or send a heat wave, without telling the scientist, and see whether its model notices.</dd></div>
+      <div><dt>The recorded season</dt><dd>Play, pause, jump between events, inspect any field and open the planner as a preview. It can't be changed or re-run here.</dd></div>
+    </dl>
   </div>
 </section>
 
@@ -102,11 +121,12 @@
     <p class="intro">The growing year runs from October to June. Pick a season for each field and the crops that can be sown in it; the scientist plans everything else and tells you how your choice compares with its own.</p>
     <div class="calendar" id="calendar" role="img" aria-label="Sowing windows and growing periods of the ten crops through the year"></div>
     <div class="cal-legend" id="calLegend"></div>
+    <details class="more"><summary>Sowing calendar as a table</summary><div class="cal-table" id="calTable"></div></details>
     <div class="picker-demo">
       <div class="pd-copy">
         <h3>You pick, it plans</h3>
         <p>For each of the six fields you can choose a crop and its sowing season, leave the field fallow, or let the scientist decide. Each crop card shows its sowing window, days to harvest, what it covers (calories, protein or vitamin A) and the yield the model expects on every field.</p>
-        <p>A person counts as fed only when all three needs are met, so a farm of wheat alone feeds nobody. The planner keeps your crops and balances the rest.</p>
+        <p>"People fed" is a model metric: the number of people whose yearly calories, protein and vitamin A would all be covered by the harvest, counted by the scarcest of the three. Wheat alone supplies calories and protein but no vitamin A, so on this metric it covers nobody fully. It is not a full diet or a validated real-world impact estimate.</p>
       </div>
       <div class="pd-mock" aria-label="Example of the field picker">
         <div class="pd-row"><b>F1</b><span>North, loamy sand</span><em class="chip s-winter">Wheat, winter</em></div>
@@ -122,11 +142,12 @@
 
 <section class="band" id="results">
   <div class="wrap">
-    <h2>Tested on 25 farms with hidden faults</h2>
-    <p class="intro">Each test farm has its own hidden crop traits, drip systems and weather year. On day 90 we clog a drip line, release pests, salt the groundwater or send a heat wave, without telling the scientist.</p>
+    <h2>Benchmarked on 25 farm-scenarios with hidden faults</h2>
+    <p class="intro">5 random farm seeds × 5 scenarios per agent (none, clogged drip line, pests, saltier groundwater, forecast heat wave), 25 runs per agent. Each farm seed has its own hidden crop traits, drip systems and weather year; the change arrives on day 90 without telling the scientist. These are <b>scripted-agent</b> results; the same harness can run Muse Spark or Muse Glimmer, but those numbers are not reported here.</p>
     <div class="results">
       <table>
-        <thead><tr><th>Scientist</th><th class="n">People fed per season</th><th class="n">Groundwater, m³</th><th class="n">Energy, kWh</th><th class="n">Within limits</th></tr></thead>
+        <caption class="sr-only">Average over 25 farm-scenarios per agent</caption>
+        <thead><tr><th>Scripted agent (25 runs each)</th><th class="n">People fed, mean</th><th class="n">Groundwater, m³, mean</th><th class="n">Energy, kWh, mean</th><th class="n">Runs within both limits</th></tr></thead>
         <tbody>
           <tr><td>With the learned irrigation policy</td><td class="n"><b>423</b></td><td class="n"><b>53,830</b></td><td class="n"><b>76,843</b></td><td class="n">24 of 25</td></tr>
           <tr><td>With the fixed irrigation rule</td><td class="n">422</td><td class="n">56,208</td><td class="n">83,413</td><td class="n">22 of 25</td></tr>
@@ -135,9 +156,10 @@
         </tbody>
       </table>
       <ul class="facts">
-        <li>Every hidden fault was detected, at a median of 13 to 20 days, and its cause named correctly.</li>
-        <li>Experimenting first feeds about 50 more people a year from the same land and water.</li>
-        <li>The irrigation policy never saw the real farm. It learned only inside the scientist's own model.</li>
+        <li>All 15 hidden faults per agent (clog, pests, salty groundwater on 5 farm seeds) were detected, at a median of 13 to 20 days.</li>
+        <li>Experimenting first fed about 50 more people on average from the same land and water.</li>
+        <li>Recorded before the hard water and energy budget was added: overruns of up to 2% were possible then; new runs are curtailed at the limit.</li>
+        <li><a href="https://github.com/MoAmrYehia/WorldLab#benchmark">Method</a> and <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/runs.json">raw runs</a>.</li>
       </ul>
     </div>
   </div>
@@ -176,7 +198,7 @@
   </div>
 </footer>
 
-<script type="module" src="site.js?v=3e51a05a34"></script>
-<script type="module" src="hero.js?v=3e51a05a34"></script>
+<script type="module" src="site.js?v=db3520d84a"></script>
+<script type="module" src="hero.js?v=db3520d84a"></script>
 </body>
 </html>

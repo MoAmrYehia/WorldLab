@@ -1,11 +1,12 @@
-# Publishes the website (docs/) to the gh-pages branch, which GitHub Pages serves.
+# Tests the code, regenerates the static website from its canonical sources (worldlab/site, worldlab/dashboard),
+# checks it in a real browser, then publishes it to the gh-pages branch, which GitHub Pages serves.
 # If the repository variable HF_SPACE is set (for example moamryehia/worldlab), the site is pointed at
 # that Space's server; WORLDLAB_SERVER overrides it with any address.
 name: Publish website
 on:
   push:
     branches: [main]
-    paths: ["docs/**", ".github/workflows/pages.yml"]
+    paths: ["docs/**", "worldlab/**", "scripts/**", "tests/**", "requirements.txt", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,6 +17,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run the Python tests
+        run: |
+          pip install --quiet -r requirements.txt pytest
+          python -m pytest -q tests/
+      - name: Regenerate the static site from canonical sources
+        run: |
+          python scripts/build_site_data.py
+          python scripts/build_artifact.py docs
+          test -s docs/index.html && test -s docs/app/index.html && test -s docs/app/replay.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Browser checks on the generated site
+        run: |
+          npm install --no-save --silent playwright@1.48.2
+          npx playwright install --with-deps chromium
+          (python -m http.server -d docs 8811 >/dev/null 2>&1 &)
+          sleep 2
+          node tests/browser/smoke.js http://127.0.0.1:8811
       - name: Prepare the site
         env:
           HF_SPACE: ${{ vars.HF_SPACE }}

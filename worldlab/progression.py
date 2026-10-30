@@ -108,35 +108,48 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
                "crops": crops, "trial_plots": plots, "trial_predictions_missed": missed,
                "faults": faults, "anomalies": len(anomalies), "field_tests": len(tests)}
 
-    def obj(label, done, value=None):
-        return {"label": label, "done": bool(done), "value": value}
+    def obj(label, done, value=None, kind="required", go=None):
+        """kind: required (decides the chapter), optional (a choice, never blocks), stretch (a goal beyond completion)."""
+        return {"label": label, "done": bool(done), "value": value, "kind": kind, "go": go}
 
+    recover = [
+        obj("Detect every hidden fault", all(f["detected"] for f in faults), f"{sum(f['detected'] for f in faults)} of {len(faults)}", go="incidents"),
+        obj("Identify the true cause", all(f["diagnosed"] for f in faults), go="incidents"),
+        obj("Repair or correct the model", all(f["recovered"] for f in faults), go="incidents")] if faults else [
+        obj("No hidden faults this season", False, "nothing to recover from", kind="na")]
     chapters = [
         {"id": "discover", "title": "Discover", "about": "Study the farm and run crop experiments.", "objectives": [
-            obj("Grow trial plots", plots > 0, f"{plots} plots"),
-            obj("Calibrate the crop models", calibrated),
-            obj("Test the first hypothesis", any(e["data"].get("verdict") for e in kinds("conclusion")))]},
-        {"id": "strategize", "title": "Strategize", "about": "Choose crops and plan within the water and energy limits.", "objectives": [
-            obj("Plan the season", bool(plans), f"{plan_p10} people in a bad year" if plan_p10 is not None else None),
-            obj("Choose your own crops", bool(picked), f"{len(picked)} fields" if picked else None),
-            obj("Validate an irrigation policy", policy_ok)]},
+            obj("Grow trial plots", plots > 0, f"{plots} plots", go="trials"),
+            obj("Calibrate the crop models", calibrated, go="traits"),
+            obj("Test the first hypothesis", any(e["data"].get("verdict") for e in kinds("conclusion")), go="agent")]},
+        {"id": "strategize", "title": "Strategize", "about": "Plan crops and water within the limits.", "objectives": [
+            obj("Plan the season", bool(plans), f"{plan_p10} people in a bad year" if plan_p10 is not None else None, go="plan"),
+            obj("Choose your own crops", bool(picked), f"{len(picked)} fields" if picked else "left to the scientist", kind="optional", go="planner"),
+            obj("Validate an irrigation policy", policy_ok, kind="optional", go="rl")]},
         {"id": "survive", "title": "Survive", "about": "Run the season through heat, salt and faults.", "objectives": [
             obj("Sow the season", season_on),
             obj("Reach harvest", bool(result), f"day {min(days, SEASON_DAYS)} of {SEASON_DAYS}" if season_on else None),
             obj("Stay within the water quota", metrics["within_quota"] if result else False)]},
-        {"id": "recover", "title": "Recover", "about": "Investigate anomalies, find causes, repair, update the model.", "objectives": [
-            obj("Detect every hidden fault", faults and all(f["detected"] for f in faults), f"{sum(f['detected'] for f in faults)} of {len(faults)}" if faults else "no faults this season"),
-            obj("Identify the true cause", faults and all(f["diagnosed"] for f in faults)),
-            obj("Repair or correct the model", faults and all(f["recovered"] for f in faults))]},
+        {"id": "recover", "title": "Recover", "about": "Investigate anomalies, find causes, repair, update the model.", "objectives": recover},
         {"id": "harvest", "title": "Harvest", "about": "Judge food security, water use and resilience.", "objectives": [
-            obj(f"Feed {TARGET_PEOPLE} people", people is not None and people >= TARGET_PEOPLE, f"{people} fed" if people is not None else None),
-            obj(f"At most {WATER_TARGET_M3_PER_PERSON:.0f} m³ per person fed", w_per is not None and w_per <= WATER_TARGET_M3_PER_PERSON, f"{w_per} m³" if w_per else None),
-            obj("Harvest every field", bool(harvests) and len(harvests) >= len(crops) and bool(crops))]},
+            obj("Harvest every field", bool(harvests) and len(harvests) >= len(crops) and bool(crops), go="results"),
+            obj(f"Farm goal: feed {TARGET_PEOPLE} people", people is not None and people >= TARGET_PEOPLE, f"{people} fed" if people is not None else None, kind="stretch", go="results"),
+            obj(f"At most {WATER_TARGET_M3_PER_PERSON:.0f} m³ per person fed", w_per is not None and w_per <= WATER_TARGET_M3_PER_PERSON, f"{w_per} m³" if w_per else None, kind="stretch", go="results")]},
     ]
     for c in chapters:
-        n = sum(o["done"] for o in c["objectives"])
-        c["done"], c["progress"] = n == len(c["objectives"]), n / len(c["objectives"])
-    current = next((c["id"] for c in chapters if not c["done"]), "harvest")
+        req = [o for o in c["objectives"] if o["kind"] == "required"]
+        n = sum(o["done"] for o in req)
+        c["na"] = not req
+        c["done"] = bool(req) and n == len(req)
+        c["progress"] = n / len(req) if req else 1.0
+        c["status"] = "na" if c["na"] else "done" if c["done"] else "open"
+    if result:
+        stretch = [o for c in chapters for o in c["objectives"] if o["kind"] == "stretch"]
+        missed_goals = [o["label"] for o in stretch if not o["done"]]
+        outcome = ("Season complete" + ("; all goals met." if not missed_goals else f"; not reached: {', '.join(missed_goals)}."))
+    else:
+        outcome = None
+    current = next((c["id"] for c in chapters if c["status"] == "open"), "harvest")
     # a chapter whose phase hasn't arrived isn't "current" just because an earlier optional objective is open
     if result:
         current = "harvest"
@@ -158,7 +171,9 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
         earn("adaptive_intelligence", f"Policy deployed; season used {water:,} m³ of a quota.")
     if any(f["detected"] and f["diagnosed"] for f in faults):
         f = next(f for f in faults if f["detected"] and f["diagnosed"])
-        earn("scientific_detective", f"{f['label'].capitalize()} in {f['field']} on day {f['day']}; detected on day {f['detected_day']} and identified by test.")
+        from .farm.weather import day_label
+        dl = lambda d: day_label(d).lstrip("0")
+        earn("scientific_detective", f"{f['label'].capitalize()} in {f['field']} from {dl(f['day'])}; detected on {dl(f['detected_day'])} ({f['detected_day'] - f['day']} days later) and identified by test.")
     if result and plan_p10 is not None and any(f["recovered"] for f in faults) and people >= plan_p10:
         earn("resilience_architect", f"{people} people fed against a bad-year projection of {plan_p10}, after a {next(f['label'] for f in faults if f['recovered'])}.")
     if result and result.get("within_quota") and w_per is not None and w_per <= WATER_TARGET_M3_PER_PERSON:
@@ -185,7 +200,8 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
     if people:
         xp.append((f"{people:.0f} people fed", int(people)))
     return {"chapters": chapters, "current_chapter": current, "achievements": earned, "metrics": metrics,
-            "xp_items": [{"label": a, "xp": b} for a, b in xp], "complete": bool(result)}
+            "xp_items": [{"label": a, "xp": b} for a, b in xp], "complete": bool(result), "outcome": outcome,
+            "catalog": [{"id": k, "title": v[0], "about": v[1]} for k, v in ACHIEVEMENTS.items()]}
 
 
 def scenario_key(seed: int, choices) -> str:

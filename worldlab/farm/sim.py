@@ -296,3 +296,25 @@ def run_batch(crops, traits, mgmt, fields, wx, widx, ecgw, **kw) -> Sim:
     sim = Sim(crop_arrays(crops, traits), {k: np.asarray(v, float) for k, v in mgmt.items()},
               soil_arrays(fields), wx, widx, ecgw, **kw)
     return sim.run()
+
+
+def cap_to_budget(gross_mm: np.ndarray, desal: np.ndarray, water_left_m3, energy_left_kwh, ha: float):
+    """Hard-budget allocation rule, shared by the real farm and every imagined season.
+
+    gross_mm (..., F): today's proposed drip application per field; desal the same shape.
+    water_left_m3 / energy_left_kwh (...): what remains of the season's groundwater quota and
+    energy budget. Desalinated water is made from the same brackish groundwater (reverse
+    osmosis), so every applied cubic metre counts against the groundwater quota; recovery
+    losses in the RO plant are not modelled. If today's demand exceeds what remains, every
+    field is scaled by the same factor (proportional curtailment), so no field gets more than
+    the remaining budget allows and nothing goes negative. Returns (capped_mm, factor)."""
+    g = np.maximum(np.asarray(gross_mm, float), 0.0)
+    vol = g * 10.0 * ha
+    kwh = vol * (KWH_PUMP + KWH_DESAL * np.asarray(desal, float))
+    wl = np.maximum(np.asarray(water_left_m3, float), 0.0)
+    el = np.maximum(np.asarray(energy_left_kwh, float), 0.0)
+    need_w, need_e = vol.sum(-1), kwh.sum(-1)
+    fw = np.where(need_w > 1e-9, wl / np.maximum(need_w, 1e-9), 1.0)
+    fe = np.where(need_e > 1e-9, el / np.maximum(need_e, 1e-9), 1.0)
+    f = np.clip(np.minimum(fw, fe), 0.0, 1.0)
+    return g * np.expand_dims(f, -1), f

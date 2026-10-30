@@ -281,6 +281,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 4.14,
+       "yield_t_ha_p10": 3.55,
+       "yield_t_ha_p90": 4.91,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.0,
        "water_m3_p50": 5982,
        "people_by_need_p50": {
         "calories": 36.7,
@@ -291,6 +295,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 4.32,
+       "yield_t_ha_p10": 3.82,
+       "yield_t_ha_p90": 5.1,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 6023,
        "people_by_need_p50": {
         "calories": 38.3,
@@ -301,6 +309,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 4.03,
+       "yield_t_ha_p10": 3.44,
+       "yield_t_ha_p90": 4.76,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.1,
        "water_m3_p50": 5949,
        "people_by_need_p50": {
         "calories": 35.8,
@@ -311,6 +323,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 3.74,
+       "yield_t_ha_p10": 3.41,
+       "yield_t_ha_p90": 4.57,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.0,
        "water_m3_p50": 5957,
        "people_by_need_p50": {
         "calories": 33.1,
@@ -321,6 +337,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 4.34,
+       "yield_t_ha_p10": 3.91,
+       "yield_t_ha_p90": 5.19,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
        "water_m3_p50": 6046,
        "people_by_need_p50": {
         "calories": 38.5,
@@ -331,6 +351,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 3.07,
+       "yield_t_ha_p10": 2.74,
+       "yield_t_ha_p90": 3.83,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.9,
        "water_m3_p50": 5800,
        "people_by_need_p50": {
         "calories": 27.2,
@@ -359,6 +383,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 9.9,
+       "yield_t_ha_p10": 8.58,
+       "yield_t_ha_p90": 11.44,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.6,
        "water_m3_p50": 8427,
        "people_by_need_p50": {
         "calories": 94.3,
@@ -369,6 +397,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 10.88,
+       "yield_t_ha_p10": 9.46,
+       "yield_t_ha_p90": 12.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.5,
        "water_m3_p50": 8548,
        "people_by_need_p50": {
         "calories": 103.6,
@@ -379,6 +411,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 11.26,
+       "yield_t_ha_p10": 10.16,
+       "yield_t_ha_p90": 12.71,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 2.9,
        "water_m3_p50": 8445,
        "people_by_need_p50": {
         "calories": 107.3,
@@ -389,6 +425,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 4.29,
+       "yield_t_ha_p10": 3.04,
+       "yield_t_ha_p90": 6.12,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.6,
        "water_m3_p50": 7537,
        "people_by_need_p50": {
         "calories": 40.9,
@@ -399,6 +439,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 8.15,
+       "yield_t_ha_p10": 7.39,
+       "yield_t_ha_p90": 10.37,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
        "water_m3_p50": 8457,
        "people_by_need_p50": {
         "calories": 77.6,
@@ -409,6 +453,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.1,
+       "yield_t_ha_p10": 0.01,
+       "yield_t_ha_p90": 3.19,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 8.9,
        "water_m3_p50": 4269,
        "people_by_need_p50": {
         "calories": 1.0,
@@ -437,6 +485,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 8.75,
+       "yield_t_ha_p10": 2.56,
+       "yield_t_ha_p90": 16.52,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 4.9,
        "water_m3_p50": 4550,
        "people_by_need_p50": {
         "calories": 17.6,
@@ -447,6 +499,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 9.51,
+       "yield_t_ha_p10": 2.91,
+       "yield_t_ha_p90": 18.03,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 5.3,
        "water_m3_p50": 4636,
        "people_by_need_p50": {
         "calories": 19.1,
@@ -457,6 +513,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 10.73,
+       "yield_t_ha_p10": 3.19,
+       "yield_t_ha_p90": 19.96,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 4.0,
        "water_m3_p50": 4704,
        "people_by_need_p50": {
         "calories": 21.6,
@@ -467,6 +527,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 2.69,
+       "yield_t_ha_p10": 1.02,
+       "yield_t_ha_p90": 6.07,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 6.7,
        "water_m3_p50": 3891,
        "people_by_need_p50": {
         "calories": 5.4,
@@ -477,6 +541,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 6.67,
+       "yield_t_ha_p10": 2.11,
+       "yield_t_ha_p90": 13.04,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 6.4,
        "water_m3_p50": 4339,
        "people_by_need_p50": {
         "calories": 13.4,
@@ -487,6 +555,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.05,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.31,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 9.7,
        "water_m3_p50": 2406,
        "people_by_need_p50": {
         "calories": 0.1,
@@ -515,6 +587,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 10.21,
+       "yield_t_ha_p10": 1.64,
+       "yield_t_ha_p90": 24.89,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.9,
        "water_m3_p50": 19679,
        "people_by_need_p50": {
         "calories": 42.6,
@@ -525,6 +601,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 10.58,
+       "yield_t_ha_p10": 1.72,
+       "yield_t_ha_p90": 25.68,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 6.6,
        "water_m3_p50": 19944,
        "people_by_need_p50": {
         "calories": 44.2,
@@ -535,6 +615,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 11.42,
+       "yield_t_ha_p10": 1.83,
+       "yield_t_ha_p90": 27.13,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.5,
        "water_m3_p50": 19730,
        "people_by_need_p50": {
         "calories": 47.7,
@@ -545,6 +629,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 5.24,
+       "yield_t_ha_p10": 0.85,
+       "yield_t_ha_p90": 15.47,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 6.4,
        "water_m3_p50": 18620,
        "people_by_need_p50": {
         "calories": 21.9,
@@ -555,6 +643,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 8.21,
+       "yield_t_ha_p10": 1.36,
+       "yield_t_ha_p90": 20.94,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 7.1,
        "water_m3_p50": 19633,
        "people_by_need_p50": {
         "calories": 34.3,
@@ -565,6 +657,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 1.41,
+       "yield_t_ha_p10": 0.13,
+       "yield_t_ha_p90": 11.41,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.9,
        "water_m3_p50": 16438,
        "people_by_need_p50": {
         "calories": 5.9,
@@ -594,6 +690,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 1.64,
+       "yield_t_ha_p10": 1.06,
+       "yield_t_ha_p90": 2.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.6,
        "water_m3_p50": 5836,
        "people_by_need_p50": {
         "calories": 14.2,
@@ -604,6 +704,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 1.71,
+       "yield_t_ha_p10": 1.12,
+       "yield_t_ha_p90": 2.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.4,
        "water_m3_p50": 5968,
        "people_by_need_p50": {
         "calories": 14.8,
@@ -614,6 +718,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 2.39,
+       "yield_t_ha_p10": 1.72,
+       "yield_t_ha_p90": 3.32,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.1,
        "water_m3_p50": 6036,
        "people_by_need_p50": {
         "calories": 20.7,
@@ -624,6 +732,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.08,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.7,
        "water_m3_p50": 1884,
        "people_by_need_p50": {
         "calories": 0.0,
@@ -634,6 +746,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 0.62,
+       "yield_t_ha_p10": 0.07,
+       "yield_t_ha_p90": 1.58,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.3,
        "water_m3_p50": 5478,
        "people_by_need_p50": {
         "calories": 5.4,
@@ -644,6 +760,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 9.7,
        "water_m3_p50": 1840,
        "people_by_need_p50": {
         "calories": 0.0,
@@ -672,6 +792,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 32.99,
+       "yield_t_ha_p10": 16.91,
+       "yield_t_ha_p90": 44.88,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 14954,
        "people_by_need_p50": {
         "calories": 74.0,
@@ -682,6 +806,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 33.93,
+       "yield_t_ha_p10": 19.07,
+       "yield_t_ha_p90": 46.29,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
        "water_m3_p50": 15160,
        "people_by_need_p50": {
         "calories": 76.1,
@@ -692,6 +820,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 37.29,
+       "yield_t_ha_p10": 21.66,
+       "yield_t_ha_p90": 49.15,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.4,
        "water_m3_p50": 15035,
        "people_by_need_p50": {
         "calories": 83.7,
@@ -702,6 +834,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 15.3,
+       "yield_t_ha_p10": 1.38,
+       "yield_t_ha_p90": 26.4,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
        "water_m3_p50": 13112,
        "people_by_need_p50": {
         "calories": 34.3,
@@ -712,6 +848,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 25.38,
+       "yield_t_ha_p10": 11.35,
+       "yield_t_ha_p90": 36.69,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.1,
        "water_m3_p50": 14817,
        "people_by_need_p50": {
         "calories": 57.0,
@@ -722,6 +862,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.08,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 17.29,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 12.7,
        "water_m3_p50": 6192,
        "people_by_need_p50": {
         "calories": 0.2,
@@ -762,6 +906,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 4.24,
+       "yield_t_ha_p10": 3.8,
+       "yield_t_ha_p90": 5.28,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.2,
        "water_m3_p50": 6568,
        "people_by_need_p50": {
         "calories": 37.6,
@@ -772,6 +920,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 4.41,
+       "yield_t_ha_p10": 3.99,
+       "yield_t_ha_p90": 5.48,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.0,
        "water_m3_p50": 6615,
        "people_by_need_p50": {
         "calories": 39.1,
@@ -782,6 +934,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 4.1,
+       "yield_t_ha_p10": 3.63,
+       "yield_t_ha_p90": 5.13,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.4,
        "water_m3_p50": 6530,
        "people_by_need_p50": {
         "calories": 36.3,
@@ -792,6 +948,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 3.87,
+       "yield_t_ha_p10": 3.42,
+       "yield_t_ha_p90": 4.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.9,
        "water_m3_p50": 6549,
        "people_by_need_p50": {
         "calories": 34.4,
@@ -802,6 +962,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 4.45,
+       "yield_t_ha_p10": 3.97,
+       "yield_t_ha_p90": 5.54,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
        "water_m3_p50": 6641,
        "people_by_need_p50": {
         "calories": 39.5,
@@ -812,6 +976,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 3.19,
+       "yield_t_ha_p10": 2.78,
+       "yield_t_ha_p90": 3.94,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 6398,
        "people_by_need_p50": {
         "calories": 28.3,
@@ -840,6 +1008,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 20.4,
+       "yield_t_ha_p10": 18.44,
+       "yield_t_ha_p90": 25.08,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 5023,
        "people_by_need_p50": {
         "calories": 41.0,
@@ -850,6 +1022,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 21.71,
+       "yield_t_ha_p10": 20.08,
+       "yield_t_ha_p90": 26.81,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.3,
        "water_m3_p50": 5086,
        "people_by_need_p50": {
         "calories": 43.6,
@@ -860,6 +1036,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 24.06,
+       "yield_t_ha_p10": 21.62,
+       "yield_t_ha_p90": 29.04,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.9,
        "water_m3_p50": 5089,
        "people_by_need_p50": {
         "calories": 48.3,
@@ -870,6 +1050,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 9.36,
+       "yield_t_ha_p10": 6.91,
+       "yield_t_ha_p90": 13.59,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
        "water_m3_p50": 4518,
        "people_by_need_p50": {
         "calories": 18.8,
@@ -880,6 +1064,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 15.95,
+       "yield_t_ha_p10": 14.66,
+       "yield_t_ha_p90": 20.02,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.5,
        "water_m3_p50": 4822,
        "people_by_need_p50": {
         "calories": 32.0,
@@ -890,6 +1078,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 2.9,
+       "yield_t_ha_p10": 0.08,
+       "yield_t_ha_p90": 8.3,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.5,
        "water_m3_p50": 3466,
        "people_by_need_p50": {
         "calories": 5.8,
@@ -919,6 +1111,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 1.55,
+       "yield_t_ha_p10": 1.19,
+       "yield_t_ha_p90": 1.83,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.5,
        "water_m3_p50": 6028,
        "people_by_need_p50": {
         "calories": 13.5,
@@ -929,6 +1125,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 1.66,
+       "yield_t_ha_p10": 1.2,
+       "yield_t_ha_p90": 1.93,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.1,
        "water_m3_p50": 6212,
        "people_by_need_p50": {
         "calories": 14.4,
@@ -939,6 +1139,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 2.42,
+       "yield_t_ha_p10": 1.97,
+       "yield_t_ha_p90": 2.7,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.0,
        "water_m3_p50": 6414,
        "people_by_need_p50": {
         "calories": 21.1,
@@ -949,6 +1153,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.8,
        "water_m3_p50": 1942,
        "people_by_need_p50": {
         "calories": 0.0,
@@ -959,6 +1167,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 0.25,
+       "yield_t_ha_p10": 0.07,
+       "yield_t_ha_p90": 0.87,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.2,
        "water_m3_p50": 5258,
        "people_by_need_p50": {
         "calories": 2.1,
@@ -969,6 +1181,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 9.6,
        "water_m3_p50": 1933,
        "people_by_need_p50": {
         "calories": 0.0,
@@ -1008,6 +1224,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.14,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 6.8,
        "water_m3_p50": 11999,
        "people_by_need_p50": {
         "calories": 0.2,
@@ -1018,6 +1238,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.14,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 7.3,
        "water_m3_p50": 12011,
        "people_by_need_p50": {
         "calories": 0.2,
@@ -1028,6 +1252,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.19,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 6.4,
        "water_m3_p50": 12316,
        "people_by_need_p50": {
         "calories": 0.3,
@@ -1038,6 +1266,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 0.01,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.02,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 8.4,
        "water_m3_p50": 8955,
        "people_by_need_p50": {
         "calories": 0.1,
@@ -1048,6 +1280,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 0.01,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.08,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 7.9,
        "water_m3_p50": 11000,
        "people_by_need_p50": {
         "calories": 0.1,
@@ -1058,6 +1294,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 12.2,
        "water_m3_p50": 5506,
        "people_by_need_p50": {
         "calories": 0.0,
@@ -1087,6 +1327,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 1.36,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.03,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 5.1,
        "water_m3_p50": 10101,
        "people_by_need_p50": {
         "calories": 15.8,
@@ -1097,6 +1341,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 1.36,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.04,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.1,
        "water_m3_p50": 10102,
        "people_by_need_p50": {
         "calories": 15.8,
@@ -1107,6 +1355,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 1.56,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.32,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 4.4,
        "water_m3_p50": 10102,
        "people_by_need_p50": {
         "calories": 18.2,
@@ -1117,6 +1369,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 0.45,
+       "yield_t_ha_p10": 0.01,
+       "yield_t_ha_p90": 1.44,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 5.6,
        "water_m3_p50": 9565,
        "people_by_need_p50": {
         "calories": 5.3,
@@ -1127,6 +1383,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 0.97,
+       "yield_t_ha_p10": 0.03,
+       "yield_t_ha_p90": 2.48,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.9,
        "water_m3_p50": 10099,
        "people_by_need_p50": {
         "calories": 11.3,
@@ -1137,6 +1397,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 0.04,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.73,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.8,
        "water_m3_p50": 6694,
        "people_by_need_p50": {
         "calories": 0.4,
@@ -1166,6 +1430,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 6.52,
+       "yield_t_ha_p10": 1.02,
+       "yield_t_ha_p90": 7.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.6,
        "water_m3_p50": 11500,
        "people_by_need_p50": {
         "calories": 56.0,
@@ -1176,6 +1444,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 6.79,
+       "yield_t_ha_p10": 1.07,
+       "yield_t_ha_p90": 8.06,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.6,
        "water_m3_p50": 11598,
        "people_by_need_p50": {
         "calories": 58.3,
@@ -1186,6 +1458,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 6.34,
+       "yield_t_ha_p10": 1.01,
+       "yield_t_ha_p90": 7.5,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 11422,
        "people_by_need_p50": {
         "calories": 54.4,
@@ -1196,6 +1472,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 5.39,
+       "yield_t_ha_p10": 0.73,
+       "yield_t_ha_p90": 5.81,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.1,
        "water_m3_p50": 11430,
        "people_by_need_p50": {
         "calories": 46.3,
@@ -1206,6 +1486,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 6.58,
+       "yield_t_ha_p10": 0.97,
+       "yield_t_ha_p90": 7.5,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.6,
        "water_m3_p50": 11640,
        "people_by_need_p50": {
         "calories": 56.5,
@@ -1216,6 +1500,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 3.52,
+       "yield_t_ha_p10": 0.45,
+       "yield_t_ha_p90": 4.12,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
        "water_m3_p50": 10768,
        "people_by_need_p50": {
         "calories": 30.2,
@@ -1245,6 +1533,10 @@
       {
        "field": "F1",
        "yield_t_ha_p50": 4.02,
+       "yield_t_ha_p10": 2.82,
+       "yield_t_ha_p90": 4.61,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.8,
        "water_m3_p50": 9685,
        "people_by_need_p50": {
         "calories": 39.6,
@@ -1255,6 +1547,10 @@
       {
        "field": "F2",
        "yield_t_ha_p50": 4.23,
+       "yield_t_ha_p10": 3.01,
+       "yield_t_ha_p90": 4.85,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.7,
        "water_m3_p50": 9762,
        "people_by_need_p50": {
         "calories": 41.7,
@@ -1265,6 +1561,10 @@
       {
        "field": "F3",
        "yield_t_ha_p50": 3.89,
+       "yield_t_ha_p10": 2.73,
+       "yield_t_ha_p90": 4.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.9,
        "water_m3_p50": 9610,
        "people_by_need_p50": {
         "calories": 38.4,
@@ -1275,6 +1575,10 @@
       {
        "field": "F4",
        "yield_t_ha_p50": 3.61,
+       "yield_t_ha_p10": 2.84,
+       "yield_t_ha_p90": 4.26,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.2,
        "water_m3_p50": 9720,
        "people_by_need_p50": {
         "calories": 35.6,
@@ -1285,6 +1589,10 @@
       {
        "field": "F5",
        "yield_t_ha_p50": 4.02,
+       "yield_t_ha_p10": 2.94,
+       "yield_t_ha_p90": 4.66,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 8.2,
        "water_m3_p50": 9762,
        "people_by_need_p50": {
         "calories": 39.7,
@@ -1295,6 +1603,10 @@
       {
        "field": "F6",
        "yield_t_ha_p50": 2.78,
+       "yield_t_ha_p10": 2.19,
+       "yield_t_ha_p90": 3.31,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.6,
        "water_m3_p50": 9438,
        "people_by_need_p50": {
         "calories": 27.4,
@@ -1306,5 +1618,85 @@
     }
    ]
   }
+ },
+ "fields": [
+  {
+   "id": "F1",
+   "name": "North",
+   "soil": "loamy sand",
+   "area_ha": 2.0,
+   "ece_top": 2.0,
+   "ece_layers": [
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "id": "F2",
+   "name": "Palm edge",
+   "soil": "sandy loam",
+   "area_ha": 2.0,
+   "ece_top": 1.5,
+   "ece_layers": [
+    1.5,
+    2.0,
+    2.5
+   ]
+  },
+  {
+   "id": "F3",
+   "name": "Dune",
+   "soil": "sand",
+   "area_ha": 2.0,
+   "ece_top": 1.0,
+   "ece_layers": [
+    1.0,
+    1.5,
+    2.0
+   ]
+  },
+  {
+   "id": "F4",
+   "name": "Old wadi",
+   "soil": "sandy loam",
+   "area_ha": 2.0,
+   "ece_top": 5.0,
+   "ece_layers": [
+    5.0,
+    6.0,
+    7.0
+   ]
+  },
+  {
+   "id": "F5",
+   "name": "Loam block",
+   "soil": "loam",
+   "area_ha": 2.0,
+   "ece_top": 3.0,
+   "ece_layers": [
+    3.0,
+    3.5,
+    4.0
+   ]
+  },
+  {
+   "id": "F6",
+   "name": "Sabkha rim",
+   "soil": "loamy sand",
+   "area_ha": 2.0,
+   "ece_top": 7.0,
+   "ece_layers": [
+    7.0,
+    8.0,
+    9.0
+   ]
+  }
+ ],
+ "assumptions": {
+  "irrigation_water_ec_ds_m": 4.5,
+  "desal_water_ec_ds_m": 0.4,
+  "management": "Previews use published crop values (no local calibration), sowing mid-window, irrigation at 90% of crop demand, groundwater only (no desalinated blend), the crop's recommended nitrogen and mulch. The scientist's plan can change all of these.",
+  "yield_basis": "fresh weight, t/ha, median of 10 simulated weather years (10th to 90th percentile in brackets)"
  }
 }
