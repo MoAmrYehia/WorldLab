@@ -168,7 +168,6 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
   const controls = new OrbitControls(camera, labels.domElement);
   controls.target.set(...target);
   controls.enabled = interactive;
-  if (!interactive) controls.autoRotate = !reducedMotion;
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.maxPolarAngle = Math.PI * 0.46;
@@ -371,10 +370,10 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
     // alarm ring
     const ring = new THREE.Mesh(new THREE.RingGeometry(9.6, 10.3, 48), new THREE.MeshBasicMaterial({ color: "#e5484d", transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.5; ring.scale.set(1, 0.72, 1); g.add(ring);
-    const alarmTag = document.createElement("div"); alarmTag.className = "alarm-tag"; alarmTag.style.display = "none";
-    const alarmObj = new CSS2DObject(alarmTag); alarmObj.position.set(0, 6.2, 0); g.add(alarmObj);
+    const alarmTag = document.createElement("div"); alarmTag.className = "alarm-tag";
+    const alarmObj = new CSS2DObject(alarmTag); alarmObj.position.set(0, 6.2, 0); alarmObj.visible = false; g.add(alarmObj);
 
-    plots.push({ g, soilMat, saltMat, lines, plant, tag, frame, selGlow, ring, alarmTag, crop: null, form: null,
+    plots.push({ g, soilMat, saltMat, lines, plant, tag, frame, selGlow, ring, alarmTag, alarmObj, crop: null, form: null,
       seed: i * 1000, state: null, target: null, wet: 0, salt: 0, flow: 0, deliver: 1 });
   }
 
@@ -441,6 +440,8 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
   let scanUntil = 0, droneHomeAt = 0;
 
   // --------------------------------------------------------- state & API
+  const sph = new THREE.Spherical();
+  let swaying = false, swayT = 0, swayBase = 0;
   let selected = -1, heat = 0, heatTarget = 0, clock = 0, lastInteract = performance.now(), intro = reducedMotion ? 1 : 0;
   const introFrom = camera.position.clone();
 
@@ -531,7 +532,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
     plots.forEach((p, k) => {
       const on = k === i;
       p.alarm = on;
-      p.alarmTag.style.display = on && text ? "" : "none";
+      p.alarmObj.visible = on && !!text;      // CSS2DRenderer owns style.display
       if (on && text) p.alarmTag.textContent = text;
       p.tag.classList.toggle("alarm", on);
     });
@@ -592,7 +593,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
   // ------------------------------------------------------------ picking
   const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
   let downAt = null;
-  labels.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; lastInteract = performance.now(); controls.autoRotate = false; });
+  labels.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; lastInteract = performance.now(); swaying = false; });
   labels.domElement.addEventListener("pointerup", (e) => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
     const r = renderer.domElement.getBoundingClientRect();
@@ -601,7 +602,7 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
     const hit = ray.intersectObjects(pickables, false)[0];
     if (hit && onSelect) onSelect(hit.object.userData.field);
   });
-  labels.domElement.addEventListener("wheel", () => { lastInteract = performance.now(); controls.autoRotate = false; }, { passive: true });
+  labels.domElement.addEventListener("wheel", () => { lastInteract = performance.now(); swaying = false; }, { passive: true });
 
   // -------------------------------------------------------------- render
   function resize() {
@@ -628,7 +629,14 @@ export function createScene(container, { onSelect, theme = "day", reducedMotion 
       const e = 1 - Math.pow(1 - intro, 3);
       camera.position.lerpVectors(introFrom, home, e);
     }
-    if (!reducedMotion && intro >= 1 && (!interactive || performance.now() - lastInteract > 12000)) controls.autoRotate = true;
+    // When idle, sway gently around the current view instead of orbiting, so palms never swing in front of the farm.
+    if (!reducedMotion && intro >= 1 && (!interactive || performance.now() - lastInteract > 12000)) {
+      sph.setFromVector3(camera.position.clone().sub(controls.target));
+      if (!swaying) { swaying = true; swayT = 0; swayBase = sph.theta; }
+      swayT += dt;
+      sph.theta = swayBase + 0.32 * Math.sin(swayT * 0.13);
+      camera.position.setFromSpherical(sph).add(controls.target);
+    }
     controls.update();
 
     heat += (heatTarget - heat) * Math.min(1, dt * 1.5);
