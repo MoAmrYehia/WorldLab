@@ -1,0 +1,41 @@
+# Publishes the website (docs/) to the gh-pages branch, which GitHub Pages serves.
+# If the repository variable HF_SPACE is set (for example moamryehia/worldlab), the site is pointed at
+# that Space's server; WORLDLAB_SERVER overrides it with any address.
+name: Publish website
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Prepare the site
+        env:
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          WORLDLAB_SERVER: ${{ vars.WORLDLAB_SERVER }}
+        run: |
+          mkdir site && cp -r docs/. site/ && rm -rf site/bench site/DEMO.md && touch site/.nojekyll
+          server="$WORLDLAB_SERVER"
+          if [ -z "$server" ] && [ -n "$HF_SPACE" ]; then
+            server="https://$(echo "$HF_SPACE" | tr '[:upper:]' '[:lower:]' | sed 's#/#-#; s#[_.]#-#g').hf.space"
+          fi
+          if [ -n "$server" ]; then
+            sed -i "s#var SERVER = \".*\";#var SERVER = \"${server}\";#" site/config.js
+          fi
+          grep -m1 "var SERVER" site/config.js
+      - name: Push to gh-pages
+        run: |
+          cd site
+          git init -q -b gh-pages
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "GitHub Actions"
+          git add -A
+          git commit -qm "Publish ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages

@@ -1,11 +1,12 @@
-# Deploys the WorldLab server (accounts, crop planning, live seasons) to a Hugging Face Space on every push to main.
-# One-time setup in this GitHub repository:
-#   Settings > Secrets and variables > Actions > Secrets:    HF_TOKEN  (a Hugging Face token with write access)
-#   Settings > Secrets and variables > Actions > Variables:  HF_SPACE  (for example moamryehia/worldlab)
+# Deploys the WorldLab server (accounts, crop planning, live seasons) to a Hugging Face Space.
+# One-time setup: add a Hugging Face token with write access as the repository secret HF_TOKEN
+# (Settings > Secrets and variables > Actions). The Space is created on the first run.
+# Optional repository variable HF_SPACE picks its name (default: <your Hugging Face user>/worldlab).
 name: Deploy server to Hugging Face
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "README.md"]
   workflow_dispatch:
 jobs:
   deploy:
@@ -14,21 +15,35 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Push to the Space
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Upload to the Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
         run: |
-          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
-            echo "::notice::Set the HF_TOKEN secret and the HF_SPACE variable to deploy the server."
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::notice::Add the HF_TOKEN secret to deploy the server to Hugging Face."
             exit 0
           fi
-          cp deploy/huggingface/README.md README.md
-          rm -rf docs tests .github
-          find . -name '*.png' -not -path './.git/*' -delete
-          git config user.email "actions@users.noreply.github.com"
-          git config user.name "GitHub Actions"
-          git checkout --orphan space
-          git add -A
-          git commit -qm "Deploy ${GITHUB_SHA::7} from GitHub"
-          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" space:main
+          pip install --quiet "huggingface_hub>=0.25,<1"
+          mkdir stage
+          cp -r worldlab Dockerfile requirements.txt LICENSE stage/
+          cp deploy/huggingface/README.md stage/README.md
+          find stage -name '__pycache__' -prune -exec rm -rf {} +
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ.get("HF_SPACE") or f"{api.whoami()['name']}/worldlab"
+          api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+          api.upload_folder(folder_path="stage", repo_id=space, repo_type="space",
+                            commit_message=f"Deploy {os.environ['GITHUB_SHA'][:7]} from GitHub",
+                            delete_patterns=["worldlab/**"])
+          host = space.lower().replace("/", "-").replace("_", "-").replace(".", "-")
+          print(f"Space: https://huggingface.co/spaces/{space}")
+          print(f"Server: https://{host}.hf.space")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"Deployed to https://huggingface.co/spaces/{space}\n\nServer address: https://{host}.hf.space\n")
+          PY
