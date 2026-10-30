@@ -19,6 +19,15 @@ def export(run_dir: str | Path, out: str | Path, max_images: int = 8, note: str 
     return {**data["meta"], "bytes": out.stat().st_size, "file": str(out)}
 
 
+def _compact(step: dict, limit: int = 900) -> dict:
+    out = dict(step)
+    for k in ("args", "result"):
+        if k in out and len(json.dumps(out[k], default=str)) > limit:
+            v = out[k]
+            out[k] = {kk: vv for kk, vv in v.items() if len(json.dumps(vv, default=str)) < 300} if isinstance(v, dict) else str(v)[:limit]
+    return out
+
+
 def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> dict:
     run_dir = Path(run_dir)
     src = run_dir / "events.jsonl"
@@ -35,8 +44,12 @@ def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> 
         if k == "ledger":
             if d.get("kind") in DROP_LEDGER:
                 continue
-            if d.get("kind") == "agent_step" and (d.get("data") or {}).get("role") != "agent":
-                continue
+            if d.get("kind") == "agent_step":
+                role = (d.get("data") or {}).get("role")
+                if role not in ("agent", "tool_call", "tool_result"):
+                    continue
+                if role != "agent":         # the agent's tool calls, kept small for the agent trace
+                    d = {**d, "data": _compact(d["data"])}
             if d.get("kind") == "session":
                 agent = (d.get("data") or {}).get("agent", agent)
         if k == "scene":

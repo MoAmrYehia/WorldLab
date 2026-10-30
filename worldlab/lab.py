@@ -101,6 +101,8 @@ class Bus:
             s["rl_train"].append(payload)
         elif kind == "scene":
             s["scene"][payload.get("field", "?")] = payload
+        elif kind == "drone_frame":
+            s["drone"] = (s.get("drone") or [])[-11:] + [payload]
         elif kind in ("plan", "status", "fields", "rl", "mission", "award"):
             s[kind] = payload
         msg = {"kind": kind, "data": payload}
@@ -733,6 +735,16 @@ class Lab:
         rec["water_used_m3"] = round(self.water_used)
         rec["energy_used_kwh"] = round(self.energy_used)
         self.bus.publish("day", rec)
+        if drone_day and d % 12 == 7:          # every third survey flight, keep one camera frame for people to see
+            surveyed = [i for i, fr in enumerate(rec["fields"]) if "cc_obs" in fr]
+            if surveyed:
+                i = surveyed[(d // 12) % len(surveyed)]
+                fr = rec["fields"][i]
+                img = self.farm.image(i, half=True)
+                self.bus.publish("drone_frame", {"field": FIELDS[i]["id"], "field_index": i, "crop": self.run_plan[i]["crop"],
+                                                 "day": d, "kind": "survey", "canopy_cover_measured": fr["cc_obs"],
+                                                 "canopy_cover_predicted": fr["cc_pred"],
+                                                 "image": "data:image/png;base64," + base64.b64encode(img).decode()})
         if alarm:
             self.anomaly = alarm
             self.anomalies.append(alarm)

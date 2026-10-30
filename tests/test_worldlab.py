@@ -384,6 +384,13 @@ class ProgressionTests(unittest.TestCase):
         for k in ("u2", "clearness", "world", "water_used_m3", "energy_used_kwh"):
             self.assertIn(k, day)
         self.assertTrue(0 <= day["clearness"] <= 1)
+        frames = [m["data"] for m in data["messages"] if m["kind"] == "drone_frame"]
+        self.assertTrue(frames)
+        self.assertTrue(frames[0]["image"].startswith("data:image/png;base64,"))
+        self.assertIn("canopy_cover_measured", frames[0])
+        calls = [m["data"]["data"] for m in data["messages"] if m["kind"] == "ledger" and m["data"]["kind"] == "agent_step"]
+        self.assertTrue(any(c["role"] == "tool_call" for c in calls))
+        self.assertTrue(any(c["role"] == "tool_result" for c in calls))
 
 
 if __name__ == "__main__":

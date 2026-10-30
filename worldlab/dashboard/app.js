@@ -20,9 +20,10 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } } };
 
-const fresh = () => ({ days: [], events: [], perturbations: [], beliefs: null, projections: [], trials: [], scene: {},
+const fresh = () => ({ days: [], events: [], perturbations: [], beliefs: null, projections: [], trials: [], scene: {}, drone: [],
   plan: null, status: {}, fields: null, rl_train: [], rl: null, agentKind: null, mission: null, award: null });
 let S = fresh();
+let portrait = () => null, stageOf = () => 2, dfSel = -1, dfKey = "", droneTimer = 0;
 let sel = -1, scene = null, mode = "live", info = {}, progress = null, dirty = true;
 let inspKey = "", serverUp = false;
 let metric = "health", overlay = "", drawer = null, invClosedFor = null, resultsShownFor = null, seenBadges = new Set();
@@ -65,7 +66,9 @@ function apply(m, live = true) {
     case "beliefs": S.beliefs = d; break;
     case "projection": S.projections.push(d); break;
     case "trials": S.trials.push(d); if (live && scene) scene.addTrial(d); break;
-    case "scene": S.scene[d.field] = d; if (live && scene) scene.scan(fieldIndex(d.field)); break;
+    case "scene": S.scene[d.field] = d; if (live && scene) scene.scan(fieldIndex(d.field));
+      if (d.image) droneArrived({ ...d, kind: "inspection" }, live); break;
+    case "drone_frame": droneArrived(d, live); if (live && scene) scene.scan(d.field_index); break;
     case "plan": S.plan = d; if (live && scene && !S.fields) scene.setFields(fieldsNow()); break;
     case "status": S.status = d; if (live && scene) syncAnomaly(); break;
     case "fields": S.fields = d; if (live && scene) scene.setFields(d); break;
@@ -75,6 +78,14 @@ function apply(m, live = true) {
     case "award": S.award = d; if (live) { toast("Season scored", `+${fmt(d.gained)} XP${d.new_achievements && d.new_achievements.length ? `, ${d.new_achievements.length} new achievement${d.new_achievements.length > 1 ? "s" : ""}` : ""}`); loadProgress(); } break;
   }
   dirty = true;
+}
+function droneArrived(f, live) {
+  S.drone.push(f); if (S.drone.length > 40) S.drone.shift();
+  if (!live) return;
+  dfSel = -1;
+  if ($("droneDot") && $("droneTab") && !$("droneTab").classList.contains("on")) $("droneDot").hidden = false;
+  $("dfLiveTxt").textContent = `${f.kind === "inspection" ? "Inspecting" : "Surveying"} ${f.field}`;
+  clearTimeout(droneTimer); droneTimer = setTimeout(() => ($("dfLiveTxt").textContent = "On patrol"), 5000);
 }
 function syncAnomaly() { const a = S.status && S.status.anomaly; scene.setAnomaly(a ? a.field_index : -1, a ? `${cap(a.signal_label)} ${a.direction}` : ""); }
 function sceneSync() {
@@ -90,7 +101,7 @@ function sceneSync() {
 function render() {
   if (!dirty) return;
   dirty = false;
-  renderTop(); renderMissions(); renderImpact(); renderDock(); renderInspector(); renderIncident(); renderInvestigation(); renderLegend();
+  renderTop(); renderMissions(); renderImpact(); renderDock(); renderInspector(); renderIncident(); renderInvestigation(); renderLegend(); renderDrone();
   if (drawer) renderDrawer();
 }
 
@@ -180,9 +191,14 @@ function renderDock() {
     }
     frac = Math.min(1, Math.max(0, frac));
     const b = box.children[i], title = `${id} ${c.crop ? crop(c.crop) : "Fallow"}`;
+    const st = c.crop ? stageOf(c.crop, w) : -1, tkey = `${title}|${st}`;
     b.classList.toggle("sel", i === sel); b.classList.toggle("alarm", !!(an && an.field_index === i));
     b.setAttribute("aria-label", `${title}: ${val} ${sub}`);
-    if (b.children[0].textContent !== title) b.children[0].textContent = title;
+    if (b.children[0].dataset.k !== tkey) {
+      b.children[0].dataset.k = tkey;
+      const pic = c.crop ? portrait(c.crop, st, 48) : null;
+      b.children[0].innerHTML = `${pic ? `<img class="g-pic" src="${pic}" alt="">` : ""}${esc(title)}`;
+    }
     const arc = b.querySelector(".g-arc"); arc.setAttribute("stroke", col); arc.setAttribute("stroke-dashoffset", String(C * (1 - frac)));
     const t = b.querySelector(".g-val"); if (t.textContent !== val) { t.textContent = val; t.setAttribute("font-size", val.length > 6 ? 9 : val.length > 3 ? 12 : 13); t.setAttribute("fill", css("--ink")); }
     if (b.children[2].textContent !== sub) b.children[2].textContent = sub;
@@ -267,6 +283,8 @@ function renderInspector() {
   if (ik === inspKey) return; inspKey = ik;
   const fl = fieldsNow(), f = fl[sel] || {}, ld = lastDay(), w = ld && ld.world && ld.world[sel];
   $("fiTitle").textContent = `${FIELD_IDS[sel]} ${NAMES[sel]}`;
+  const fpic = f.crop ? portrait(f.crop, stageOf(f.crop, w), 80) : null;
+  $("fiPic").hidden = !fpic; if (fpic) { $("fiPic").src = fpic; $("fiPic").alt = `${crop(f.crop)} at its current stage`; }
   let sub = `${cap(SOILS[sel])}. ${f.crop ? crop(f.crop) : "Fallow"}`;
   if (f.crop && f.sow != null) sub += `, sown ${dayLabel(f.sow)}`;
   if (w && w.sown && !w.done) sub += `, ${Math.round(100 * Math.min(w.stage, 1))}% through its cycle`;
@@ -408,6 +426,7 @@ let OV = {};
 // ------------------------------------------------------------ drawers
 const DRAWERS = {
   research: { title: "Research lab", tabs: [["trials", "Trial plots"], ["beliefs", "Crop traits"], ["rl", "RL policy"]] },
+  agent: { title: "The AI agent", tabs: [["loop", "Agent loop"], ["components", "AI components"]] },
   plan: { title: "Season plan", tabs: [] },
   reasoning: { title: "The scientist's reasoning", tabs: [] },
   ledger: { title: "Audit ledger", tabs: [] },
@@ -420,14 +439,15 @@ function openDrawer(name, tab) {
   $("drawer").hidden = false; $("drawerTitle").textContent = DRAWERS[name].title;
   $("drawerTabs").innerHTML = DRAWERS[name].tabs.map(([k, l]) => `<button type="button" data-t="${k}" class="${k === drawerTab ? "on" : ""}">${l}</button>`).join("");
   $("drawerTabs").querySelectorAll("button").forEach((b) => (b.onclick = () => openDrawer(name, b.dataset.t)));
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (b.id === "navResearch" && name === "research") || (b.id === "navSim" && name !== "research")));
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (b.id === "navResearch" && name === "research") || (b.id === "navAgent" && name === "agent") || (b.id === "navSim" && name !== "research" && name !== "agent")));
   drawerKey = ""; renderDrawer();
 }
 function closeDrawer() { drawer = null; $("drawer").hidden = true; document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.id === "navSim")); }
 function renderDrawer() {
-  const key = `${drawer}|${drawerTab}|${S.trials.length}|${S.rl_train.length}|${!!S.rl}|${S.plan && S.plan.plan_id}|${S.beliefs && S.beliefs.day}|${S.events.length}|${progress ? progress.level.xp : 0}`;
+  const key = `${drawer}|${drawerTab}|${S.drone.length}|${S.trials.length}|${S.rl_train.length}|${!!S.rl}|${S.plan && S.plan.plan_id}|${S.beliefs && S.beliefs.day}|${S.events.length}|${progress ? progress.level.xp : 0}`;
   if (key === drawerKey) return; drawerKey = key;
   const b = $("drawerBody");
+  if (drawer === "agent") { b.innerHTML = drawerTab === "loop" ? agentHtml() : componentsHtml(); return; }
   if (drawer === "research") { b.innerHTML = drawerTab === "trials" ? trialsHtml() : drawerTab === "beliefs" ? beliefsHtml() : rlHtml(); if (drawerTab === "rl") drawRl(); }
   else if (drawer === "plan") b.innerHTML = planHtml();
   else if (drawer === "reasoning") b.innerHTML = reasoningHtml();
@@ -522,6 +542,124 @@ function badgesHtml() {
       return `<div class="badge ${on ? "on" : ""}"><span class="hex">${on ? "✓" : k + 1}</span><div><b>${esc(c.title)}</b><span>${esc(on ? ev : c.about || "")}</span></div></div>`; }).join("")}</div>`;
 }
 
+// ------------------------------------------------------------ drone feed
+function renderDrone() {
+  if (!$("droneTab").classList.contains("on")) return;
+  const frames = S.drone, key = `${frames.length}|${dfSel}`;
+  if (key === dfKey) return; dfKey = key;
+  const k = dfSel >= 0 && dfSel < frames.length ? dfSel : frames.length - 1, f = frames[k];
+  $("dfEmpty").hidden = !!f; $("dfImg").hidden = !f;
+  if (f) {
+    $("dfImg").src = f.image; $("dfImg").alt = `Drone frame of ${f.field}, ${dayLabel(f.day)}`;
+    $("dfTag").textContent = f.kind === "inspection" ? `Inspection, ${f.field}` : `Survey, ${f.field}`;
+    $("dfMeta").textContent = `${dayLabel(f.day)}  canopy ${fmt(f.canopy_cover_measured, 2)} vs ${fmt(f.canopy_cover_predicted, 2)} model`;
+    const diag = f.diagnosis && f.diagnosis.condition ? ` Image analysis: ${String(f.diagnosis.condition).replace(/_/g, " ")}${f.source ? ` (${f.source})` : ""}.` : "";
+    $("dfCap").textContent = f.kind === "inspection"
+      ? `Inspection the scientist asked for: ${crop(f.crop)} in ${f.field}.${diag}`
+      : `Routine survey frame: ${crop(f.crop)} in ${f.field}. Frames are rendered by the farm simulator from its true state; the canopy number is the drone's noisy measurement.`;
+  }
+  $("dfStrip").innerHTML = frames.slice(-14).map((x, j) => {
+    const idx = frames.length - Math.min(14, frames.length) + j;
+    return `<li><button type="button" data-k="${idx}" class="${idx === k ? "on" : ""}" aria-label="${x.field}, ${dayLabel(x.day)}"><img src="${x.image}" alt=""><span>${x.field} ${dayLabel(x.day)}</span></button></li>`;
+  }).join("");
+  $("dfStrip").querySelectorAll("button").forEach((b) => (b.onclick = () => { dfSel = Number(b.dataset.k); renderDrone(); }));
+}
+
+// ------------------------------------------------------------ the agent: its loop, tool calls and AI components
+const PHASE = { observe: "Observe", get_beliefs: "Observe", advance: "Observe", record_hypothesis: "Hypothesize",
+  evaluate_trials: "Experiment", run_trials: "Experiment", look_at_field: "Experiment", field_test: "Experiment",
+  plan_season: "Decide", train_irrigation_policy: "Decide", start_season: "Act", set_irrigation_controller: "Act", adjust_field: "Act",
+  rebalance_water: "Decide", dismiss_anomaly: "Act", fit_crop_models: "Learn", conclude: "Learn", update_model: "Learn", finish: "Learn" };
+const PHASES = ["Observe", "Hypothesize", "Experiment", "Decide", "Act", "Learn"];
+function toolEngine(name, res) {
+  return ({ observe: "Sensors and farm state", get_beliefs: "Bayesian crop beliefs", advance: "Digital twin with CUSUM alarms",
+    record_hypothesis: "Audit ledger", conclude: "Audit ledger", evaluate_trials: "Experiment design (expected information)",
+    run_trials: "Trial plots in the farm simulator", fit_crop_models: "Bayesian calibration", plan_season: "Robust planner",
+    rebalance_water: "Robust planner", train_irrigation_policy: "Reinforcement learning (evolution strategies)",
+    start_season: "Irrigation controller", set_irrigation_controller: "Irrigation controller", adjust_field: "Farm actuators",
+    update_model: "Digital twin update", dismiss_anomaly: "Audit ledger", finish: "Audit ledger",
+    field_test: "Field test (simulated measurement)" }[name]) || (name === "look_at_field" ? (res && res.source) || "Drone perception" : "Tool");
+}
+function agentSteps() {
+  const out = [];
+  S.events.forEach((e) => {
+    if (e.kind !== "agent_step") return;
+    const d = e.data || {};
+    if (d.role === "tool_call") out.push({ day: d.t, tool: d.text, args: d.args || {}, res: null });
+    else if (d.role === "tool_result") { const c = [...out].reverse().find((x) => x.tool === d.text && !x.res && x.tool); if (c) c.res = d.result || {}; }
+    else if (d.role === "agent" && d.text) out.push({ day: d.t, say: d.text });
+  });
+  return out;
+}
+function brief(r) {
+  if (!r) return "";
+  if (r.refused) return `<span class="refused">Refused: ${esc(r.refused)}</span>`;
+  if (r.error) return `<span class="refused">${esc(r.error)}</span>`;
+  return Object.entries(r).filter(([, v]) => v != null && typeof v !== "object").slice(0, 3)
+    .map(([k, v]) => `${esc(k.replace(/_/g, " "))} ${esc(typeof v === "number" ? fmt(v, Math.abs(v) < 10 ? 2 : 0) : String(v))}`).join(", ");
+}
+function deciderName() {
+  const k = S.agentKind || info.agent;
+  return /spark|glimmer/.test(k || "") ? agentName(k) : "Scripted protocol";
+}
+function perceptionName() {
+  const src = Object.values(S.scene || {}).map((x) => x.source).find(Boolean) || "";
+  return /simulated/i.test(src) ? "Simulated perception" : src ? "SAM 3.1 + Muse Spark" : "Not used yet";
+}
+function loopSvg(cur) {
+  const R = 86, cx = 130, cy = 104;
+  const pts = PHASES.map((_, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / PHASES.length; return [cx + R * Math.cos(a), cy + R * Math.sin(a)]; });
+  return `<svg class="loop" viewBox="0 0 260 210" role="img" aria-label="Agent loop, current step ${cur || "none"}">
+    <circle class="arc" cx="${cx}" cy="${cy}" r="${R}"/>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="${css("--ink-3")}" font-size="11">The scientist</text>
+    <text x="${cx}" y="${cy + 12}" text-anchor="middle" fill="${css("--ink")}" font-size="12" font-weight="600">${esc(deciderName())}</text>
+    ${pts.map(([x, y], i) => `<g class="node ${PHASES[i] === cur ? "on" : ""}"><circle cx="${x}" cy="${y}" r="27"/><text x="${x}" y="${y + 4}">${PHASES[i]}</text></g>`).join("")}</svg>`;
+}
+function agentHtml() {
+  const steps = agentSteps(), calls = steps.filter((x) => x.tool);
+  const last = calls[calls.length - 1], cur = last ? PHASE[last.tool] : null;
+  const refused = calls.filter((c) => c.res && (c.res.refused || c.res.error)).length;
+  const ld = lastDay(), ctl = (ld && ld.controller) || (S.status && S.status.controller);
+  const intro = /Muse/.test(deciderName())
+    ? "Muse Spark chooses every tool call below through function calling; numerical code does the agronomy."
+    : "This run's decisions come from the scripted protocol, a fixed sequence over the same tools (no language model). With a MODEL_API_KEY the server hands these decisions to Muse Spark.";
+  const rows = steps.slice(-60).reverse().map((x) => x.say
+    ? `<tr><td class="n">${x.day ?? ""}</td><td><span class="phase">Thinks</span></td><td colspan="3">${esc(x.say)}</td></tr>`
+    : `<tr><td class="n">${x.day ?? ""}</td><td><span class="phase">${PHASE[x.tool] || "Act"}</span></td><td class="tool">${esc(x.tool)}<span class="why">${esc(toolEngine(x.tool, x.res))}</span></td>
+       <td>${esc(x.args.rationale || x.args.reason || x.args.statement || x.args.evidence || x.args.summary || Object.entries(x.args).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ").slice(0, 140))}</td><td>${brief(x.res)}</td></tr>`).join("");
+  return `<p style="margin:0 0 10px">${intro} Every action goes through a bounded tool with budgets for trial plots, field tests, water and energy; a call outside the rules is refused and logged.</p>
+    <div class="agent-top"><div>${loopSvg(cur)}</div><div>
+      <div class="agent-who">
+        <div><span>Decides</span><b>${esc(deciderName())}</b><span>${calls.length} tool calls so far</span></div>
+        <div><span>Sees</span><b>${esc(perceptionName())}</b><span>${S.drone.length} drone frames</span></div>
+        <div><span>Irrigates</span><b>${ctl === "rl_policy" ? "RL policy" : ctl ? "Fixed rule" : "Not started"}</b><span>${refused} refused call${refused === 1 ? "" : "s"}</span></div>
+      </div>
+      <p class="note" style="margin:0">The loop: observe the farm, write a testable hypothesis, run the experiment that tells explanations apart, decide, act, and learn by correcting the model. The highlighted step is the latest tool call.</p>
+    </div></div>
+    <table class="trace"><thead><tr><th class="n">Day</th><th>Step</th><th>Tool and engine</th><th>Why</th><th>Result</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="empty">No tool calls yet.</td></tr>`}</tbody></table>`;
+}
+function componentsHtml() {
+  const llm = /Muse/.test(deciderName()), perc = perceptionName(), ctl = (lastDay() && lastDay().controller) || "";
+  const used = (on, label) => `<span class="src ${on ? "on" : "rule"}">${esc(label)}</span>`;
+  const rows = [
+    ["Muse Spark", "meta", "Meta model", "The scientist: decides the next step by calling tools", "Reads the farm state and tool results, writes hypotheses and calls its 19 tools by function calling", used(llm && /Spark/.test(deciderName()), llm && /Spark/.test(deciderName()) ? "Deciding this run" : "Needs MODEL_API_KEY")],
+    ["Muse Glimmer", "meta", "Meta open weights", "The same scientist on your own GPU", "Any OpenAI-compatible endpoint serving Glimmer, same tools and prompt", used(/Glimmer/.test(deciderName()), /Glimmer/.test(deciderName()) ? "Deciding this run" : "Needs a Glimmer endpoint")],
+    ["SAM 3.1", "meta", "Meta model", "Reads drone images", "Segments green plants, white salt crust and brown leaf damage by text prompt; counts and areas feed the diagnosis", used(perc === "SAM 3.1 + Muse Spark", perc === "SAM 3.1 + Muse Spark" ? "Used this run" : "Simulated in this run")],
+    ["Muse Spark vision", "meta", "Meta model", "Diagnoses crop stress from the same image", "Returns a structured diagnosis: healthy, water, salt or pest stress, gaps, with its evidence", used(perc === "SAM 3.1 + Muse Spark", perc === "SAM 3.1 + Muse Spark" ? "Used this run" : "Simulated in this run")],
+    ["Scripted protocol", "rule", "Rules", "Baseline and fallback scientist", "A fixed sequence over the same tools; the comparison the language model must beat", used(!llm, !llm ? "Deciding this run" : "Standing by")],
+    ["Experiment design", "num", "Numerical", "Chooses which trial plots to plant", "Scores candidate plots by expected information about the traits that move the plan", used(true, "Used before sowing")],
+    ["Bayesian calibration", "num", "Numerical", "Learns each crop's hidden traits", "MAP fit of water productivity, canopy growth, heat and salt tolerance from trial harvests and drone canopy", used(true, "Used after trials")],
+    ["Digital twin", "num", "Numerical", "Predicts every field with uncertainty", "An ensemble of the crop and soil model run beside the farm, giving the 90% bands in the charts", used(true, "Running all season")],
+    ["Anomaly detector", "num", "Numerical", "Notices when reality leaves the prediction", "CUSUM on measured minus predicted soil moisture, salinity and canopy; it pauses the season", used(true, "Watching all season")],
+    ["Robust planner", "num", "Numerical", "Plans crops, sowing, irrigation, blend and nitrogen", "Maximises people fed in a bad year (10th percentile) within the water quota and energy budget", used(true, "Used to plan and re-plan")],
+    ["Reinforcement learning", "num", "Numerical", "Learns a daily irrigation policy", "Evolution strategies train a small neural network inside the agent's own model; deployed only if it beats the rule on held-out seasons", used(ctl === "rl_policy", ctl === "rl_policy" ? "Irrigating now" : S.rl ? "Trained, not deployed" : "Not trained yet")],
+    ["Audit ledger", "rule", "Integrity", "Makes every step checkable", "A hash-chained log of each hypothesis, prediction, test, decision and result; missions and achievements are scored from it", used(true, `${S.events.length} entries`)],
+  ];
+  return `<p style="margin:0 0 10px">What each part of WorldLab's AI does, and whether it is active in the season on screen. Meta models decide and perceive; numerical code does the agronomy and the learning; nothing claims a reading or a diagnosis the ledger doesn't hold.</p>
+    <table class="ai-table"><thead><tr><th>Component</th><th>Kind</th><th>Role</th><th>How it works</th><th>This season</th></tr></thead><tbody>
+    ${rows.map(([n, cls, kind, role, how, st]) => `<tr><td>${n}</td><td><span class="src ${cls}">${kind}</span></td><td>${role}</td><td>${how}</td><td>${st}</td></tr>`).join("")}</tbody></table>`;
+}
+
 // ------------------------------------------------------------ toasts and achievements
 function toast(title, body, ms = 5200) {
   const t = document.createElement("div"); t.className = "toast";
@@ -548,7 +686,8 @@ function showResults() {
     <div><b>${fmt(res.water_used_m3)}</b><span>m³ groundwater ${res.within_quota ? "(within quota)" : "(over quota)"}</span></div>
     <div><b>${mt.water_m3_per_person ? fmt(mt.water_m3_per_person, 1) : "–"}</b><span>m³ per person fed</span></div>
     <div><b>${fmt(res.energy_used_kwh)}</b><span>kWh ${res.within_energy ? "(within budget)" : "(over budget)"}</span></div></div>
-    <p>Limited by ${NUTRIENT[res.limiting] || res.limiting}. Crops: ${(mt.crops || []).map(crop).join(", ")}.</p>
+    <div class="res-crops">${(mt.crops || []).map((c) => { const pic = portrait(c, 3, 60); return `<span>${pic ? `<img src="${pic}" alt="">` : ""}${esc(crop(c))}</span>`; }).join("")}</div>
+    <p>Limited by ${NUTRIENT[res.limiting] || res.limiting}.</p>
     ${faults ? `<p class="inv-h">Faults this season</p><ul>${faults}</ul>` : ""}
     ${m && m.achievements.length ? `<p class="inv-h">Achievements earned</p><div class="badges">${m.achievements.map((a) => `<div class="badge on"><span class="hex">✓</span><div><b>${esc(a.title)}</b><span>${esc(a.evidence)}</span></div></div>`).join("")}</div>` : ""}
     ${xp && xp.length ? `<p class="inv-h">${award ? `Experience earned: +${fmt(award.gained)} XP` : "Experience this season is worth (recorded season, not saved)"}</p><ul class="xp-lines">${xp.map((l) => `<li><span>${esc(l.label)}</span><b>+${fmt(l.xp)}</b></li>`).join("")}</ul>` : ""}`;
@@ -592,7 +731,7 @@ function renderCards() {
     const cmax = Math.max(...c.fields.map((f) => f.yield_t_ha_p50), 0.1);
     const needs = c.good_for.map((n) => `<span class="need ${n === "protein" ? "p" : n === "vitamin A" ? "v" : ""}">${esc(n)}</span>`).join("");
     return `<button type="button" class="crop-card ${P.brush === c.crop ? "on" : ""}" data-c="${c.crop}" aria-pressed="${P.brush === c.crop}">
-      <h4>${esc(c.label)}<span>${c.cycle_days ? `${c.cycle_days} days` : ""}</span></h4>
+      <span class="cc-head">${portrait(c.crop, 2, 88) ? `<img class="crop-pic" src="${portrait(c.crop, 2, 88)}" alt="${esc(c.label)}, rendered from its 3D model">` : ""}<h4>${esc(c.label)}<span>${c.cycle_days ? `${c.cycle_days} days` : ""}</span></h4></span>
       <span class="meta">Sow ${esc(c.sow_window_label)}${c.harvest_label ? `; harvest around ${esc(c.harvest_label)}` : ""}</span>
       <span class="needs">${needs}<span class="need salt">salt limit ${c.salt_threshold_ds_m} dS/m</span></span>
       <span class="yields">${c.fields.map((f) => `<span><i><b style="height:${Math.round((100 * f.yield_t_ha_p50) / cmax)}%"></b></i>${f.field}<br>${fmt(f.yield_t_ha_p50, f.yield_t_ha_p50 < 10 ? 1 : 0)}</span>`).join("")}</span>
@@ -615,7 +754,7 @@ function renderFieldRows() {
       inSeason.forEach((c) => opts.push(`<option value="c:${c}" ${p.mode === "crop" && p.crop === c && p.season === P.season ? "selected" : ""}>${esc(crop(c))}, ${esc(seasonLabel(P.season).toLowerCase())}</option>`));
       ctl = `<select aria-label="Crop for ${id}" data-i="${i}">${opts.join("")}</select>`;
     }
-    return `<li class="pl-row ${P.brush ? "hot" : ""}"><span class="fid">${id}</span><span class="soil">${NAMES[i]}, ${SOILS[i]}</span><span class="pick">${ctl}${tag}</span></li>`;
+    return `<li class="pl-row ${P.brush ? "hot" : ""}"><span class="fid">${id}</span><span class="soil">${NAMES[i]}, ${SOILS[i]}</span><span class="pick">${p.mode === "crop" && portrait(p.crop, 2, 56) ? `<img class="pick-pic" src="${portrait(p.crop, 2, 56)}" alt="">` : ""}${ctl}${tag}</span></li>`;
   }).join("");
   $("fieldRows").querySelectorAll("select").forEach((s) => (s.onchange = () => {
     const i = Number(s.dataset.i), v = s.value;
@@ -751,6 +890,8 @@ const TOUR = [
   ["#impactPanel", "Watch the AI scientist", "It designs trial plots, calibrates its crop model, plans, trains an irrigation policy, and investigates anything its model can't explain."],
   ["#dock", "Advance the season", "The season runs from 1 October to 30 June. The timeline marks hidden changes, alarms and harvests."],
   ["#viewbar", "See what the sensors see", "Switch from the realistic view to scientific overlays: crop health, soil moisture, salinity and irrigation, with units."],
+  ["#droneTab", "Drone feed", "The drone's live camera in the 3D farm, beside the frames it captures on survey and inspection flights."],
+  ["#navAgent", "Follow the agent", "Every tool call the scientist makes, where it is in its loop, and a table of all the AI components."],
   ["#impactPanel .lives", "The outcome that matters", "People fed for a year, counting only those whose calories, protein and vitamin A are all covered."],
 ];
 let tourStep = -1;
@@ -780,6 +921,7 @@ async function loadScene() {
   try {
     const mod = await import("./scene.js");
     OV = mod.OVERLAYS || {};
+    if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
       onSelect: (i, src) => { if ($("planner").hidden) select(i, true); else if (P.brush) brushField(i); else select(i, false); },
       reducedMotion, quality: store.get("wl-quality", "auto"), time: store.get("wl-time", "golden"),
@@ -787,9 +929,11 @@ async function loadScene() {
       onQuality: (q, auto) => { $("qualitySel").value = auto ? "auto" : q; },
     });
     window.__wlScene = scene;
+    if (scene.droneView) scene.droneView($("droneLive"));
   } catch (e) {
     console.warn("3D view unavailable:", e);
-    $("noGL").hidden = false; $("noGLWhy").textContent = String(e && e.message || e).includes("WebGL") ? "This browser has no WebGL." : "It needs WebGL and access to cdn.jsdelivr.net.";
+    $("noGL").hidden = false;
+    $("droneLive").insertAdjacentHTML("afterend", `<p class="df-empty">The live drone camera needs the 3D view.</p>`); $("noGLWhy").textContent = String(e && e.message || e).includes("WebGL") ? "This browser has no WebGL." : "It needs WebGL and access to cdn.jsdelivr.net.";
   }
 }
 function wireUi() {
@@ -801,6 +945,7 @@ function wireUi() {
     document.querySelectorAll(".dock-tabs [data-dt]").forEach((x) => x.classList.toggle("on", x === b));
     document.querySelectorAll(".dt-pane").forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.dt));
     $("dock").classList.remove("collapsed");
+    if (b.dataset.dt === "drone") { $("droneDot").hidden = true; dfKey = ""; renderDrone(); }
   }));
   document.querySelectorAll("#metricTabs button").forEach((b) => (b.onclick = () => { metric = b.dataset.m; document.querySelectorAll("#metricTabs button").forEach((x) => x.classList.toggle("on", x === b)); dirty = true; }));
   document.querySelectorAll("[data-cam]").forEach((b) => (b.onclick = () => scene && (b.dataset.cam === "home" ? scene.home() : scene.view(b.dataset.cam))));
@@ -813,6 +958,7 @@ function wireUi() {
   $("incidentFocus").onclick = () => { const inc = currentIncident(); if (!inc) return; if (scene) scene.focus(inc.a.data.field_index, "incident"); select(inc.a.data.field_index); invClosedFor = null; dirty = true; };
   $("navMissions").onclick = () => { const p = $("missionPanel"); p.classList.remove("collapsed"); p.scrollIntoView({ block: "nearest" }); p.animate([{ boxShadow: "0 0 0 2px var(--emerald)" }, { boxShadow: "var(--shadow)" }], { duration: 900 }); };
   $("navResearch").onclick = () => (drawer === "research" ? closeDrawer() : openDrawer("research"));
+  $("navAgent").onclick = () => (drawer === "agent" ? closeDrawer() : openDrawer("agent"));
   $("navSim").onclick = closeDrawer;
   $("drawerClose").onclick = closeDrawer;
   $("reasoningBtn").onclick = () => openDrawer("reasoning");
