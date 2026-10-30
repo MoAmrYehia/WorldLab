@@ -1,8 +1,8 @@
 // Moving things: the inspection drone, dust and rain, clouds, the service truck, and event markers.
 import * as THREE from "three";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { V } from "./geo.js?v=01ca7ed07b";
-import { DEPOT, FIELD_POS, PLOT_D } from "./farm.js?v=01ca7ed07b";
+import { V } from "./geo.js?v=abb2d3bed9";
+import { DEPOT, FIELD_POS, PLOT_D } from "./farm.js?v=abb2d3bed9";
 
 // --------------------------------------------------------------- drone
 export function buildDrone(tex) {

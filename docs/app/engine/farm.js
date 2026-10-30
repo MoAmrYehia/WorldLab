@@ -1,8 +1,8 @@
 // The six fields (soil, drip irrigation, crops, labels) and the farm's infrastructure.
 import * as THREE from "three";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { FieldCrop, CROP_INFO } from "./crops.js?v=01ca7ed07b";
-import { GeoBuilder, V, C } from "./geo.js?v=01ca7ed07b";
+import { FieldCrop, CROP_INFO } from "./crops.js?v=abb2d3bed9";
+import { GeoBuilder, V, C } from "./geo.js?v=abb2d3bed9";
 
 export const PLOT_W = 15, PLOT_D = 10;
 export const FIELD_POS = [[-18, -7.5], [0, -7.5], [18, -7.5], [-18, 7.5], [0, 7.5], [18, 7.5]];
@@ -111,7 +111,7 @@ export class Field {
     this.crop = new FieldCrop(g, PLOT_W, PLOT_D, density, shared);
     // label
     const tag = this.tag = document.createElement("button");
-    tag.className = "ftag"; tag.type = "button";
+    tag.className = "ftag empty"; tag.type = "button";
     tag.innerHTML = `<span class="ft-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="bg"/><circle cx="18" cy="18" r="15" class="fg"/></svg><b class="ft-id">F${i + 1}</b></span><span class="ft-txt"><b class="ft-crop">Not planned</b><span class="ft-state"></span></span>`;
     tag.addEventListener("click", () => onSelect && onSelect(i));
     this.tagObj = new CSS2DObject(tag); this.tagObj.position.set(0, 3.2, 0); g.add(this.tagObj);
@@ -125,6 +125,8 @@ export class Field {
   setCrop(crop, label, planned = false) {
     this.crop.setCrop(crop, planned);
     this.tag.querySelector(".ft-crop").textContent = crop ? (label || CROP_INFO[crop].label) : label || "Fallow";
+    this.tag.classList.toggle("empty", !crop && (!label || label === "Not planned"));
+    this.tag.title = crop ? "" : label || "";
     this.tag.classList.toggle("fallow", !crop);
     this.tag.classList.toggle("planned", planned);
   }

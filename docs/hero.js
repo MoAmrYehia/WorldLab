@@ -7,7 +7,7 @@ async function hero() {
   if (!el) return;
   let mod, data;
   try {
-    [mod, data] = await Promise.all([import(`./${base}scene.js?v=01ca7ed07b`), fetch(`${base}replay.json`).then((r) => r.json())]);
+    [mod, data] = await Promise.all([import(`./${base}scene.js?v=abb2d3bed9`), fetch(`${base}replay.json`).then((r) => r.json())]);
   } catch (e) {
     console.warn("Hero scene unavailable:", e);
     const cap = document.getElementById("heroCaption"); if (cap) cap.hidden = true;

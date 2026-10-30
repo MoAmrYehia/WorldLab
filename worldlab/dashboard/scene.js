@@ -180,7 +180,7 @@ export function createScene(container, opts = {}) {
     W.hemi.intensity = T.hemi;
     W.hemi.color.set(night ? "#4a5a8a" : "#cfe0ff"); W.hemi.groundColor.set(night ? "#2a2018" : "#b0895c");
     W.scene.fog.color.set(T.fog); W.scene.fog.density = T.dens;
-    W.infra.lamps.forEach((L) => (L.intensity = night ? 18 : 0));
+    W.infra.lamps.forEach((L, k) => { L.intensity = night ? 18 : 0; L.visible = night && (W.q !== "low" || k % 2 === 0); });   // hidden lights cost nothing by day
     W.infra.lampHead.emissiveIntensity = night ? 3 : 0;
     W.infra.windowsLit.emissiveIntensity = night ? 1.6 : key === "golden" ? 0.25 : 0;
     W.fields.forEach((f) => (f.ledMat.emissiveIntensity = night ? 2 : 0.7));
