@@ -14,7 +14,7 @@ async function hero() {
     return;
   }
   const scene = mod.createScene(el, { theme: "day", reducedMotion: reduced, interactive: false, labels: false,
-    homePos: [32, 30, 64], shiftX: (w) => (w > 960 ? 0.22 : 0) });
+    homePos: [32, 30, 64], shiftX: (w) => (w > 960 ? 0.22 : w > 600 ? 0.3 : 0) });
   const msgs = data.messages || data;
   const fields = msgs.find((m) => m.kind === "fields");
   const trials = msgs.filter((m) => m.kind === "trials").map((m) => m.data);
