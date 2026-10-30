@@ -26,6 +26,7 @@ POST /api/stop
 POST /api/speed                    {speed}
 GET  /api/verify                   verify your run's ledger hash chain
 GET  /api/runs                     your past seasons
+GET  /api/progress                 level, XP and achievements (awarded from each season's ledger)
 GET  /api/runs/ID/replay           a past season as a replay
 """
 from __future__ import annotations
@@ -129,10 +130,30 @@ class App:
         slot.bus.publish("reset", {"agent": agent})
         sess = Session(s, bus=slot.bus)                  # raises ValueError for an impossible crop choice
         run_id = self.accounts.add_run(user["id"], str(sess.run_dir), agent, sess.lab.choices_summary())
-        sess.on_finish = lambda ss: self.accounts.finish_run(run_id, ss.lab.result)
+        sess.on_finish = lambda ss: self._finish(user, run_id, ss)
         slot.session, slot.run_id = sess, run_id
         sess.start()
         return {"ok": True, "agent": agent, "run_id": run_id}
+
+    def _finish(self, user: dict, run_id: int, sess: Session):
+        """Score the season from its ledger and apply it to the player's progress (once per scenario)."""
+        from .progression import evaluate, award, scenario_key
+        ev = evaluate(sess.lab.ledger.entries, list(sess.farm.events), sess.lab.result)
+        out = None
+        if ev["complete"]:
+            key = scenario_key(sess.settings.seed, sess.lab.choices_summary())
+            out = award(self.accounts.progress(user["id"]), ev, key)
+            self.accounts.save_progress(user["id"], out["progress"])
+            out = {k: v for k, v in out.items() if k != "progress"}
+            sess.bus.publish("award", {**out, "run_id": run_id, "evaluation": ev})
+        self.accounts.finish_run(run_id, sess.lab.result, {"evaluation": ev, **(out or {})})
+
+    def progress(self, user: dict) -> dict:
+        from .progression import level_for, ACHIEVEMENTS
+        p = self.accounts.progress(user["id"])
+        return {"level": level_for(p.get("xp", 0)), "achievements": p.get("achievements", {}),
+                "best_people": p.get("best_people"), "seasons": p.get("seasons", 0),
+                "catalog": [{"id": k, "title": v[0], "about": v[1]} for k, v in ACHIEVEMENTS.items()]}
 
     def info(self, user: dict) -> dict:
         slot = self.slot(user["id"])
@@ -251,6 +272,8 @@ def make_handler(app: App):
             name = path.lstrip("/")
             if name in STATIC:
                 return self._file(STATIC[name])
+            if name.startswith("engine/") and name.endswith(".js") and "/" not in name[7:] and (APP / name).is_file():
+                return self._file(APP / name)
             if path == "/api/seasons":
                 from .farm.seasons import all_seasons
                 return self._json(all_seasons())
@@ -277,6 +300,8 @@ def make_handler(app: App):
                     return self._json({"ok": False, "message": "no run yet"})
                 ok, msg = verify(s.run_dir / "ledger.jsonl")
                 return self._json({"ok": ok, "message": msg})
+            if path == "/api/progress":
+                return self._json(app.progress(user))
             if path == "/api/runs":
                 return self._json({"runs": app.accounts.runs(user["id"])})
             if path.startswith("/api/runs/") and path.endswith("/replay"):

@@ -44,9 +44,27 @@ def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> 
             if images > max_images:
                 d = {**d, "image": None}
         msgs.append({"t": m.get("t", 0), "kind": k, "data": d})
+    if not any(m["kind"] == "mission" for m in msgs):
+        msgs = _with_missions(msgs)
     if not any(m["kind"] == "reset" for m in msgs[:3]):
         msgs.insert(0, {"t": msgs[0]["t"] if msgs else 0, "kind": "reset", "data": {"agent": agent}})
     meta = {"agent": agent, "run": run_dir.name, "exported": time.strftime("%Y-%m-%d %H:%M"), "messages": len(msgs)}
     if note:
         meta["note"] = note
     return {"meta": meta, "messages": msgs}
+
+
+def _with_missions(msgs: list[dict]) -> list[dict]:
+    """Older recordings: add the mission progress the live server would have published."""
+    from .lab import Lab
+    from .progression import evaluate
+    out, ledger, pert = [], [], []
+    for m in msgs:
+        out.append(m)
+        if m["kind"] == "perturbation":
+            pert.append(m["data"])
+        if m["kind"] == "ledger":
+            ledger.append(m["data"])
+            if m["data"].get("kind") in Lab.MISSION_KINDS:
+                out.append({"t": m["t"], "kind": "mission", "data": evaluate(ledger, pert)})
+    return out

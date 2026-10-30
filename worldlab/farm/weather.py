@@ -80,6 +80,16 @@ def et0_pm(tmax, tmin, rh, u2, rs, doy, lat_deg=LAT_DEG, z=ELEV_M):
     return np.maximum(num / (delta + gamma * (1 + 0.34 * u2)), 0.3)
 
 
+def clear_sky_rs(doy, lat_deg=LAT_DEG, z=ELEV_M):
+    """FAO-56 clear-sky solar radiation Rso (MJ/m2/day) for a day of year."""
+    phi = math.radians(lat_deg)
+    dr = 1 + 0.033 * np.cos(2 * np.pi * doy / 365)
+    dec = 0.409 * np.sin(2 * np.pi * doy / 365 - 1.39)
+    ws = np.arccos(np.clip(-np.tan(phi) * np.tan(dec), -1, 1))
+    Ra = 24 * 60 / np.pi * 0.0820 * dr * (ws * np.sin(phi) * np.sin(dec) + np.cos(phi) * np.cos(dec) * np.sin(ws))
+    return (0.75 + 2e-5 * z) * Ra
+
+
 def daylength(doy, lat_deg=LAT_DEG):
     phi = math.radians(lat_deg)
     dec = 0.409 * np.sin(2 * np.pi * doy / 365 - 1.39)

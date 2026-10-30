@@ -44,7 +44,21 @@ def with_config(up):
 
 
 page(root / "dashboard" / "index.html", app_dir / "index.html", None if app_only else with_config("../"))
-for f in ("app.js", "client.js", "scene.js", "style.css", "replay.json"):
+def versioned_js(src: Path, dst: Path):
+    """Copy a module, pinning its relative imports to this build so browsers never mix versions."""
+    js = src.read_text()
+    js = re.sub(r'(from\s+"\./[\w/.-]+?\.js)"', rf'\1?v={VERSION}"', js)
+    js = re.sub(r'(import\(\s*"\./[\w/.-]+?\.js)"', rf'\1?v={VERSION}"', js)
+    js = js.replace('scene.js`)', f'scene.js?v={VERSION}`)')
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(js)
+
+
+for f in ("app.js", "client.js", "scene.js"):
+    versioned_js(root / "dashboard" / f, app_dir / f)
+for f in sorted((root / "dashboard" / "engine").glob("*.js")):
+    versioned_js(f, app_dir / "engine" / f.name)
+for f in ("style.css", "replay.json"):
     shutil.copy(root / "dashboard" / f, app_dir / f)
 if not app_only:
     sub = with_config("")
@@ -52,9 +66,11 @@ if not app_only:
     for name in ("login.html", "signup.html"):
         page(root / "site" / name, out / name,
              lambda h: h.replace('<link rel="stylesheet" href="site.css">', '<link rel="stylesheet" href="site.css">\n<script src="config.js"></script>'))
-    for f in ("site.css", "site.js", "hero.js", "seasons.json", "favicon.svg"):
+    for f in ("site.css", "seasons.json", "favicon.svg"):
         shutil.copy(root / "site" / f, out / f)
-    shutil.copy(root / "dashboard" / "client.js", out / "client.js")
+    for f in ("site.js", "hero.js"):
+        versioned_js(root / "site" / f, out / f)
+    versioned_js(root / "dashboard" / "client.js", out / "client.js")
     cfg = out / "config.js"
     if not cfg.exists():          # keep a hand-edited server address
         shutil.copy(root / "site" / "config.js", cfg)

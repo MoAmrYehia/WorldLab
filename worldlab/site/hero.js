@@ -13,8 +13,9 @@ async function hero() {
     const cap = document.getElementById("heroCaption"); if (cap) cap.hidden = true;
     return;
   }
-  const scene = mod.createScene(el, { theme: "day", reducedMotion: reduced, interactive: false, labels: false,
-    homePos: [32, 30, 64], shiftX: (w) => (w > 960 ? 0.22 : w > 600 ? 0.3 : 0) });
+  const scene = mod.createScene(el, { time: "golden", reducedMotion: reduced, interactive: false, labels: false, flyover: true,
+    homePos: [46, 26, 58], shiftX: (w) => (w > 960 ? 0.2 : w > 600 ? 0.26 : 0), onFps: (f, q) => { window.__wlFps = [Math.round(f), q]; } });
+  window.__wlScene = scene;
   const msgs = data.messages || data;
   const fields = msgs.find((m) => m.kind === "fields");
   const trials = msgs.filter((m) => m.kind === "trials").map((m) => m.data);
