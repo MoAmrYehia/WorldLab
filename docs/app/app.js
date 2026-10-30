@@ -1,7 +1,7 @@
 // WorldLab: Green Frontier — simulator interface.
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=b2e635c2ae";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=3e51a05a34";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -919,7 +919,7 @@ function showTour() {
 // ------------------------------------------------------------ boot
 async function loadScene() {
   try {
-    const mod = await import("./scene.js?v=b2e635c2ae");
+    const mod = await import("./scene.js?v=3e51a05a34");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
