@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=abb2d3bed9">
-<script src="config.js?v=abb2d3bed9"></script>
+<link rel="stylesheet" href="site.css?v=b2e635c2ae">
+<script src="config.js?v=b2e635c2ae"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -28,6 +28,7 @@
     <a href="#how">How it works</a>
     <a href="#crops">Crops and seasons</a>
     <a href="#results">Results</a>
+    <a href="#ai">The AI</a>
   </nav>
   <div class="auth" id="navAuth">
     <a class="btn ghost" href="login" data-needs-server>Log in</a>
@@ -123,17 +124,29 @@
   </div>
 </section>
 
-<section class="band alt" id="meta">
-  <div class="wrap two">
-    <div>
-      <h2>Built on Meta's models</h2>
-      <p class="intro">The language model decides; numerical code does the agronomy; budgets bound every action. Every decision and its reason goes into a hash-chained ledger anyone can verify.</p>
+<section class="band alt" id="ai">
+  <div class="wrap">
+    <h2>The AI inside, part by part</h2>
+    <p class="intro">WorldLab is an agent: it observes the farm, writes a testable hypothesis, runs the experiment that tells explanations apart, decides, acts through bounded tools, and corrects its own model. Meta's models decide and perceive; numerical code does the agronomy and the learning; a hash-chained ledger records every step. The app shows each tool call as it happens.</p>
+    <div class="ai-wrap">
+      <table class="ai">
+        <thead><tr><th>Component</th><th>Kind</th><th>What it does</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td>Muse Spark</td><td><span class="kind meta">Meta model</span></td><td>The scientist. Chooses every next step</td><td>Function calling over 19 tools: hypotheses, trial designs, field tests, repairs, model updates, conclusions</td></tr>
+          <tr><td>Muse Glimmer</td><td><span class="kind meta">Meta open weights</span></td><td>The same scientist on your own GPU</td><td>Any OpenAI-compatible endpoint, same tools and prompt</td></tr>
+          <tr><td>SAM 3.1</td><td><span class="kind meta">Meta model</span></td><td>Reads drone images</td><td>Segments green plants, white salt crust and brown leaf damage by text prompt</td></tr>
+          <tr><td>Muse Spark vision</td><td><span class="kind meta">Meta model</span></td><td>Diagnoses crop stress from the image</td><td>Structured diagnosis (water, salt or pest stress, gaps) with its evidence</td></tr>
+          <tr><td>Scripted protocol</td><td><span class="kind rule">Rules</span></td><td>Baseline and fallback scientist</td><td>A fixed sequence over the same tools, used when no model key is set; the recorded season uses it</td></tr>
+          <tr><td>Experiment design</td><td><span class="kind num">Numerical</span></td><td>Picks the trial plots worth planting</td><td>Expected information about the traits that move the plan</td></tr>
+          <tr><td>Bayesian calibration</td><td><span class="kind num">Numerical</span></td><td>Learns each crop's hidden traits</td><td>MAP fit of four traits per crop from trial harvests and drone canopy</td></tr>
+          <tr><td>Digital twin</td><td><span class="kind num">Numerical</span></td><td>Predicts every field with uncertainty</td><td>Ensemble crop and soil model run beside the farm; the 90% bands in the charts</td></tr>
+          <tr><td>Anomaly detector</td><td><span class="kind num">Numerical</span></td><td>Notices when reality leaves the prediction</td><td>CUSUM on measured minus predicted moisture, salinity and canopy</td></tr>
+          <tr><td>Robust planner</td><td><span class="kind num">Numerical</span></td><td>Plans crops, sowing, irrigation, blend and nitrogen</td><td>Maximises people fed in a bad year within the water and energy limits</td></tr>
+          <tr><td>Reinforcement learning</td><td><span class="kind num">Numerical</span></td><td>Learns a daily irrigation policy</td><td>Evolution strategies in the agent's own model; used only if it beats the rule on held-out seasons</td></tr>
+          <tr><td>Audit ledger</td><td><span class="kind rule">Integrity</span></td><td>Makes every step checkable</td><td>Hash chain of each hypothesis, prediction, test, decision and result</td></tr>
+        </tbody>
+      </table>
     </div>
-    <dl class="models">
-      <div><dt>Muse Spark</dt><dd>The scientist. It runs the farm through tool calls: hypotheses, trial designs, field tests, repairs, conclusions.</dd></div>
-      <div><dt>SAM 3.1</dt><dd>Reads the drone images: counts plants, finds white salt crust and brown leaf damage.</dd></div>
-      <div><dt>Muse Glimmer</dt><dd>The open-weight scientist, with the same tools, on your own GPU.</dd></div>
-    </dl>
   </div>
 </section>
 
@@ -144,7 +157,7 @@
   </div>
 </footer>
 
-<script type="module" src="site.js?v=abb2d3bed9"></script>
-<script type="module" src="hero.js?v=abb2d3bed9"></script>
+<script type="module" src="site.js?v=b2e635c2ae"></script>
+<script type="module" src="hero.js?v=b2e635c2ae"></script>
 </body>
 </html>

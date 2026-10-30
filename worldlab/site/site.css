@@ -145,6 +145,18 @@ h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
 .foot p { margin: 0 0 6px; }
 .fine { font-size: 13px; color: var(--ink-3); }
 
+/* AI components table */
+.ai-wrap { overflow-x: auto; border: 1px solid var(--card-edge); border-radius: 16px; background: var(--card); }
+.ai { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15px; }
+.ai th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 13px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.ai td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+.ai tr:last-child td { border-bottom: 0; }
+.ai td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.kind { font-size: 12.5px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.kind.meta { background: rgba(56, 211, 238, 0.12); color: var(--water); }
+.kind.num { background: rgba(243, 181, 74, 0.12); color: var(--amber); }
+.kind.rule { background: rgba(255, 255, 255, 0.07); color: var(--ink-2); }
+
 /* auth pages */
 .authpage { min-height: 100vh; background:
   radial-gradient(1200px 500px at 85% -10%, rgba(243, 181, 74, 0.14), transparent 60%),

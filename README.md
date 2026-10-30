@@ -62,6 +62,29 @@ Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (a
 
 The language model never acts on the farm directly. It decides, numerical code does the agronomy, and budgets bound every action: trial plots, field tests, the groundwater quota and the energy budget.
 
+## All the AI components
+
+WorldLab is an agent. Its loop: **observe** the farm, write a testable **hypothesis**, run the **experiment** that tells explanations apart, **decide**, **act** through bounded tools, and **learn** by correcting its own model. The app's **Agent** tab shows that loop and every tool call with its reason, result and the engine that ran it; the same tab lists the components below with whether each is active in the season on screen.
+
+| Component | Kind | What it does | How it works | In the recorded demo |
+|---|---|---|---|---|
+| Muse Spark | Meta model | The scientist: chooses every next step | Function calling over 19 tools (`worldlab/agent.py`) | Replaced by the scripted protocol (no API key on a static host) |
+| Muse Glimmer | Meta open weights | The same scientist on your own GPU | Any OpenAI-compatible endpoint, same tools and prompt | Not used |
+| SAM 3.1 | Meta model | Reads drone images | Segments green plants, white salt crust and brown leaf damage by text prompt (`perception.py`) | Simulated perception, labelled as such |
+| Muse Spark vision | Meta model | Diagnoses crop stress from the image | Structured output: condition plus evidence | Simulated perception, labelled as such |
+| Scripted protocol | Rules | Baseline and fallback scientist | A fixed sequence over the same tools | Decides the recorded season |
+| Experiment design | Numerical | Picks the trial plots worth planting | Expected information about the traits that move the plan (`farm/belief.py`) | Used |
+| Bayesian calibration | Numerical | Learns each crop's hidden traits | MAP fit of four traits per crop from trials and drone canopy (`farm/belief.py`) | Used |
+| Digital twin | Numerical | Predicts every field with uncertainty | Ensemble of the crop and soil model run beside the farm (`farm/sim.py`) | Used |
+| Anomaly detector | Numerical | Notices when reality leaves the prediction | CUSUM on measured minus predicted moisture, salinity and canopy (`lab.py`) | Caught the F4 clog |
+| Robust planner | Numerical | Plans crops, sowing, irrigation, blend and nitrogen | Maximises people fed in a bad year within the limits (`farm/optimize.py`) | Used |
+| Reinforcement learning | Numerical | Learns a daily irrigation policy | Evolution strategies inside the agent's model; deployed only if it beats the rule (`farm/rl.py`) | Deployed |
+| Audit ledger | Integrity | Makes every step checkable | Hash-chained log; missions and achievements are scored from it (`ledger.py`, `progression.py`) | Used |
+
+**Drone feed.** The Drone feed tab shows two things side by side and labels them: the drone's live camera in the 3D farm, and the frames the drone captures. Survey frames are taken every 12 days from the farm simulator's true state (the canopy figure beside each is the drone's noisy measurement); inspection frames are the images the scientist asked for, with the image analysis that went into its decision.
+
+**Crop pictures.** Every crop name in the planner, the field gauges, the inspector and the results comes with a picture rendered from the same 3D model that grows in the field, at the growth stage the field is in.
+
 ## The science inside
 
 - **Crop and soil model.** An AquaCrop-style daily model, vectorised over tens of thousands of field-seasons at once (40,000 seasons in about 3 s):

@@ -234,7 +234,7 @@ class Farm:
         return {"traits": self.traits, "eff": self.eff.round(3).tolist(), "events": self.events}
 
     # --------------------------------------------------------- imagery
-    def image(self, f: int) -> bytes:
+    def image(self, f: int, half: bool = False) -> bytes:
         with self.lock:
             s = self.sim
             crop = self.plan[f]["crop"] if self.plan else None
@@ -244,7 +244,10 @@ class Farm:
             ece_top = float(s.ece_layers()[f, 0]) if s else 2.0
             pest = float(self.pest[f, max(self.day - 1, 0)]) if s else 0.0
             done = bool(s.done[f]) if s else False
-        return encode_png(render_field(crop, cc, stand, ksw, ece_top, pest, done, seed=f * 31 + 5))
+        img = render_field(crop, cc, stand, ksw, ece_top, pest, done, seed=f * 31 + 5)
+        if half:                         # 320 x 200, a quarter of the bytes, for the live drone feed
+            img = (img.reshape(IH // 2, 2, IW // 2, 2, 3).mean((1, 3)) // 4 * 4).astype(np.uint8)
+        return encode_png(img)
 
 
 # ---------------------------------------------------------------- renderer

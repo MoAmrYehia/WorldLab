@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=abb2d3bed9">
-<script src="../config.js?v=abb2d3bed9"></script>
+<link rel="stylesheet" href="style.css?v=b2e635c2ae">
+<script src="../config.js?v=b2e635c2ae"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -36,6 +36,7 @@
     <button class="on" id="navSim" type="button">Simulator</button>
     <button id="navMissions" type="button">Missions</button>
     <button id="navResearch" type="button">Research</button>
+    <button id="navAgent" type="button">Agent</button>
   </nav>
   <div class="tb-right">
     <span class="modechip" id="modeChip">Recorded season</span>
@@ -106,6 +107,7 @@
     <button role="tab" data-dt="fields" class="on">Field analytics</button>
     <button role="tab" data-dt="timeline">Season timeline</button>
     <button role="tab" data-dt="activity">Recent activity</button>
+    <button role="tab" data-dt="drone" id="droneTab">Drone feed <i class="rec-dot" id="droneDot" hidden></i></button>
     <button class="collapse" type="button" aria-label="Collapse details" data-collapse="dock">–</button>
   </div>
   <div class="dock-body">
@@ -120,12 +122,27 @@
       <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Replay position" hidden>
     </div>
     <div class="dt-pane" data-pane="activity" hidden><ol class="activity" id="activity"></ol></div>
+    <div class="dt-pane" data-pane="drone" hidden>
+      <div class="drone-feed">
+        <figure class="df-view">
+          <div class="df-frame"><canvas id="droneLive" aria-label="Live 3D view from the drone's camera"></canvas>
+            <span class="df-hud tl"><i class="live"></i>Live</span><span class="df-hud br" id="dfLiveTxt">On patrol</span></div>
+          <figcaption>The drone's camera in the 3D farm, live</figcaption>
+        </figure>
+        <figure class="df-view">
+          <div class="df-frame"><img id="dfImg" alt="" hidden><p class="df-empty" id="dfEmpty">Frames appear here as the drone surveys the fields.</p>
+            <span class="df-hud tl" id="dfTag">Captured frame</span><span class="df-hud br" id="dfMeta"></span></div>
+          <figcaption id="dfCap">Survey frames from the farm simulator: what the scientist's canopy measurements come from</figcaption>
+        </figure>
+        <ol class="df-strip" id="dfStrip" aria-label="Recent drone frames"></ol>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- field inspector -->
 <aside class="panel inspector" id="inspector" hidden aria-label="Field inspector">
-  <div class="ph"><h2 id="fiTitle">Field</h2><button class="collapse" type="button" id="fiClose" aria-label="Close inspector">×</button></div>
+  <div class="ph"><img class="fi-pic" id="fiPic" alt="" hidden><h2 id="fiTitle">Field</h2><button class="collapse" type="button" id="fiClose" aria-label="Close inspector">×</button></div>
   <div class="pbody">
     <p class="fi-sub" id="fiSub"></p>
     <div class="fi-cams"><button class="ghost sm" id="fiFocus" type="button">Focus</button><button class="ghost sm" id="fiClose2" type="button">Close-up</button><button class="ghost sm" id="fiDrone" type="button">Drone view</button></div>
@@ -226,6 +243,6 @@
 <div class="tour" id="tour" hidden><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
 <div class="tip" id="tip" hidden></div>
 
-<script type="module" src="app.js?v=abb2d3bed9"></script>
+<script type="module" src="app.js?v=b2e635c2ae"></script>
 </body>
 </html>

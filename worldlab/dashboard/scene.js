@@ -18,6 +18,7 @@ import { cropGeometry, clearCropCache, CROP_INFO } from "./engine/crops.js";
 import { buildDrone, buildDust, buildRain, buildClouds, Markers, Pulse, TruckRun, HarvestBurst } from "./engine/fx.js";
 
 export { OVERLAYS, CROP_INFO };
+export { cropPortrait, stageOf } from "./engine/portrait.js";
 export const QUALITIES = ["low", "medium", "high", "ultra"];
 export const TIMES = {
   morning: { label: "Morning", elev: 14, az: 100, turb: 7, ray: 1.6, mie: 0.005, exp: 0.5, fog: "#d8c9b4", dens: 0.0013, sun: "#ffe2bf", sunI: 2.6, hemi: 0.75 },
@@ -418,7 +419,7 @@ export function createScene(container, opts = {}) {
     d.rotation.z = THREE.MathUtils.clamp((du.target.x - d.position.x) * -0.03, -0.3, 0.3);
     d.rotation.x = THREE.MathUtils.clamp((du.target.z - d.position.z) * 0.03, -0.3, 0.3);
     du.props.forEach((p, k) => (p.rotation.y += dt * (k % 2 ? 50 : -50)));
-    const scanning = clock < du.scanUntil;
+    var scanning = clock < du.scanUntil;
     du.cone.material.opacity += ((scanning ? 0.12 + 0.05 * Math.sin(clock * 8) : 0) - du.cone.material.opacity) * Math.min(1, dt * 5);
     // infrastructure motion
     W.infra.cups.rotation.y += dt * (o.reducedMotion ? 0 : 1 + W.u2 * 1.8);
@@ -427,6 +428,44 @@ export function createScene(container, opts = {}) {
     W.markers.tick(dt); W.pulse.tick(dt); W.burst.tick(dt); W.truck.tick(dt);
     if (W.composer) W.composer.render(); else renderer.render(W.scene, camera);
     labels.render(W.scene, camera);
+    if (DV && DV.canvas.isConnected && DV.canvas.offsetParent && ++DV.n % DV.every === 0) renderDroneView(scanning);
+  }
+
+  // ---------------------------------------------------------------- the drone's own camera, drawn into a 2D canvas
+  // Rendered off screen at a low rate, tone-mapped on the CPU (render targets skip the renderer's output transform).
+  let DV = null;
+  const droneCam = new THREE.PerspectiveCamera(60, 16 / 10, 0.1, 900);
+  function droneView(canvas) {
+    if (DV) { DV.rt.dispose(); DV = null; }
+    if (!canvas) return;
+    const w = canvas.width = 320, h = canvas.height = 200;
+    const float = renderer.capabilities.isWebGL2 && renderer.extensions.has("EXT_color_buffer_float");
+    const rt = new THREE.WebGLRenderTarget(w, h, { type: float ? THREE.FloatType : THREE.UnsignedByteType, depthBuffer: true });
+    DV = { canvas, ctx: canvas.getContext("2d"), rt, w, h, float, n: 0, every: 4,
+      buf: float ? new Float32Array(w * h * 4) : new Uint8Array(w * h * 4), img: new ImageData(w, h) };
+  }
+  const aces = (x) => Math.min(1, Math.max(0, (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)));
+  function renderDroneView(scanning) {
+    const d = W.drone, du = d.userData;
+    droneCam.position.copy(d.position).add(new THREE.Vector3(0, -0.6, 0));
+    const ground = scanning ? new THREE.Vector3(d.position.x, 0, d.position.z + 1.5)
+      : new THREE.Vector3(d.position.x + (CENTER.x - d.position.x) * 0.25, 0, d.position.z + (CENTER.z - d.position.z) * 0.25 + 4);
+    droneCam.lookAt(ground);
+    const vis = d.visible; d.visible = false;
+    renderer.setRenderTarget(DV.rt);
+    renderer.render(W.scene, droneCam);
+    renderer.setRenderTarget(null);
+    d.visible = vis;
+    renderer.readRenderTargetPixels(DV.rt, 0, 0, DV.w, DV.h, DV.buf);
+    const out = DV.img.data, b = DV.buf, W4 = DV.w * 4, exp = renderer.toneMappingExposure, k = DV.float ? 1 : 1 / 255;
+    for (let y = 0; y < DV.h; y++) {
+      const src = (DV.h - 1 - y) * W4, dst = y * W4;
+      for (let x = 0; x < W4; x += 4) {
+        for (let c = 0; c < 3; c++) out[dst + x + c] = 255 * Math.pow(aces(b[src + x + c] * k * exp * 0.9), 1 / 2.2);
+        out[dst + x + 3] = 255;
+      }
+    }
+    DV.ctx.putImageData(DV.img, 0, 0);
   }
 
   function maybeAuto() {
@@ -454,10 +493,11 @@ export function createScene(container, opts = {}) {
   return {
     setFields, update, setSelected, setAnomaly, scan, hover, addTrial, reset, setOverlay, setLabels, previewPlan, event, view,
     setTime: (k) => applyTime(TIMES[k] ? k : "golden"),
-    setQuality, getQuality: () => quality, isAuto: () => auto, getFps: () => fps,
+    droneView, setQuality, getQuality: () => quality, isAuto: () => auto, getFps: () => fps,
     focus: (i, mode = "field") => views[mode] && views[mode](i),
     home() { rig.mode = "free"; views.home(); },
     dispose() {
+      if (DV) { DV.rt.dispose(); DV = null; }
       running = false; ro.disconnect(); controls.dispose(); disposeWorld(); renderer.dispose();
       renderer.domElement.remove(); labels.domElement.remove();
     },
