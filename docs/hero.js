@@ -14,7 +14,7 @@ async function hero() {
   let scene = null;
   try {
     if (!data) throw new Error("no recording");
-    const mod = await import(`./${base}scene.js?v=db3520d84a`);
+    const mod = await import(`./${base}scene.js?v=d20cd99018`);
     scene = mod.createScene(el, { time: "golden", reducedMotion: reduced, interactive: false, labels: false, flyover: true,
       homePos: [46, 26, 58], shiftX: (w) => (w > 960 ? 0.2 : w > 600 ? 0.26 : 0), onFps: (f, q) => { window.__wlFps = [Math.round(f), q]; } });
   } catch (e) {

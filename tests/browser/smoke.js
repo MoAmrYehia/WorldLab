@@ -1,13 +1,15 @@
 // Browser regression checks for the static site (landing page and recorded season).
 // Usage: serve the built site (python -m http.server -d docs 8811) then: node tests/browser/smoke.js http://127.0.0.1:8811
-// Needs the playwright package. The 3D view is optional: the checks pass with or without WebGL.
+// Needs the playwright package. WebGL is turned off so the run is fast and deterministic on CI machines
+// (software 3D rendering can take the main thread for seconds per frame); this exercises the 2D fallback and
+// every panel. The 3D view itself is checked by eye on a real GPU.
 const { chromium } = require("playwright");
 const base = (process.argv[2] || "http://127.0.0.1:8811").replace(/\/$/, "");
 const fail = [];
 const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); };
 
 (async () => {
-  const b = await chromium.launch();
+  const b = await chromium.launch({ args: ["--disable-webgl", "--disable-3d-apis"] });
   const errors = [];
   const page = async (w, h) => {
     const p = await b.newPage({ viewport: { width: w, height: h } });
