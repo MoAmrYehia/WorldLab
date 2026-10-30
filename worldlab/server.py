@@ -12,6 +12,8 @@ POST /api/auth/signup   {name, email, password}
 POST /api/auth/login    {email, password}
 POST /api/auth/logout
 GET  /api/me
+Sessions use an HttpOnly cookie on the same site, or "Authorization: Bearer <token>" from another
+site listed in WORLDLAB_ALLOWED_ORIGINS (for example the GitHub Pages copy of the website).
 
 Farm (each account has its own farm and run)
 GET  /api/seasons                  sowing seasons and which crops fit each
@@ -50,11 +52,16 @@ APP = HERE / "dashboard"
 SITE = HERE / "site"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon"}
-STATIC = {name: APP / name for name in ("app.js", "scene.js", "style.css", "replay.json", "classic.html")}
+STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "classic.html")}
 STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json")})
 PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SITE / "signup.html",
          "/demo": APP / "index.html", "/app": APP / "index.html"}
 COOKIE = "wl_session"
+
+
+def allowed_origins() -> set[str]:
+    """Sites (for example the GitHub Pages copy) allowed to call this API from the browser."""
+    return {o.strip().rstrip("/") for o in os.environ.get("WORLDLAB_ALLOWED_ORIGINS", "").split(",") if o.strip()}
 AGENTS = ("scripted-rl", "scripted", "scripted-noadapt", "spark", "glimmer")
 
 
@@ -152,6 +159,8 @@ def make_handler(app: App):
             self.send_header("Cache-Control", "no-store" if ctype.startswith("application/json") else "no-cache")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "same-origin")
+            for k, v in self._cors().items():
+                self.send_header(k, v)
             for k, v in (headers or {}).items():
                 if isinstance(v, list):
                     for x in v:
@@ -180,7 +189,20 @@ def make_handler(app: App):
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return {}
 
+        def _cors(self) -> dict:
+            origin = (self.headers.get("Origin") or "").rstrip("/")
+            if origin and origin in allowed_origins():
+                return {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"}
+            return {}
+
+        def _bearer(self):
+            auth = self.headers.get("Authorization") or ""
+            return auth[7:].strip() if auth.startswith("Bearer ") else None
+
         def _token(self):
+            b = self._bearer()
+            if b:
+                return b
             c = SimpleCookie(self.headers.get("Cookie") or "")
             return c[COOKIE].value if COOKIE in c else None
 
@@ -204,7 +226,15 @@ def make_handler(app: App):
             if not origin:
                 return True
             host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or ""
-            return urlsplit(origin).netloc == host
+            return urlsplit(origin).netloc == host or origin.rstrip("/") in allowed_origins()
+
+        def do_OPTIONS(self):
+            cors = self._cors()
+            if not cors:
+                return self._send(403, b"", "text/plain")
+            self._send(204, b"", "text/plain", {"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                                                 "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                                                 "Access-Control-Max-Age": "600"})
 
         # ---------------------------------------------------------------- GET
         def do_GET(self):
@@ -268,6 +298,8 @@ def make_handler(app: App):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("X-Accel-Buffering", "no")
+            for k, v in self._cors().items():
+                self.send_header(k, v)
             self.end_headers()
             q = slot.bus.subscribe()
             try:
@@ -292,7 +324,8 @@ def make_handler(app: App):
         # --------------------------------------------------------------- POST
         def do_POST(self):
             path = urlsplit(self.path).path.rstrip("/")
-            if not self._same_origin():
+            # A request carrying a bearer token can't be forged by another site; a cookie-only one must be same-origin.
+            if not self._same_origin() and not (self._bearer() and path not in ("/api/auth/signup", "/api/auth/login")):
                 return self._json({"error": "cross-site request refused"}, 403)
             b = self._body()
             client = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
@@ -305,7 +338,7 @@ def make_handler(app: App):
                 except AuthError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 token = app.accounts.new_session(user["id"])
-                return self._json({"ok": True, "user": user}, headers={"Set-Cookie": self._cookie(token)})
+                return self._json({"ok": True, "user": user, "token": token}, headers={"Set-Cookie": self._cookie(token)})
             if path == "/api/auth/logout":
                 app.accounts.end_session(self._token())
                 return self._json({"ok": True}, headers={"Set-Cookie": self._cookie(None)})

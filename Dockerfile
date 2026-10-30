@@ -7,11 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app worldlab ./worldlab
 USER app
 # Accounts and runs live in WORLDLAB_DATA. On Hugging Face, turn on persistent storage and set it to /data
-# so accounts survive restarts. Set MODEL_API_KEY as a secret to let Muse Spark run the farm.
+# so accounts survive restarts. WORLDLAB_ALLOWED_ORIGINS lists the sites (GitHub Pages) allowed to call the API. Set MODEL_API_KEY as a secret to let Muse Spark run the farm.
 ENV PYTHONUNBUFFERED=1 \
     WORLDLAB_DATA=/tmp/worldlab \
     WORLDLAB_SECURE_COOKIES=1 \
     WORLDLAB_COOKIE_SAMESITE=None \
-    WORLDLAB_MAX_RUNS=3
+    WORLDLAB_MAX_RUNS=3 \
+    WORLDLAB_ALLOWED_ORIGINS=https://moamryehia.github.io
 EXPOSE 7860
 CMD ["python", "-m", "worldlab", "serve", "--host", "0.0.0.0", "--http-port", "7860"]

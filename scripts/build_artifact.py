@@ -25,13 +25,26 @@ def page(src: Path, dst: Path, sub=None):
 
 
 # the replay app: same files, sign-up links point at the source when there is no server
-page(root / "dashboard" / "index.html", app_dir / "index.html",
-     lambda h: h.replace('<a class="btn primary" href="signup">Plan your own season</a>',
-                         '<a class="btn primary" href="https://github.com/MoAmrYehia/WorldLab#quick-start">Run your own season</a>'))
-for f in ("app.js", "scene.js", "style.css", "replay.json"):
+CONFIG = '<script src="{up}config.js"></script>\n<script type="importmap">'
+
+
+def with_config(up):
+    return lambda h: h.replace('<script type="importmap">', CONFIG.format(up=up), 1)
+
+
+page(root / "dashboard" / "index.html", app_dir / "index.html", None if app_only else with_config("../"))
+for f in ("app.js", "client.js", "scene.js", "style.css", "replay.json"):
     shutil.copy(root / "dashboard" / f, app_dir / f)
 if not app_only:
-    page(root / "site" / "index.html", out / "index.html", lambda h: h.replace('data-app=""', 'data-app="app/"'))
+    sub = with_config("")
+    page(root / "site" / "index.html", out / "index.html", lambda h: sub(h.replace('data-app=""', 'data-app="app/"')))
+    for name in ("login.html", "signup.html"):
+        page(root / "site" / name, out / name,
+             lambda h: h.replace('<link rel="stylesheet" href="site.css">', '<link rel="stylesheet" href="site.css">\n<script src="config.js"></script>'))
     for f in ("site.css", "site.js", "hero.js", "seasons.json", "favicon.svg"):
         shutil.copy(root / "site" / f, out / f)
+    shutil.copy(root / "dashboard" / "client.js", out / "client.js")
+    cfg = out / "config.js"
+    if not cfg.exists():          # keep a hand-edited server address
+        shutil.copy(root / "site" / "config.js", cfg)
 print(out)

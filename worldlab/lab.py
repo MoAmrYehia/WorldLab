@@ -401,6 +401,8 @@ class Lab:
         ev2 = evaluate(sure, S=24, seed=seed, extra_sows=extra)
         plan2 = optimise(ev2, L.water_quota_m3, L.energy_kwh, allowed=allowed_options(ev2, chosen) if allowed else None)
         free = optimise(ev, L.water_quota_m3, L.energy_kwh) if allowed else None
+        if free and free["people_p10"] < plan["people_p10"]:
+            free = plan              # its search found nothing better than the farmer's picks
         pid = self._id("P")
         untested = sorted({f["crop"] for f in plan["fields"] if f.get("crop") and not self.trial_data[f["crop"]]})
         rec = {"plan_id": pid, **{k: v for k, v in plan.items() if k != "fed_samples"},
@@ -414,8 +416,10 @@ class Lab:
             rec["scientist_choice"] = {"people_p10": free["people_p10"],
                                        "fields": [{"field": f["field"], "crop": f["crop"]} for f in free["fields"]]}
             rec["note_on_choices"] = (f"The farmer chose the crops on {len(allowed)} field(s); this plan keeps them and sets "
-                                      f"sowing day, irrigation, water blend and nitrogen. With a free choice the scientist "
-                                      f"would feed {free['people_p10']} people in a bad year, against {plan['people_p10']} here.")
+                                      f"sowing day, irrigation, water blend and nitrogen. " +
+                                      (f"With a free choice the scientist would feed {free['people_p10']} people in a bad year, "
+                                       f"against {plan['people_p10']} here." if free["people_p10"] > plan["people_p10"] else
+                                       "The scientist found no crop mix that does better than these picks."))
         if untested:
             rec["note"] = (f"the plan relies on crops never trialled on this farm: {', '.join(untested)}; their predictions "
                            "rest on published values only. Consider trialling them before committing.")

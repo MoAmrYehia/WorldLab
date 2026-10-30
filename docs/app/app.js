@@ -1,3 +1,4 @@
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js";
 // WorldLab web app: live run (Python backend over SSE) or recorded replay (static replay.json).
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -145,7 +146,7 @@ function streamItem(e) {
     case "trial_start": return ["decide", `Plants ${d.plots.length} trial plots`, why(d.rationale)];
     case "trial_result": { const held = d.plots.filter((p) => p.prediction_held).length; return [held < d.plots.length ? "test" : "learn", `${held} of ${d.plots.length} trial predictions held`, why(d.plots.filter((p) => !p.prediction_held).slice(0, 3).map((p) => `${crop(p.crop)} (${p.plot}): predicted ${p.predicted_yield_90pct[0]}–${p.predicted_yield_90pct[1]}, measured ${p.measured_yield_t_ha} t/ha`).join("; "))]; }
     case "model_update": return ["learn", d.crops ? `Calibrates ${d.crops.map((c) => crop(c.crop)).join(", ")}` : `Teaches the model: ${esc(String(d.finding).replace(/_/g, " "))} = ${d.value} in ${d.field} since ${dayLabel(d.since_day)}`, why(d.rationale)];
-    case "plan": return ["decide", `Plan ${d.plan_id}: <span class="num-b">${fmt(d.people_p10)}</span> people in a bad year`, why(d.scientist_choice ? `Keeps your crops. With a free choice the scientist would feed ${fmt(d.scientist_choice.people_p10)}. Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people.` : `Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people. ${d.rationale || ""}`)];
+    case "plan": return ["decide", `Plan ${d.plan_id}: <span class="num-b">${fmt(d.people_p10)}</span> people in a bad year`, why(d.scientist_choice ? `Keeps your crops. ${d.scientist_choice.people_p10 > d.people_p10 ? `With a free choice the scientist would feed ${fmt(d.scientist_choice.people_p10)}.` : "The scientist found no better crop mix than yours."} Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people.` : `Uncertainty costs ${fmt(d.cost_of_uncertainty_people)} people. ${d.rationale || ""}`)];
     case "farmer_choices": return ["decide", "Your crop choices", why(d.fields.filter((f) => f.crop || f.choice === "fallow").map((f) => `${f.field}: ${f.choice}${f.season ? `, ${f.season.toLowerCase()}` : ""}`).join("; "))];
     case "rl_train_start": return ["rl", `Trains an irrigation policy for ${d.plan_id} by reinforcement learning`, why(d.rationale)];
     case "rl_policy": { const c = d.held_out_comparison || {}; return ["rl", d.recommend === "rl_policy" ? `Policy beats the fixed rule in its model: people fed ${signed(c.people_mean_change_pct)}% on average, water ${signed(c.water_change_pct)}%, energy ${signed(c.energy_change_pct)}%` : "Policy did not beat the fixed rule; keeps the rule", why(d.note)]; }
@@ -343,7 +344,7 @@ function beliefsHtml() {
 function planHtml() {
   const p = S.plan;
   if (!p) return `<p class="empty">No plan yet.</p>`;
-  const cmp = p.scientist_choice ? ` With a free choice of crops the scientist would feed ${fmt(p.scientist_choice.people_p10)} (${p.scientist_choice.fields.filter((f) => f.crop).map((f) => `${f.field} ${crop(f.crop)}`).join(", ")}).` : "";
+  const cmp = p.scientist_choice && !(p.scientist_choice.people_p10 > p.people_p10) ? " The scientist found no crop mix that does better than your picks." : p.scientist_choice ? ` With a free choice of crops the scientist would feed ${fmt(p.scientist_choice.people_p10)} (${p.scientist_choice.fields.filter((f) => f.crop).map((f) => `${f.field} ${crop(f.crop)}`).join(", ")}).` : "";
   return `<p style="margin:0 0 8px">Plan ${p.plan_id} feeds <b>${fmt(p.people_p10)}</b> people in a bad year and ${fmt(p.people_p50)} in a typical one. Not knowing the varieties exactly costs ${fmt(p.cost_of_uncertainty_people)} people. Bad-year water ${fmt(p.water_p90_m3)} m³, energy ${fmt(p.energy_p90_kwh)} kWh.${cmp}</p><table><thead><tr><th>Field</th><th>Crop</th><th>Sowing</th><th class="n">Irrigation</th><th class="n">Desalinated</th><th class="n">Nitrogen</th><th class="n">Yield, typical</th></tr></thead><tbody>${p.fields.map((f, i) => f.crop ? `<tr><td>${f.field} ${NAMES[i]}</td><td>${crop(f.crop)}${f.farmer_choice ? ' <span class="pill">your pick</span>' : ""}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="n">${Math.round(f.mgmt.irr * 100)}%</td><td class="n">${Math.round(f.mgmt.desal * 100)}%</td><td class="n">${fmt(f.mgmt.nfert)} kg/ha</td><td class="n">${fmt(f.yield_t_ha_p10_p50_p90[1], 1)} t/ha</td></tr>` : `<tr><td>${f.field} ${NAMES[i]}</td><td colspan="6" style="color:var(--ink-3)">Left fallow</td></tr>`).join("")}</tbody></table>`;
 }
 function rlHtml() {
@@ -385,19 +386,19 @@ function ledgerHtml() {
   const ev = S.events.slice(-60).reverse();
   return `<p style="margin:0 0 8px">Every hypothesis, prediction, test and decision is written to a hash-chained ledger: each entry includes the hash of the one before, so any edit breaks the chain. ${mode === "live" ? '<button class="btn" id="verifyBtn">Verify ledger</button> <span id="verifyOut"></span>' : ""}</p><table><thead><tr><th class="n">#</th><th>Entry</th><th>Day</th><th>Hash</th></tr></thead><tbody>${ev.map((e) => `<tr><td class="n">${e.seq}</td><td>${esc(e.kind.replace(/_/g, " "))}</td><td>${e.t != null ? e.t : ""}</td><td class="hash">${String(e.hash).slice(0, 16)}</td></tr>`).join("")}</tbody></table>`;
 }
-async function verifyLedger() { const r = await (await fetch("api/verify")).json(); $("verifyOut").innerHTML = r.ok ? `<span class="ok">${esc(r.message)}</span>` : `<span class="miss">${esc(r.message)}</span>`; }
+async function verifyLedger() { const r = (await apiJson("api/verify")).data; $("verifyOut").innerHTML = r.ok ? `<span class="ok">${esc(r.message)}</span>` : `<span class="miss">${esc(r.message)}</span>`; }
 
 // ------------------------------------------------------------ selection
 function select(i) { if (i == null || i < 0) return; sel = i; if (scene) scene.setSelected(i); dirty = true; render(); }
 
 // ------------------------------------------------------------ live mode
-async function post(path, body) { const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) }); return r.json(); }
+async function post(path, body) { return (await apiJson(path, { method: "POST", body: body || {} })).data; }
 async function startLive(state) {
   info = state.info || {};
   $("liveControls").hidden = false;
   $("historyTab").hidden = false;
   if (info.user) { $("account").hidden = false; $("userName").textContent = info.user.name; }
-  $("logoutBtn").onclick = async () => { await post("api/auth/logout"); location.href = "./"; };
+  $("logoutBtn").onclick = async () => { await post("api/auth/logout"); setToken(null); go("home"); };
   const opt = $("agentSel").querySelector('option[value="spark"]');
   if (!info.has_api_key) { opt.textContent = "Muse Spark (needs MODEL_API_KEY on the server)"; opt.disabled = true; }
   const glim = $("agentSel").querySelector('option[value="glimmer"]'); glim.textContent = "Muse Glimmer (needs a Glimmer endpoint)";
@@ -417,8 +418,10 @@ async function startLive(state) {
     const r = await post("api/perturb", { kind: b.dataset.kind, field: FIELD_IDS[sel] });
     if (!r.ok) $("modeNote").textContent = r.error || "Could not change the farm";
   }));
-  const es = new EventSource("api/stream");
-  es.onmessage = (ev) => { JSON.parse(ev.data).forEach((m) => { apply(m, true); if (m.kind === "reset") setRunning(true); if (m.kind === "status" && (m.data.done || m.data.phase === "harvested")) setRunning(false); }); };
+  stream("api/stream", (batch) => { batch.forEach((m) => { apply(m, true); if (m.kind === "reset") setRunning(true); if (m.kind === "status" && (m.data.done || m.data.phase === "harvested")) setRunning(false); }); }, async () => {
+    const r = await apiJson("api/state");       // reconnected: catch up from the snapshot
+    if (r.ok) { S = { ...fresh(), ...r.data, events: r.data.events || [], agentKind: info.agent }; delete S.info; delete S.agent; delete S.beliefs_hist; sceneSync(); dirty = true; }
+  });
 }
 function setRunning(on) { $("planBtn").textContent = on ? "Plan a different season" : "Plan a new season"; $("stopBtn").hidden = !on; }
 
@@ -432,7 +435,7 @@ async function openPlanner() {
   $("planner").onclick = (e) => { if (e.target === $("planner")) closePlanner(); };
   document.addEventListener("keydown", escClose);
   if (!P.seasons) {
-    try { P.seasons = await (await fetch("api/seasons")).json(); } catch (e) { $("seasonAbout").textContent = "Could not load the seasons. Check your connection."; return; }
+    try { P.seasons = (await apiJson("api/seasons")).data; } catch (e) { $("seasonAbout").textContent = "Could not load the seasons. Check your connection."; return; }
   }
   renderSeasonTabs(); await showSeason(P.season); renderFieldRows();
   setTimeout(() => $("seasonTabs").querySelector("button.on")?.focus(), 30);
@@ -452,7 +455,7 @@ async function showSeason(id) {
   const cards = $("cropCards");
   if (!P.guide[id]) {
     cards.innerHTML = `<p class="season-about">Asking the crop model what grows in this season…</p>`;
-    try { P.guide[id] = await (await fetch(`api/crop-guide?season=${id}`)).json(); } catch (e) { cards.innerHTML = `<p class="err">Could not load the crop guide.</p>`; return; }
+    try { P.guide[id] = (await apiJson(`api/crop-guide?season=${id}`)).data; } catch (e) { cards.innerHTML = `<p class="err">Could not load the crop guide.</p>`; return; }
   }
   if (P.season !== id) return;
   const g = P.guide[id];
@@ -507,10 +510,9 @@ function renderFieldRows() {
 async function startSeason() {
   const btn = $("startBtn"); btn.disabled = true; $("plErr").hidden = true;
   try {
-    const r = await fetch("api/start", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-      body: JSON.stringify({ agent: $("agentSel").value, speed: Number($("speed").value), choices: P.picks }) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401) { location.href = "login?next=/app"; return; }
+    const r = await apiJson("api/start", { method: "POST", body: { agent: $("agentSel").value, speed: Number($("speed").value), choices: P.picks } });
+    const d = r.data;
+    if (r.status === 401) { go("login", `?next=${encodeURIComponent(PAGES.app)}`); return; }
     if (!r.ok || !d.ok) throw new Error(d.error || "The season could not start.");
     closePlanner(); $("modeNote").textContent = ""; drawerUserClosed.clear();
   } catch (e) { $("plErr").textContent = e.message; $("plErr").hidden = false; }
@@ -520,12 +522,12 @@ async function startSeason() {
 // ------------------------------------------------------------ past seasons
 async function historyHtml() {
   let d;
-  try { d = await (await fetch("api/runs", { cache: "no-store" })).json(); } catch (e) { return `<p class="empty">Could not load your seasons.</p>`; }
+  try { d = (await apiJson("api/runs")).data; } catch (e) { return `<p class="empty">Could not load your seasons.</p>`; }
   if (!d.runs || !d.runs.length) return `<p class="empty">No seasons yet. Plan one to start.</p>`;
   const when = (t) => new Date(t * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   return `<table><thead><tr><th>Started</th><th>Scientist</th><th>Your crops</th><th class="n">People fed</th><th></th></tr></thead><tbody>${d.runs.map((r) => {
     const mine = (r.choices || []).filter((c) => c.crop).map((c) => `${c.field} ${esc(c.choice)}`).join(", ") || "Scientist chose all";
-    return `<tr><td>${when(r.created)}</td><td>${esc(agentName(r.agent))}</td><td>${mine}</td><td class="n">${r.result ? fmt(r.result.people_fed) : r.id === info.run_id ? "running" : "stopped"}</td><td class="hist-actions">${r.result ? `<a href="app?run=${r.id}">Replay</a>` : ""}</td></tr>`;
+    return `<tr><td>${when(r.created)}</td><td>${esc(agentName(r.agent))}</td><td>${mine}</td><td class="n">${r.result ? fmt(r.result.people_fed) : r.id === info.run_id ? "running" : "stopped"}</td><td class="hist-actions">${r.result ? `<a href="${PAGES.app}?run=${r.id}">Replay</a>` : ""}</td></tr>`;
   }).join("")}</tbody></table>`;
 }
 
@@ -559,7 +561,9 @@ function seek(pos) {
 }
 async function startReplay(url) {
   mode = "replay";
-  const data = await (await fetch(url)).json();
+  const res = url.startsWith("api/") ? await api(url) : await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  const data = await res.json();
   R.msgs = data.messages || data;
   buildTimeline(R.msgs);
   S.agentKind = (data.meta && data.meta.agent) || null;
@@ -596,25 +600,31 @@ async function loadScene() {
 }
 
 async function boot() {
+  document.querySelector(".home-link").href = PAGES.home;
   document.querySelectorAll(".dock button").forEach((b) => (b.onclick = () => (drawerTab === b.dataset.tab ? closeDrawer() : openDrawer(b.dataset.tab))));
   $("drawerClose").onclick = closeDrawer;
   await loadScene();
   const q = new URLSearchParams(location.search);
-  const isDemo = /\/demo\/?$/.test(location.pathname);
+  const isDemo = /\/demo\/?$/.test(location.pathname) || q.has("demo");
   let replay = q.get("replay") || window.WORLDLAB_REPLAY || (isDemo ? "replay.json" : null);
   if (q.get("run")) replay = `api/runs/${encodeURIComponent(q.get("run"))}/replay`;
   let state = null;
   if (!replay) {
     try {
-      const r = await fetch("api/state", { cache: "no-store", credentials: "same-origin" });
-      if (r.status === 401) { location.href = "login?next=/app"; return; }
-      if (r.ok) state = await r.json();
+      const r = await api("api/state");
+      if (r.status === 401) { go("login", `?next=${encodeURIComponent(PAGES.app)}`); return; }
+      if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) state = await r.json();
     } catch (e) { /* static hosting */ }
   }
   if (state) await startLive(state);
   else {
     $("demoControls").hidden = false;
-    if (q.get("run")) { $("demoControls").hidden = false; $("demoControls").innerHTML = `<a class="btn primary" href="app">Back to your farm</a>`; }
+    let server = false;
+    try { const m = await api("api/me"); server = m.status === 200 || m.status === 401; } catch (e) { /* no server */ }
+    const cta = $("demoControls").querySelector("a");
+    if (server) cta.href = PAGES.signup;
+    else { cta.href = "https://github.com/MoAmrYehia/WorldLab#quick-start"; cta.textContent = "Run your own season"; }
+    if (q.get("run")) { $("demoControls").hidden = false; $("demoControls").innerHTML = `<a class="btn primary" href="${PAGES.app}">Back to your farm</a>`; }
     await startReplay(replay || "replay.json").catch((e) => { $("modeNote").textContent = `No live server and no recording found (${e.message}).`; });
   }
   const loop = () => { render(); requestAnimationFrame(loop); };
