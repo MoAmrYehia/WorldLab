@@ -1,696 +1,465 @@
-// WorldLab 3D farm: a stylized low-poly desert farm driven by the simulation stream.
-// The scene shows the real (hidden) farm, as a camera would see it. The agent never sees this view.
+// WorldLab: Green Frontier 3D engine.
+// A procedural, physically lit desert farm near Al Ain. Everything that moves or changes colour is driven by
+// the simulation stream (crop stage, canopy, water stress, soil moisture and salinity, irrigation, delivered
+// flow, pests, harvest, measured weather). Time of day is a viewing choice: the simulation steps whole days.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { Sky } from "three/addons/objects/Sky.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { makeTextures, disposeTextures } from "./engine/textures.js";
+import { buildTerrain } from "./engine/terrain.js";
+import { buildFlora } from "./engine/flora.js";
+import { Field, buildInfrastructure, FIELD_POS, OVERLAYS, PLOT_D } from "./engine/farm.js";
+import { cropGeometry, clearCropCache, CROP_INFO } from "./engine/crops.js";
+import { buildDrone, buildDust, buildRain, buildClouds, Markers, Pulse, TruckRun, HarvestBurst } from "./engine/fx.js";
 
-const PLOT_W = 15, PLOT_D = 10;
-const COLS = [-18, 0, 18], ROWS = [-7.5, 7.5];
-const LINES = 10, PLANTS = 16;
-const TRIAL_Z = -27;
-
-const PALETTES = {
-  day: {
-    skyTop: "#a9c8ec", skyHorizon: "#f3e6d3", skyBottom: "#e9d4b2", fog: "#efdfc8",
-    sun: "#fff3df", sunI: 2.6, hemiSky: "#dcecff", hemiGround: "#c9a97a", hemiI: 1.15,
-    sand: ["#e8cfa3", "#e2c393", "#dcb986", "#efd9b3"], pad: "#d8bf98",
-  },
-  dusk: {
-    skyTop: "#1d2546", skyHorizon: "#e2946a", skyBottom: "#3a2f3c", fog: "#8c6a68",
-    sun: "#ffc59a", sunI: 1.5, hemiSky: "#6a74b8", hemiGround: "#6b4f3f", hemiI: 0.75,
-    sand: ["#b9906f", "#ad8566", "#a27b5e", "#c49c7a"], pad: "#a7866a",
-  },
+export { OVERLAYS, CROP_INFO };
+export const QUALITIES = ["low", "medium", "high", "ultra"];
+export const TIMES = {
+  morning: { label: "Morning", elev: 14, az: 100, turb: 7, ray: 1.6, mie: 0.005, exp: 0.5, fog: "#d8c9b4", dens: 0.0013, sun: "#ffe2bf", sunI: 2.6, hemi: 0.75 },
+  noon: { label: "Noon", elev: 66, az: 170, turb: 9, ray: 1.1, mie: 0.004, exp: 0.38, fog: "#d6d0c2", dens: 0.0011, sun: "#fff6e8", sunI: 3.2, hemi: 0.9 },
+  golden: { label: "Golden hour", elev: 7, az: 258, turb: 10, ray: 2.6, mie: 0.007, exp: 0.62, fog: "#d9a877", dens: 0.0014, sun: "#ffbe7a", sunI: 2.8, hemi: 0.55 },
+  night: { label: "Night", elev: -14, az: 258, turb: 2, ray: 0.4, mie: 0.002, exp: 0.9, fog: "#1a2030", dens: 0.0016, sun: "#9db4ff", sunI: 0.35, hemi: 0.18 },
 };
+const DENSITY = { low: 0.35, medium: 0.6, high: 1, ultra: 1.6 };
+const CENTER = new THREE.Vector3(-2, 0, -4);
 
-const CROP_FORM = {
-  wheat: "grass", rice: "grass", millet: "grass", sorghum: "grass",
-  maize: "maize", cassava: "cassava",
-  potato: "bush", sweet_potato: "vine", soybean: "bush", beans: "bush",
-};
-const CROP_GREEN = {
-  wheat: "#86b04c", rice: "#6fb14f", maize: "#5c9d3b", potato: "#5b9846", cassava: "#4c8b3c",
-  soybean: "#6aa647", sorghum: "#7a9f3b", millet: "#8aab48", beans: "#62a144", sweet_potato: "#5a9a50",
-};
-const CROP_HEIGHT = { grass: 1.0, maize: 2.1, cassava: 1.8, bush: 0.75, vine: 0.45 };
-const CEREALS = new Set(["wheat", "rice", "millet", "sorghum", "maize"]);
-
-// ------------------------------------------------------------------ helpers
-const C = (h) => new THREE.Color(h);
-const lerpC = (a, b, t) => a.clone().lerp(b, Math.min(Math.max(t, 0), 1));
-const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
-function hash(i) { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
-
-function noise2(x, z) {
-  return Math.sin(x * 0.045 + Math.sin(z * 0.021) * 2.2) * 0.6 + Math.sin(z * 0.06 + x * 0.013) * 0.3
-    + Math.sin((x + z) * 0.11) * 0.12;
+function webglOK() {
+  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; }
+}
+export function suggestQuality() {
+  const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || Math.min(screen.width, screen.height) < 700;
+  const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 8;
+  if (mobile || cores <= 4 || mem <= 4) return "medium";
+  return "high";
 }
 
-function canvasTexture(w, h, draw) {
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  draw(c.getContext("2d"), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+export function createScene(container, opts = {}) {
+  if (!webglOK()) throw new Error("WebGL is not available in this browser");
+  const o = { onSelect: null, theme: "day", reducedMotion: false, interactive: true, labels: true, quality: "auto",
+    time: "golden", homePos: [34, 30, 52], target: [CENTER.x, CENTER.y, CENTER.z], shiftX: 0, flyover: false, onFps: null, onQuality: null, ...opts };
+  if (o.theme === "dusk" && !opts.time) o.time = "golden";
+  let quality = o.quality === "auto" ? suggestQuality() : o.quality;
+  let auto = o.quality === "auto";
+  const cache = { fields: null, rec: null, trials: [], anomaly: [-1, ""], selected: -1, overlay: null, time: o.time, preview: null, labels: o.labels };
+  let W = null;                      // the built world
+  let running = true;
 
-function dashTexture() {
-  // gradient runs along v: a cylinder's uv.y follows its length
-  const t = canvasTexture(4, 64, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    const grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, "rgba(255,255,255,0)"); grd.addColorStop(0.55, "rgba(255,255,255,0.15)");
-    grd.addColorStop(0.8, "rgba(255,255,255,1)"); grd.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = grd; g.fillRect(0, 0, w, h);
-  });
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
-}
-
-function glowTexture() {
-  return canvasTexture(128, 128, (g, w) => {
-    const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
-    r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.35, "rgba(255,255,255,0.45)");
-    r.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = r; g.fillRect(0, 0, w, w);
-  });
-}
-
-function saltTexture(seed) {
-  const t = canvasTexture(256, 160, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    let s = seed;
-    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 900; i++) {
-      const x = rnd() * w, y = rnd() * h, r = 1 + rnd() * 6;
-      g.fillStyle = `rgba(255,255,255,${0.25 + rnd() * 0.6})`;
-      g.beginPath(); g.ellipse(x, y, r * 1.6, r, rnd() * 3, 0, Math.PI * 2); g.fill();
-    }
-  });
-  return t;
-}
-
-// ------------------------------------------------------------- crop shapes
-function grassGeo() {
-  const parts = [];
-  for (let k = 0; k < 6; k++) {
-    const g = new THREE.ConeGeometry(0.055, 1, 3);
-    g.translate(0, 0.5, 0);
-    g.rotateZ((k % 2 ? 1 : -1) * (0.12 + 0.05 * k));
-    g.rotateY(k * 1.05);
-    parts.push(g);
-  }
-  const head = new THREE.ConeGeometry(0.08, 0.28, 4); head.translate(0, 1.05, 0); parts.push(head);
-  return mergeGeometries(parts);
-}
-function maizeGeo() {
-  const parts = [];
-  const stalk = new THREE.CylinderGeometry(0.045, 0.07, 1, 5); stalk.translate(0, 0.5, 0); parts.push(stalk);
-  for (let k = 0; k < 5; k++) {
-    const leaf = new THREE.BoxGeometry(0.55, 0.015, 0.11);
-    leaf.translate(0.27, 0, 0); leaf.rotateZ(-0.35 - 0.08 * k); leaf.rotateY(k * 2.4);
-    leaf.translate(0, 0.25 + k * 0.15, 0); parts.push(leaf);
-  }
-  const cob = new THREE.CylinderGeometry(0.05, 0.06, 0.2, 5); cob.rotateZ(0.4); cob.translate(0.08, 0.55, 0); parts.push(cob);
-  const tassel = new THREE.ConeGeometry(0.06, 0.18, 4); tassel.translate(0, 1.06, 0); parts.push(tassel);
-  return mergeGeometries(parts);
-}
-function cassavaGeo() {
-  const parts = [];
-  const stem = new THREE.CylinderGeometry(0.035, 0.05, 0.8, 5); stem.translate(0, 0.4, 0); parts.push(stem);
-  for (let k = 0; k < 5; k++) {
-    const lf = new THREE.ConeGeometry(0.16, 0.42, 4); lf.rotateZ(Math.PI / 2 + 0.5);
-    lf.translate(0.2, 0, 0); lf.rotateY(k * 1.25); lf.translate(0, 0.82, 0); parts.push(lf);
-  }
-  return mergeGeometries(parts);
-}
-function bushGeo() {
-  const parts = [];
-  [[0, 0.32, 0, 0.32], [0.2, 0.22, 0.08, 0.22], [-0.17, 0.2, -0.1, 0.24], [0.02, 0.18, -0.22, 0.2]].forEach(([x, y, z, r]) => {
-    const g = new THREE.IcosahedronGeometry(r, 0); g.translate(x, y, z); parts.push(g);
-  });
-  return mergeGeometries(parts.map((g) => g.toNonIndexed()));
-}
-function vineGeo() {
-  const parts = [];
-  for (let k = 0; k < 6; k++) {
-    const g = new THREE.IcosahedronGeometry(0.19, 0); g.scale(1.4, 0.6, 1);
-    g.translate(Math.cos(k) * 0.28, 0.12, Math.sin(k * 1.7) * 0.25); parts.push(g.toNonIndexed());
-  }
-  return mergeGeometries(parts);
-}
-
-// ------------------------------------------------------------------- scene
-export function createScene(container, { onSelect, theme = "day", reducedMotion = false, interactive = true, labels: showLabels = true,
-  target = [-2, 0, -4], homePos = [30, 36, 58], shiftX = 0 } = {}) {
-  const P = PALETTES[theme] || PALETTES.day;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = theme === "dusk" ? 1.0 : 1.05;
   container.appendChild(renderer.domElement);
-
+  renderer.domElement.addEventListener("webglcontextlost", (e) => { e.preventDefault(); running = false; }, false);
   const labels = new CSS2DRenderer();
   labels.domElement.className = "scene-labels";
-  if (!showLabels) labels.domElement.style.visibility = "hidden";
-  if (!interactive) labels.domElement.style.pointerEvents = "none";
+  if (!o.interactive) labels.domElement.style.pointerEvents = "none";
   container.appendChild(labels.domElement);
 
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(P.fog, 150, 420);
-
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 800);
-  const home = new THREE.Vector3(...homePos);
-  camera.position.copy(reducedMotion ? home : new THREE.Vector3(120, 95, 170));
-
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.3, 4000);
+  const home = new THREE.Vector3(...o.homePos);
+  camera.position.copy(o.reducedMotion ? home : home.clone().multiplyScalar(2.6).add(new THREE.Vector3(60, 40, 120)));
   const controls = new OrbitControls(camera, labels.domElement);
-  controls.target.set(...target);
-  controls.enabled = interactive;
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.07;
-  controls.maxPolarAngle = Math.PI * 0.46;
-  controls.minDistance = 14;
-  controls.maxDistance = 170;
-  controls.autoRotateSpeed = 0.35;
+  controls.target.set(...o.target);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 4; controls.maxDistance = 260;
+  controls.enabled = o.interactive;
+  controls.keys = { LEFT: "ArrowLeft", UP: "ArrowUp", RIGHT: "ArrowRight", BOTTOM: "ArrowDown" };
+  if (o.interactive) controls.listenToKeyEvents(window);
 
-  // sky dome
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: C(P.skyTop) }, horizon: { value: C(P.skyHorizon) }, bottom: { value: C(P.skyBottom) }, heat: { value: 0 } },
-    vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
-    fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; uniform float heat; varying vec3 vP;
-      void main(){ float h = vP.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h*1.6,0.0,1.0), 0.8)) : mix(horizon, bottom, clamp(-h*4.0,0.0,1.0));
-      c = mix(c, vec3(1.0,0.62,0.38), heat*0.35*(1.0-clamp(h*2.0,0.0,1.0))); gl_FragColor = vec4(c,1.0);
-      #include <colorspace_fragment>
-      }`,
-  }));
-  scene.add(sky);
+  // camera rig: tweens between viewpoints, and follow modes
+  const rig = { tween: null, mode: o.flyover ? "flyover" : "intro", follow: null, idle: performance.now(), sway: null };
+  function flyTo(pos, tgt, dur = 1.8, then = null) {
+    rig.tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), t: 0, dur: o.reducedMotion ? 0.001 : dur, then };
+  }
+  const fieldCenter = (i) => new THREE.Vector3(FIELD_POS[i][0], 0, FIELD_POS[i][1]);
+  const views = {
+    overview: () => flyTo(new THREE.Vector3(10, 78, 96), CENTER.clone()),
+    home: () => flyTo(home.clone(), new THREE.Vector3(...o.target)),
+    field: (i) => { const c = fieldCenter(i); flyTo(c.clone().add(new THREE.Vector3(9, 11, 15)), c.clone().add(new THREE.Vector3(0, 0.6, 0))); },
+    closeup: (i) => { const c = fieldCenter(i); flyTo(c.clone().add(new THREE.Vector3(3.2, 1.7, PLOT_D / 2 + 3.4)), c.clone().add(new THREE.Vector3(0, 0.7, 1))); },
+    incident: (i) => { const c = fieldCenter(i); flyTo(c.clone().add(new THREE.Vector3(-11, 7, 13)), c.clone().add(new THREE.Vector3(0, 0.5, 0)), 2.4); },
+    harvest: () => { flyTo(new THREE.Vector3(48, 34, 62), CENTER.clone(), 2.6); rig.mode = "harvest"; },
+  };
 
-  // light
-  const hemi = new THREE.HemisphereLight(P.hemiSky, P.hemiGround, P.hemiI);
-  scene.add(hemi);
-  const sun = new THREE.DirectionalLight(P.sun, P.sunI);
-  sun.position.set(-45, 70, 35);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -62, right: 62, top: 50, bottom: -50, near: 10, far: 200 });
-  sun.shadow.camera.updateProjectionMatrix();
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.04;
-  scene.add(sun);
-
-  // ------------------------------------------------------------ terrain
-  {
-    const g = new THREE.PlaneGeometry(520, 520, 150, 150);
-    g.rotateX(-Math.PI / 2);
-    const pos = g.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      const r = Math.hypot(x / 1.25, z);
-      const w = THREE.MathUtils.smoothstep(r, 46, 110);
-      const dune = Math.max(0, noise2(x, z) + 0.35) * 9 + Math.abs(Math.sin(x * 0.03 + z * 0.012)) * 4;
-      pos.setY(i, -0.05 + w * dune + (hash(i) - 0.5) * 0.25 * w);
+  // ---------------------------------------------------------------- build / rebuild the world for a quality level
+  function build(q) {
+    const tex = makeTextures(q);
+    const scene = new THREE.Scene();
+    const T = TIMES[cache.time] || TIMES.golden;
+    scene.fog = new THREE.FogExp2(T.fog, T.dens);
+    const sky = new Sky(); sky.scale.setScalar(3000); scene.add(sky);
+    const skyScene = new THREE.Scene(); const sky2 = new Sky(); sky2.scale.setScalar(500); skyScene.add(sky2);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const hemi = new THREE.HemisphereLight("#cfe0ff", "#b0895c", 0.6); scene.add(hemi);
+    const sun = new THREE.DirectionalLight("#ffd2a0", 2.6);
+    sun.castShadow = true;
+    const sm = { low: 1024, medium: 2048, high: 2048, ultra: 4096 }[q];
+    sun.shadow.mapSize.set(sm, sm);
+    Object.assign(sun.shadow.camera, { left: -78, right: 78, top: 62, bottom: -62, near: 1, far: 420 });
+    sun.shadow.camera.updateProjectionMatrix();
+    sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.035;
+    sun.target.position.copy(CENTER); scene.add(sun, sun.target);
+    const shared = { time: { value: 0 }, wind: { value: 0.35 } };
+    const root = new THREE.Group(); scene.add(root);
+    root.add(buildTerrain(tex, q));
+    root.add(buildFlora(tex, q));
+    const infra = buildInfrastructure(tex, q);
+    root.add(infra.group);
+    const fields = FIELD_POS.map((_, i) => new Field(i, root, tex, DENSITY[q], shared, (k) => o.onSelect && o.onSelect(k)));
+    const drone = buildDrone(tex); root.add(drone);
+    const dust = buildDust(tex, { low: 300, medium: 700, high: 1400, ultra: 2400 }[q]); root.add(dust);
+    const rain = buildRain(q === "low" ? 800 : 2500); root.add(rain);
+    const clouds = buildClouds(tex); scene.add(clouds);
+    const markers = new Markers(root), pulse = new Pulse(root), burst = new HarvestBurst(root, tex);
+    const truck = new TruckRun(infra.truck, (i) => { fields[i].pulse = 1; markers.add(i, "repair", "Drip line repaired", 5); });
+    let composer = null;
+    if (q === "high" || q === "ultra") {
+      const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: q === "ultra" ? 8 : 4 });
+      composer = new EffectComposer(renderer, rt);
+      composer.addPass(new RenderPass(scene, camera));
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.45, 0.88));
+      composer.addPass(new OutputPass());
     }
-    const geo = g.toNonIndexed();
-    geo.computeVertexNormals();
-    const cols = new Float32Array(geo.attributes.position.count * 3);
-    const sands = P.sand.map(C);
-    for (let f = 0; f < geo.attributes.position.count / 3; f++) {
-      const c = sands[Math.floor(hash(f * 3.7) * sands.length)];
-      for (let k = 0; k < 3; k++) cols.set([c.r, c.g, c.b], (f * 3 + k) * 3);
-    }
-    geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
-    const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 }));
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(104, 0.12, 74), new THREE.MeshStandardMaterial({ color: P.pad, roughness: 1 }));
-    pad.position.set(-4, 0.02, -6);
-    pad.receiveShadow = true;
-    scene.add(pad);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, { low: 1, medium: 1.25, high: 1.5, ultra: 2 }[q]));
+    renderer.shadowMap.type = q === "low" ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    W = { q, tex, scene, sky, sky2, skyScene, pmrem, envRT: null, hemi, sun, shared, root, infra, fields, drone, dust, rain, clouds, markers, pulse, burst, truck, composer,
+      wind: 0.35, windTarget: 0.35, dustTarget: 0.3, cloudTarget: 0, rainTarget: 0, heat: 0, heatTarget: 0, u2: 2 };
+    applyTime(cache.time);
+    resize();
+    // restore state
+    if (cache.fields) setFields(cache.fields, true);
+    if (cache.preview) previewPlan(cache.preview);
+    cache.trials.forEach((t) => addTrial(t, true));
+    if (cache.rec) update(cache.rec);
+    setAnomaly(...cache.anomaly);
+    setSelected(cache.selected);
+    setOverlay(cache.overlay);
+    setLabels(cache.labels);
   }
 
-  const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, flatShading: true, ...extra });
-  const glowTex = glowTexture();
-  const DASH = dashTexture();
-  const anim = [];      // per-frame callbacks
-
-  // -------------------------------------------------------- equipment
-  const equip = new THREE.Group();
-  equip.position.set(-40, 0, 0);
-  scene.add(equip);
-  const flowParts = [];
-  {
-    const house = new THREE.Mesh(new THREE.BoxGeometry(6, 3.4, 5), mat("#efe6d8"));
-    house.position.set(0, 1.7, -6); house.castShadow = house.receiveShadow = true; equip.add(house);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.35, 5.6), mat("#c9b9a3"));
-    roof.position.set(0, 3.55, -6); roof.castShadow = true; equip.add(roof);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 1.3), mat("#7b8796"));
-    door.position.set(3.02, 1, -6); equip.add(door);
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.12, 3.2), mat("#2f3b55", { roughness: 0.35, metalness: 0.3 }));
-    panel.position.set(0, 3.95, -6); panel.rotation.x = -0.25; equip.add(panel);
-
-    // reverse-osmosis skid: pressure vessels that glow teal while desalting
-    const ro = new THREE.Group(); ro.position.set(0, 0, 3); equip.add(ro);
-    const skid = new THREE.Mesh(new THREE.BoxGeometry(6, 0.5, 3.4), mat("#9aa5b4")); skid.position.y = 0.25; skid.castShadow = true; ro.add(skid);
-    const roMat = new THREE.MeshStandardMaterial({ color: "#e9f3f5", emissive: "#19b5c7", emissiveIntensity: 0.0, roughness: 0.4, metalness: 0.2 });
-    for (let k = 0; k < 3; k++) {
-      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 5.4, 10), roMat);
-      v.rotation.z = Math.PI / 2; v.position.set(0, 1.0 + k * 0.9, 0); v.castShadow = true; ro.add(v);
-    }
-    const roGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: "#2fd3e0", transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    roGlow.scale.set(9, 6, 1); roGlow.position.set(0, 2, 0); ro.add(roGlow);
-    flowParts.push({ kind: "ro", mat: roMat, glow: roGlow });
-
-    // elevated tank
-    const tank = new THREE.Group(); tank.position.set(4, 0, 11); equip.add(tank);
-    for (const [x, z] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5, 5), mat("#8b96a6")); leg.position.set(x, 2.5, z); leg.castShadow = true; tank.add(leg);
-    }
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 3, 14), mat("#f4f1ea")); drum.position.y = 6.5; drum.castShadow = true; tank.add(drum);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(2.25, 0.9, 14), mat("#cdd5de")); cap.position.y = 8.45; tank.add(cap);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(2.14, 2.14, 0.35, 14), new THREE.MeshStandardMaterial({ color: "#19b5c7", emissive: "#19b5c7", emissiveIntensity: 0.35 }));
-    band.position.y = 6.1; tank.add(band);
-
-    // weather mast
-    const mast = new THREE.Group(); mast.position.set(-2, 0, 18); equip.add(mast);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 7, 6), mat("#aab3bf")); pole.position.y = 3.5; pole.castShadow = true; mast.add(pole);
-    const cups = new THREE.Group(); cups.position.y = 7.1; mast.add(cups);
-    for (let k = 0; k < 3; k++) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.04), mat("#aab3bf")); arm.position.x = 0.45; arm.rotation.y = 0;
-      const cup = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 4, 0, Math.PI), mat("#f2f2f2")); cup.position.x = 0.9; cup.rotation.y = Math.PI / 2;
-      const a = new THREE.Group(); a.add(arm, cup); a.rotation.y = (k * Math.PI * 2) / 3; cups.add(a);
-    }
-    const vane = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 0.03), mat("#ef8a2b")); vane.position.set(0.5, 6.4, 0); mast.add(vane);
-    anim.push((dt, t) => { cups.rotation.y += dt * (2 + 1.5 * Math.sin(t * 0.3)); });
+  function disposeWorld() {
+    if (!W) return;
+    W.fields.forEach((f) => f.dispose());
+    W.markers.clear();
+    W.scene.traverse((ob) => {
+      if (ob.geometry) ob.geometry.dispose();
+      if (ob.material) (Array.isArray(ob.material) ? ob.material : [ob.material]).forEach((m) => m.dispose());
+      if (ob.isCSS2DObject && ob.element) ob.element.remove();
+    });
+    if (W.envRT) W.envRT.dispose();
+    W.pmrem.dispose();
+    if (W.composer) W.composer.dispose();
+    disposeTextures(W.tex);
+    clearCropCache();
+    W = null;
   }
 
-  // ---------------------------------------------------------- pipes
-  const pipeMat = mat("#5b6b80", { roughness: 0.5, metalness: 0.2 });
-  function flowLine(len, radius, color) {
-    const tex = DASH.clone(); tex.needsUpdate = true;
-    tex.repeat.set(1, Math.max(1, len / 2.2));
-    const m = new THREE.MeshBasicMaterial({ map: tex, color, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending });
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.25, radius * 1.25, len, 6, 1, true), m);
-    return { mesh, tex, m };
-  }
-  const mains = [];
-  {
-    // main header from the pump house to the far plots, between the two rows
-    const len = 70;
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, len, 8), pipeMat);
-    body.rotation.z = Math.PI / 2; body.position.set(-5, 0.35, 0); body.castShadow = true; scene.add(body);
-    const fl = flowLine(len, 0.3, "#3fe0ef"); fl.mesh.rotation.z = Math.PI / 2; fl.mesh.position.copy(body.position); scene.add(fl.mesh);
-    mains.push(fl);
-    const feed = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 10, 8), pipeMat);
-    feed.rotation.x = Math.PI / 2; feed.position.set(-40, 0.35, 5); scene.add(feed);
-  }
-
-  // ------------------------------------------------------------- plots
-  const geos = { grass: grassGeo(), maize: maizeGeo(), cassava: cassavaGeo(), bush: bushGeo(), vine: vineGeo() };
-  const plantMat = new THREE.MeshStandardMaterial({ roughness: 0.8, flatShading: true });
-  const plots = [];
-  const pickables = [];
-  const soilDry = C("#dcc195"), soilWet = C("#8a6646"), saltC = C("#f6f3ec");
-  for (let i = 0; i < 6; i++) {
-    const g = new THREE.Group();
-    g.position.set(COLS[i % 3], 0, ROWS[Math.floor(i / 3)]);
-    scene.add(g);
-    const soilMat = new THREE.MeshStandardMaterial({ color: soilDry.clone(), roughness: 1, flatShading: true });
-    const soil = new THREE.Mesh(new THREE.BoxGeometry(PLOT_W, 0.36, PLOT_D), soilMat);
-    soil.position.y = 0.18; soil.receiveShadow = true; soil.userData.field = i; g.add(soil);
-    pickables.push(soil);
-    // berms
-    const bermMat = mat("#cdb084");
-    for (const [w, d, x, z] of [[PLOT_W + 0.6, 0.3, 0, -PLOT_D / 2 - 0.15], [PLOT_W + 0.6, 0.3, 0, PLOT_D / 2 + 0.15], [0.3, PLOT_D, -PLOT_W / 2 - 0.15, 0], [0.3, PLOT_D, PLOT_W / 2 + 0.15, 0]]) {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.55, d), bermMat); b.position.set(x, 0.27, z); b.castShadow = true; b.receiveShadow = true; g.add(b);
+  // ---------------------------------------------------------------- lighting presets
+  function applyTime(key) {
+    cache.time = key;
+    if (!W) return;
+    const T = TIMES[key] || TIMES.golden;
+    const phi = THREE.MathUtils.degToRad(90 - T.elev), theta = THREE.MathUtils.degToRad(T.az);
+    const sunDir = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+    for (const s of [W.sky, W.sky2]) {
+      const u = s.material.uniforms;
+      u.turbidity.value = T.turb + W.heat * 4; u.rayleigh.value = T.ray; u.mieCoefficient.value = T.mie; u.mieDirectionalG.value = 0.82;
+      u.sunPosition.value.copy(sunDir);
     }
-    const saltMat = new THREE.MeshBasicMaterial({ map: saltTexture(17 + i * 29), transparent: true, opacity: 0, depthWrite: false });
-    const salt = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_W, PLOT_D), saltMat);
-    salt.rotation.x = -Math.PI / 2; salt.position.y = 0.375; g.add(salt);
-
-    // drip laterals run north-south, fed from the header between the rows
-    const lines = [];
-    for (let k = 0; k < LINES; k++) {
-      const x = -PLOT_W / 2 + 0.75 + (k * (PLOT_W - 1.5)) / (LINES - 1);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, PLOT_D - 0.4, 5), new THREE.MeshStandardMaterial({ color: "#2b3442", roughness: 0.6 }));
-      tube.rotation.x = Math.PI / 2; tube.position.set(x, 0.42, 0); g.add(tube);
-      const fl = flowLine(PLOT_D - 0.4, 0.05, "#45e3f0");
-      fl.mesh.rotation.x = Math.PI / 2; fl.mesh.position.set(x, 0.42, 0); g.add(fl.mesh);
-      fl.dir = i < 3 ? -1 : 1;       // water flows away from the header
-      lines.push(fl);
-    }
-    // plants
-    const plant = {};
-    for (const form of Object.keys(geos)) {
-      const im = new THREE.InstancedMesh(geos[form], plantMat, LINES * PLANTS);
-      im.castShadow = true; im.receiveShadow = false; im.visible = false; im.count = LINES * PLANTS;
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      im.userData.field = i;
-      g.add(im); plant[form] = im;
-      const col = new THREE.Color("#6aa34a");
-      for (let n = 0; n < LINES * PLANTS; n++) im.setColorAt(n, col);
-    }
-    // label
-    const tag = document.createElement("div");
-    tag.className = "plot-tag";
-    tag.innerHTML = `<span class="pt-id"></span><span class="pt-crop"></span>`;
-    tag.addEventListener("click", () => onSelect && onSelect(i));
-    const tagObj = new CSS2DObject(tag);
-    tagObj.position.set(0, 3.4, i < 3 ? -PLOT_D / 2 : PLOT_D / 2);
-    g.add(tagObj);
-    // selection frame
-    const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(PLOT_W + 1.6, 1.4, PLOT_D + 1.6)),
-      new THREE.LineBasicMaterial({ color: "#7a68ff", transparent: true, opacity: 0.0 }));
-    frame.position.y = 0.6; g.add(frame);
-    const selGlow = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_W + 9, PLOT_D + 9), new THREE.MeshBasicMaterial({ map: glowTex, color: "#7a68ff", transparent: true, opacity: 0, depthWrite: false }));
-    selGlow.rotation.x = -Math.PI / 2; selGlow.position.y = 0.09; g.add(selGlow);
-    // alarm ring
-    const ring = new THREE.Mesh(new THREE.RingGeometry(9.6, 10.3, 48), new THREE.MeshBasicMaterial({ color: "#e5484d", transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.5; ring.scale.set(1, 0.72, 1); g.add(ring);
-    const alarmTag = document.createElement("div"); alarmTag.className = "alarm-tag";
-    const alarmObj = new CSS2DObject(alarmTag); alarmObj.position.set(0, 6.2, 0); alarmObj.visible = false; g.add(alarmObj);
-
-    plots.push({ g, soilMat, saltMat, lines, plant, tag, frame, selGlow, ring, alarmTag, alarmObj, crop: null, form: null,
-      seed: i * 1000, state: null, target: null, wet: 0, salt: 0, flow: 0, deliver: 1 });
+    renderer.toneMappingExposure = T.exp;
+    const night = T.elev < 0;
+    W.sun.color.set(T.sun); W.sun.intensity = T.sunI;
+    const lightDir = night ? new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(40), theta + Math.PI) : sunDir;
+    W.sun.position.copy(CENTER).addScaledVector(lightDir, 200);
+    W.hemi.intensity = T.hemi;
+    W.hemi.color.set(night ? "#4a5a8a" : "#cfe0ff"); W.hemi.groundColor.set(night ? "#2a2018" : "#b0895c");
+    W.scene.fog.color.set(T.fog); W.scene.fog.density = T.dens;
+    W.infra.lamps.forEach((L) => (L.intensity = night ? 18 : 0));
+    W.infra.lampHead.emissiveIntensity = night ? 3 : 0;
+    W.infra.windowsLit.emissiveIntensity = night ? 1.6 : key === "golden" ? 0.25 : 0;
+    W.fields.forEach((f) => (f.ledMat.emissiveIntensity = night ? 2 : 0.7));
+    if (W.envRT) W.envRT.dispose();
+    W.envRT = W.pmrem.fromScene(W.skyScene, 0, 0.1, 1000);
+    W.scene.environment = W.envRT.texture;
+    W.scene.environmentIntensity = night ? 0.25 : 1;
   }
 
-  // --------------------------------------------------------------- palms
-  {
-    const trunkMat = mat("#9a7a52"), frondMat = mat("#4f8a3c"), frondMat2 = mat("#5f9a45");
-    const frond = new THREE.ConeGeometry(0.5, 3.6, 3); frond.scale(1, 1, 0.2); frond.translate(0, 1.8, 0); frond.rotateZ(-1.15);
-    const palm = (x, z, s) => {
-      const p = new THREE.Group(); p.position.set(x, 0, z); p.scale.setScalar(s); p.rotation.y = hash(x * z) * 6;
-      let y = 0; const lean = (hash(x + z) - 0.5) * 0.25;
-      for (let k = 0; k < 6; k++) {
-        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.26 - k * 0.02, 0.32 - k * 0.02, 1.25, 6), trunkMat);
-        seg.position.set(lean * y, y + 0.62, 0); seg.castShadow = true; p.add(seg); y += 1.15;
-      }
-      for (let k = 0; k < 8; k++) {
-        const f = new THREE.Mesh(frond, k % 2 ? frondMat : frondMat2);
-        f.position.set(lean * y, y + 0.2, 0); f.rotation.y = (k / 8) * Math.PI * 2 + hash(k + x) * 0.3; f.castShadow = true; p.add(f);
-      }
-      scene.add(p);
-      return p;
-    };
-    for (let x = -46; x <= 40; x += 5.5) palm(x + hash(x) * 2, -40 + hash(x * 3) * 2.5, 0.95 + hash(x * 7) * 0.35);
-    for (let z = -32; z <= 26; z += 6) palm(-58 + hash(z) * 2, z, 0.9 + hash(z * 5) * 0.3);
-    for (const [x, z] of [[-2, -16.5], [5, -17], [-8, -17.2], [33, 24], [-28, 26], [44, -12]]) palm(x, z, 0.85 + hash(x + z) * 0.3);
+  // ---------------------------------------------------------------- API
+  function setFields(fields, silent = false) {
+    cache.fields = fields; if (!silent) cache.preview = null;
+    if (!W) return;
+    fields.forEach((f, i) => W.fields[i] && W.fields[i].setCrop(f.crop || null, f.label, !!f.planned));
   }
 
-  // ----------------------------------------------------------- trial strip
-  const trialGroup = new THREE.Group(); trialGroup.position.set(-2, 0, TRIAL_Z); scene.add(trialGroup);
-  const trialSlots = [];
-  {
-    const base = new THREE.Mesh(new THREE.BoxGeometry(46, 0.14, 8.6), mat("#d2b78e")); base.position.y = 0.07; base.receiveShadow = true; trialGroup.add(base);
-    for (let k = 0; k < 16; k++) {
-      const x = -19.6 + (k % 8) * 5.6, z = k < 8 ? -2 : 2.1;
-      const pm = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 3.2), mat("#ccb083"));
-      pm.position.set(x, 0.2, z); pm.receiveShadow = true; trialGroup.add(pm);
-      trialSlots.push({ x, z, mesh: pm, used: false, objs: [] });
-    }
-    const tt = document.createElement("div"); tt.className = "area-tag"; tt.textContent = "Trial plots";
-    const to = new CSS2DObject(tt); to.position.set(-26.5, 1.2, 0); trialGroup.add(to);
-  }
-
-  // ---------------------------------------------------------------- drone
-  const drone = new THREE.Group();
-  const rotors = [];
-  {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.9), mat("#f4f6f9", { roughness: 0.4 }));
-    drone.add(body);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshStandardMaterial({ color: "#1e2533", emissive: "#7a68ff", emissiveIntensity: 0.8 }));
-    eye.position.set(0, -0.18, 0.3); drone.add(eye);
-    for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.07, 0.1), mat("#b9c1cc"));
-      arm.position.set(x * 0.5, 0.05, z * 0.5); arm.rotation.y = Math.atan2(z, -x) ; drone.add(arm);
-      const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.02, 0.09), new THREE.MeshStandardMaterial({ color: "#2b3442", transparent: true, opacity: 0.7 }));
-      rotor.position.set(x * 0.95, 0.15, z * 0.95); drone.add(rotor); rotors.push(rotor);
-    }
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(5.5, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color: "#8d7bff", transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-    cone.position.y = -4.6; drone.add(cone);
-    drone.userData.cone = cone;
-    drone.position.set(-40, 6, -6);
-    drone.scale.setScalar(1.25);
-    scene.add(drone);
-  }
-  const droneTarget = new THREE.Vector3(-38, 8, -6);
-  let scanUntil = 0, droneHomeAt = 0;
-
-  // --------------------------------------------------------- state & API
-  const sph = new THREE.Spherical();
-  let swaying = false, swayT = 0, swayBase = 0;
-  let selected = -1, heat = 0, heatTarget = 0, clock = 0, lastInteract = performance.now(), intro = reducedMotion ? 1 : 0;
-  const introFrom = camera.position.clone();
-
-  function placePlants(p, w, dt) {
-    const form = p.form;
-    if (!form) return;
-    const im = p.plant[form];
-    const H = CROP_HEIGHT[form];
-    const green = C(CROP_GREEN[p.crop] || "#6aa34a");
-    const stress = C("#cdb55c"), ripe = C("#d9b552"), dead = C("#8d6a3e"), stubble = C("#cdb27a");
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3();
-    const st = p.state;
-    const sown = w.sown, done = w.done;
-    const stage = w.stage || 0;
-    const hgt = done ? 0.12 : sown ? Math.max(0.04, Math.pow(clamp01(stage / 0.55), 0.85)) : 0;
-    const wid = done ? 0.5 : 0.3 + 0.7 * clamp01((w.cc || 0) / 0.8);
-    let color = green.clone();
-    color = lerpC(color, stress, (1 - (w.ksw ?? 1)) * 1.4);
-    if (CEREALS.has(p.crop)) color = lerpC(color, ripe, (stage - 0.72) / 0.25);
-    color = lerpC(color, dead, (w.pest || 0) * 30);
-    if (done) color = stubble;
-    const stand = w.stand ?? 1;
-    let n = 0;
-    for (let k = 0; k < LINES; k++) {
-      const x = -PLOT_W / 2 + 0.75 + (k * (PLOT_W - 1.5)) / (LINES - 1);
-      for (let j = 0; j < PLANTS; j++) {
-        const id = p.seed + n;
-        const z = -PLOT_D / 2 + 0.55 + (j * (PLOT_D - 1.1)) / (PLANTS - 1) + (hash(id * 1.3) - 0.5) * 0.2;
-        const xx = x + 0.22 + (hash(id * 2.1) - 0.5) * 0.14;
-        const alive = hash(id * 4.7) < stand;
-        const jit = 0.85 + hash(id * 3.3) * 0.3;
-        const sc = alive ? jit : 0;
-        q.setFromAxisAngle(v.set(0, 1, 0), hash(id * 5.9) * Math.PI * 2);
-        s.set(wid * sc, H * hgt * sc + 1e-4, wid * sc);
-        m.compose(v.set(xx, 0.36, z), q, s);
-        im.setMatrixAt(n, m);
-        const c = color.clone().offsetHSL((hash(id * 6.1) - 0.5) * 0.03, 0, (hash(id * 7.7) - 0.5) * 0.08);
-        im.setColorAt(n, c);
-        n++;
-      }
-    }
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-  }
-
-  function setFields(fields) {
-    fields.forEach((f, i) => {
-      const p = plots[i];
-      const crop = f.crop || null;
-      p.crop = crop;
-      p.form = crop ? CROP_FORM[crop] : null;
-      for (const [form, im] of Object.entries(p.plant)) im.visible = form === p.form;
-      p.tag.querySelector(".pt-id").textContent = f.id || `F${i + 1}`;
-      p.tag.querySelector(".pt-crop").textContent = f.label || (crop ? crop : "Fallow");
-      p.tag.classList.toggle("fallow", !crop);
-      if (crop) placePlants(p, { sown: false, stage: 0, cc: 0 }, 0);
+  function previewPlan(picks) {          // picks: [{crop, label} | null] x 6 — ghost crops for the planner
+    cache.preview = picks;
+    if (!W) return;
+    picks.forEach((p, i) => {
+      const F = W.fields[i];
+      if (p && p.crop) { F.setCrop(p.crop, p.label, true); F.crop.update(null, 30, true); }
+      else if (cache.fields && cache.fields[i]) F.setCrop(cache.fields[i].crop || null, cache.fields[i].label, !!cache.fields[i].planned);
+      else F.setCrop(null, p && p.fallow ? "Fallow" : "Scientist decides", false);
     });
   }
 
   function update(rec) {
     if (!rec || !rec.world) return;
-    let flowTot = 0, desalTot = 0, nAct = 0;
-    rec.world.forEach((w, i) => {
-      const p = plots[i]; const f = rec.fields[i] || {};
-      p.state = w;
-      // soil: darker when wet, crusted white when salty
-      const sw = f.sw_obs ?? w.theta_top ?? 0.12;
-      p.wet = clamp01((sw - 0.05) / 0.22);
-      p.salt = clamp01(((w.ece_top ?? 2) - 3.5) / 9);
-      p.flow = clamp01((f.irr_mm || 0) / 9);
-      p.deliver = w.deliver ?? 1;
-      if (p.flow > 0) { flowTot += p.flow; desalTot += f.desal || 0; nAct++; }
-      placePlants(p, w);
-    });
-    const mainFlow = clamp01(flowTot / 3);
-    mains.forEach((m) => (m.target = mainFlow));
-    const desal = nAct ? desalTot / nAct : 0;
-    flowParts.forEach((fp) => { fp.target = mainFlow > 0 ? desal : 0; });
-    heatTarget = clamp01(((rec.tmax ?? 30) - 39) / 6);
+    cache.rec = rec;
+    if (!W) return;
+    rec.world.forEach((w, i) => W.fields[i] && W.fields[i].update(w, rec.fields[i], rec.tmax, cache.overlay));
+    let flow = 0, desal = 0, n = 0;
+    rec.fields.forEach((f) => { if (f.irr_mm > 0) { flow += f.irr_mm; desal += f.desal || 0; n++; } });
+    W.infra.roGlow.emissiveIntensity = n ? (desal / n) * 0.8 : 0;
+    // measured weather drives the atmosphere
+    const u2 = rec.u2 ?? 2.2;
+    W.u2 = u2;
+    W.windTarget = Math.min(1.2, 0.12 + u2 / 4.5);
+    W.dustTarget = Math.min(0.75, 0.12 + Math.max(0, u2 - 1.5) * 0.18);
+    W.cloudTarget = rec.clearness != null ? Math.max(0, Math.min(0.9, (0.92 - rec.clearness) * 2.2)) : 0;
+    W.rainTarget = rec.rain > 0.5 ? Math.min(1, rec.rain / 8) : 0;
+    W.heatTarget = Math.max(0, Math.min(1, ((rec.tmax ?? 30) - 40) / 6));
   }
 
-  function setSelected(i) {
-    selected = i;
-    plots.forEach((p, k) => p.tag.classList.toggle("selected", k === i));
+  function setSelected(i) { cache.selected = i; if (W) W.fields.forEach((f, k) => f.setSelected(k === i)); }
+  function setAnomaly(i, text = "") { cache.anomaly = [i, text]; if (W) W.fields.forEach((f, k) => f.setAlarm(k === i, k === i ? text : "")); }
+  function setOverlay(key) {
+    cache.overlay = key && OVERLAYS[key] ? key : null;
+    if (!W) return;
+    W.fields.forEach((f, i) => f.applyOverlay(cache.overlay, cache.rec && cache.rec.world[i], cache.rec && cache.rec.fields[i]));
+    container.classList.toggle("ov-on", !!cache.overlay);
   }
-
-  function setAnomaly(i, text) {
-    plots.forEach((p, k) => {
-      const on = k === i;
-      p.alarm = on;
-      p.alarmObj.visible = on && !!text;      // CSS2DRenderer owns style.display
-      if (on && text) p.alarmTag.textContent = text;
-      p.tag.classList.toggle("alarm", on);
-    });
-  }
+  function setLabels(on) { cache.labels = on; labels.domElement.style.visibility = on ? "visible" : "hidden"; }
 
   function scan(i) {
-    if (i == null || i < 0) return;
-    const p = plots[i];
-    droneTarget.set(p.g.position.x, 9.5, p.g.position.z);
-    scanUntil = clock + 3.2;
-    droneHomeAt = clock + 7;
+    if (!W || i == null || i < 0) return;
+    const d = W.drone.userData, c = fieldCenter(i);
+    d.target.set(c.x, 10, c.z); d.scanUntil = clock + 3.6; d.homeAt = clock + 8;
   }
-
   function hover(i) {
-    if (i == null || i < 0 || clock < scanUntil) return;
-    const p = plots[i];
-    droneTarget.set(p.g.position.x + 3, 11, p.g.position.z + 2);
-    droneHomeAt = clock + 2.5;
+    if (!W || i == null || i < 0 || clock < W.drone.userData.scanUntil) return;
+    const d = W.drone.userData, c = fieldCenter(i);
+    d.target.set(c.x + 3, 12, c.z + 2); d.homeAt = clock + 3;
   }
 
-  function addTrial(t) {
-    const slot = trialSlots.find((s) => !s.used);
+  function addTrial(t, silent = false) {
+    if (!silent) cache.trials.push(t);
+    if (!W) return;
+    const slot = W.infra.slots.find((s) => !s.used);
     if (!slot) return;
     slot.used = true;
-    const form = CROP_FORM[t.crop] || "bush";
+    const crop = CROP_INFO[t.crop] ? t.crop : "wheat";
     const ratio = t.predicted_yield_median > 0 ? t.measured_yield_t_ha / t.predicted_yield_median : 1;
-    const im = new THREE.InstancedMesh(geos[form], plantMat, 24);
+    const im = new THREE.InstancedMesh(cropGeometry(crop, 3), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide }), 30);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
-    const col = lerpC(C(CROP_GREEN[t.crop] || "#6aa34a"), C("#cdb55c"), 1 - Math.min(ratio, 1));
-    const hgt = CROP_HEIGHT[form] * (0.45 + 0.55 * Math.min(ratio, 1.2));
-    for (let n = 0; n < 24; n++) {
-      q.setFromAxisAngle(v.set(0, 1, 0), hash(n * 9 + slot.x) * 6.28);
-      s.set(0.8, hgt, 0.8);
-      m.compose(v.set(slot.x - 1.8 + (n % 6) * 0.72, 0.32, slot.z - 1.1 + Math.floor(n / 6) * 0.72), q, s);
-      im.setMatrixAt(n, m); im.setColorAt(n, col);
+    const tint = new THREE.Color(1, 1, 1).lerp(new THREE.Color(1, 0.85, 0.5), Math.max(0, 1 - Math.min(ratio, 1)));
+    const h = 0.4 + 0.6 * Math.min(ratio, 1.2);
+    for (let n = 0; n < 30; n++) {
+      q.setFromAxisAngle(v.set(0, 1, 0), n * 2.4);
+      m.compose(v.set(slot.x - 1.8 + (n % 6) * 0.72, 0.26, slot.z - 1.2 + Math.floor(n / 6) * 0.6), q, s.set(1, h, 1));
+      im.setMatrixAt(n, m); im.setColorAt(n, tint);
     }
-    im.castShadow = true;
-    trialGroup.add(im);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(2.55, 2.85, 32), new THREE.MeshBasicMaterial({ color: t.prediction_held ? "#2e9e6a" : "#f08c2e", transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(slot.x, 0.36, slot.z); ring.scale.set(1, 0.72, 1);
-    trialGroup.add(ring);
-    slot.mesh.material = mat(t.plot === "saline" ? "#e7dfcf" : "#b08b5f");
-    if (!t.prediction_held) {
-      const d = document.createElement("div"); d.className = "trial-tag missed"; d.textContent = "Prediction missed";
-      const o = new CSS2DObject(d); o.position.set(slot.x, 2.6, slot.z); trialGroup.add(o); slot.objs.push(o);
-    }
+    im.castShadow = true; W.infra.trial.add(im);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.55, 2.8, 40), new THREE.MeshBasicMaterial({ color: t.prediction_held ? "#35f08f" : "#ff8a3c", transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(slot.x, 0.3, slot.z); ring.scale.set(1, 0.72, 1); W.infra.trial.add(ring);
+    slot.mesh.material = new THREE.MeshStandardMaterial({ color: t.plot === "saline" ? "#e6dcc8" : "#9c7b55", roughness: 1 });
     slot.objs.push(im, ring);
-    droneTarget.set(-2 + slot.x, 8, TRIAL_Z + slot.z); droneHomeAt = clock + 2;
+    if (!t.prediction_held) {
+      const el = document.createElement("div"); el.className = "ttag"; el.textContent = "Prediction missed";
+      const ob = new CSS2DObject(el); ob.position.set(slot.x, 2.4, slot.z); W.infra.trial.add(ob); slot.objs.push(ob);
+    }
+    if (!silent) { const d = W.drone.userData; d.target.set(-2 + slot.x, 8, -27 + slot.z); d.homeAt = clock + 2.5; }
+  }
+
+  // AI scientist actions shown in the world
+  function event(kind, data = {}) {
+    if (!W) return;
+    const fi = typeof data.field === "string" ? Number(String(data.field).replace(/\D/g, "")) - 1 : data.field_index ?? -1;
+    switch (kind) {
+      case "anomaly": if (fi >= 0) { if (o.interactive) views.incident(fi); W.markers.add(fi, "alarm", `${data.signal_label} ${data.direction}`, 7); } break;
+      case "look": if (fi >= 0) scan(fi); break;
+      case "field_test": if (fi >= 0) W.markers.add(fi, data.test === "emitter_flow" ? "flow" : data.test === "leaf_inspection" ? "leaf" : "lab", testText(data), 7); break;
+      case "hypothesis": if (fi >= 0) W.markers.add(fi, "idea", "New hypothesis", 4); break;
+      case "adjust": if (fi >= 0 && data.repair) W.truck.go(fi); else if (fi >= 0) W.markers.add(fi, "adjust", data.pest_control ? "Pest control applied" : "Irrigation adjusted", 4); break;
+      case "model_update": W.pulse.fire(fi >= 0 ? FIELD_POS[fi][0] : CENTER.x, fi >= 0 ? FIELD_POS[fi][1] : CENTER.z); break;
+      case "harvest": if (fi >= 0) W.burst.fire(fi); break;
+      case "season_result": if (o.interactive) views.harvest(); break;
+    }
+  }
+  const testText = (d) => d.test === "emitter_flow" ? `Emitter flow ${Math.round((d.delivered_vs_design || 0) * 100)}% of design`
+    : d.test === "water_test" ? `Groundwater ${d.groundwater_ec_dS_m} dS/m` : d.test === "soil_sample" ? "Soil sampled by layer"
+    : d.test === "leaf_inspection" ? (d.pest_damage_seen ? `Pests: ${d.severity}` : "No pests found") : String(d.test || "Field test");
+
+  function view(mode, i) {
+    rig.mode = "free";
+    if (mode === "drone") { rig.mode = "drone"; return; }
+    if (mode === "flyover") { rig.mode = "flyover"; return; }
+    if (views[mode]) views[mode](i);
   }
 
   function reset() {
-    trialSlots.forEach((s) => { s.objs.forEach((o) => { trialGroup.remove(o); if (o.element) o.element.remove(); }); s.objs = []; s.used = false; s.mesh.material = mat("#ccb083"); });
-    plots.forEach((p) => { p.crop = null; p.form = null; p.state = null; p.flow = 0; p.wet = 0; p.salt = 0; for (const im of Object.values(p.plant)) im.visible = false; });
-    setFields([0, 1, 2, 3, 4, 5].map((i) => ({ id: `F${i + 1}`, crop: null, label: "Not planned" })));
-    setAnomaly(-1);
+    cache.fields = null; cache.rec = null; cache.trials = []; cache.anomaly = [-1, ""]; cache.preview = null;
+    if (!W) return;
+    W.infra.slots.forEach((s) => { s.objs.forEach((ob) => { W.infra.trial.remove(ob); if (ob.element) ob.element.remove(); }); s.objs = []; s.used = false; });
+    W.fields.forEach((f, i) => { f.setCrop(null, "Not planned"); f.update(null, null, 30, null); });
+    setAnomaly(-1, "");
   }
 
-  // ------------------------------------------------------------ picking
+  // ---------------------------------------------------------------- picking and input
   const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
   let downAt = null;
-  labels.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; lastInteract = performance.now(); swaying = false; });
-  labels.domElement.addEventListener("pointerup", (e) => {
-    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const onDown = (e) => { downAt = [e.clientX, e.clientY]; rig.idle = performance.now(); rig.sway = null; if (rig.mode !== "drone") rig.mode = "free"; rig.tween = null; };
+  const onUp = (e) => {
+    if (!downAt || !W || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
     const r = renderer.domElement.getBoundingClientRect();
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(mouse, camera);
-    const hit = ray.intersectObjects(pickables, false)[0];
-    if (hit && onSelect) onSelect(hit.object.userData.field);
-  });
-  labels.domElement.addEventListener("wheel", () => { lastInteract = performance.now(); swaying = false; }, { passive: true });
+    const hit = ray.intersectObjects(W.fields.map((f) => f.pick), false)[0];
+    if (hit && o.onSelect) o.onSelect(hit.object.userData.field, "3d");
+  };
+  if (o.interactive) {
+    labels.domElement.addEventListener("pointerdown", onDown);
+    labels.domElement.addEventListener("pointerup", onUp);
+    labels.domElement.addEventListener("wheel", () => { rig.idle = performance.now(); rig.sway = null; rig.tween = null; if (rig.mode === "flyover" || rig.mode === "harvest") rig.mode = "free"; }, { passive: true });
+  }
 
-  // -------------------------------------------------------------- render
   function resize() {
     const w = container.clientWidth, h = container.clientHeight;
-    renderer.setSize(w, h, false);
-    labels.setSize(w, h);
+    renderer.setSize(w, h, false); labels.setSize(w, h);
     camera.aspect = w / Math.max(h, 1);
-    const sx = typeof shiftX === "function" ? shiftX(w, h) : shiftX;
+    const sx = typeof o.shiftX === "function" ? o.shiftX(w, h) : o.shiftX;
     if (sx) camera.setViewOffset(w, h, -sx * w, 0, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
+    if (W && W.composer) W.composer.setSize(w, h);
   }
-  new ResizeObserver(resize).observe(container);
-  resize();
+  const ro = new ResizeObserver(resize); ro.observe(container);
 
-  const t0 = performance.now();
-  let last = t0, running = true;
-  const soilTmp = new THREE.Color();
+  // ---------------------------------------------------------------- frame loop
+  let clock = 0, last = performance.now(), fpsAcc = 0, fpsN = 0, fps = 60, fpsT = 0, autoChecked = 0;
+  const intro = { t: o.reducedMotion ? 1 : 0, from: camera.position.clone() };
+  const sph = new THREE.Spherical();
   function frame(now) {
     if (!running) return;
-    const dt = Math.min((now - last) / 1000, 0.05); last = now; clock += dt;
-    // one orchestrated arrival: fly in from the dunes
-    if (intro < 1) {
-      intro = Math.min(1, intro + dt / 2.8);
-      const e = 1 - Math.pow(1 - intro, 3);
-      camera.position.lerpVectors(introFrom, home, e);
-    }
-    // When idle, sway gently around the current view instead of orbiting, so palms never swing in front of the farm.
-    if (!reducedMotion && intro >= 1 && (!interactive || performance.now() - lastInteract > 12000)) {
+    requestAnimationFrame(frame);
+    const dt = Math.min((now - last) / 1000, 0.1); last = now; clock += dt;
+    fpsAcc += dt; fpsN++;
+    if (fpsAcc > 1) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; o.onFps && o.onFps(fps, quality); fpsT++; maybeAuto(); }
+    if (!W) return;
+    W.shared.time.value = clock;
+    W.wind += (W.windTarget - W.wind) * Math.min(1, dt * 0.8); W.shared.wind.value = o.reducedMotion ? 0 : W.wind;
+    // camera
+    if (rig.mode === "intro") {
+      intro.t = Math.min(1, intro.t + dt / 3.2);
+      const e = 1 - Math.pow(1 - intro.t, 3);
+      camera.position.lerpVectors(intro.from, home, e);
+      if (intro.t >= 1) rig.mode = o.flyover ? "flyover" : "free";
+    } else if (rig.tween) {
+      const tw = rig.tween; tw.t = Math.min(1, tw.t + dt / tw.dur);
+      const e = tw.t < 0.5 ? 4 * tw.t ** 3 : 1 - Math.pow(-2 * tw.t + 2, 3) / 2;
+      camera.position.lerpVectors(tw.p0, tw.p1, e); controls.target.lerpVectors(tw.t0, tw.t1, e);
+      if (tw.t >= 1) { rig.tween = null; rig.idle = performance.now(); tw.then && tw.then(); }
+    } else if (rig.mode === "drone") {
+      const d = W.drone;
+      const want = d.position.clone().add(new THREE.Vector3(-7, 4.5, 9));
+      camera.position.lerp(want, Math.min(1, dt * 2)); controls.target.lerp(d.position.clone().add(new THREE.Vector3(0, -3, -2)), Math.min(1, dt * 3));
+    } else if ((rig.mode === "flyover" || rig.mode === "harvest") && !o.reducedMotion) {
       sph.setFromVector3(camera.position.clone().sub(controls.target));
-      if (!swaying) { swaying = true; swayT = 0; swayBase = sph.theta; }
-      swayT += dt;
-      sph.theta = swayBase + 0.32 * Math.sin(swayT * 0.13);
+      sph.theta += dt * (rig.mode === "harvest" ? 0.06 : 0.035);
+      if (rig.mode === "flyover") sph.phi = THREE.MathUtils.degToRad(58 + 6 * Math.sin(clock * 0.07));
+      camera.position.setFromSpherical(sph).add(controls.target);
+    } else if (o.interactive && !o.reducedMotion && performance.now() - rig.idle > 15000) {
+      sph.setFromVector3(camera.position.clone().sub(controls.target));
+      if (!rig.sway) rig.sway = { base: sph.theta, t: 0 };
+      rig.sway.t += dt; sph.theta = rig.sway.base + 0.25 * Math.sin(rig.sway.t * 0.12);
       camera.position.setFromSpherical(sph).add(controls.target);
     }
     controls.update();
 
-    heat += (heatTarget - heat) * Math.min(1, dt * 1.5);
-    sky.material.uniforms.heat.value = heat;
-    scene.fog.color.copy(C(P.fog)).lerp(C("#f1b48a"), heat * 0.35);
-
-    for (const [k, p] of plots.entries()) {
-      soilTmp.copy(soilDry).lerp(soilWet, p.wet * 0.85).lerp(saltC, p.salt * 0.35);
-      p.soilMat.color.lerp(soilTmp, Math.min(1, dt * 4));
-      p.saltMat.opacity += (p.salt * 0.85 - p.saltMat.opacity) * Math.min(1, dt * 3);
-      const clogged = p.deliver < 0.9;
-      for (const ln of p.lines) {
-        const target = p.flow * (clogged ? 0.35 : 1);
-        ln.m.opacity += (target * 0.95 - ln.m.opacity) * Math.min(1, dt * 4);
-        ln.m.color.set(clogged ? "#ff6b5e" : "#45e3f0");
-        if (!reducedMotion) ln.tex.offset.y += dt * ln.dir * (clogged ? 0.25 : 0.9);
+    // atmosphere follows measured weather (smoothly)
+    W.heat += (W.heatTarget - W.heat) * Math.min(1, dt);
+    const T = TIMES[cache.time] || TIMES.golden;
+    W.sky.material.uniforms.turbidity.value = T.turb + W.heat * 5 + W.dust.material.opacity * 4;
+    W.scene.fog.density = T.dens * (1 + W.heat * 0.5 + W.dust.material.opacity * 0.6);
+    W.dust.material.opacity += (W.dustTarget - W.dust.material.opacity) * Math.min(1, dt * 0.5);
+    if (!o.reducedMotion) {
+      const p = W.dust.geometry.attributes.position, sp = 0.6 + W.u2 * 1.2;
+      for (let k = 0; k < p.count; k++) {
+        let x = p.getX(k) + dt * sp, y = p.getY(k) + Math.sin(clock + k) * dt * 0.2;
+        if (x > 100) x -= 200;
+        p.setX(k, x); p.setY(k, y);
       }
-      const sel = k === selected;
-      p.frame.material.opacity += ((sel ? 0.95 : 0) - p.frame.material.opacity) * Math.min(1, dt * 6);
-      p.selGlow.material.opacity += ((sel ? 0.28 : 0) - p.selGlow.material.opacity) * Math.min(1, dt * 6);
-      const pulse = p.alarm ? 0.55 + 0.45 * Math.sin(clock * 5) : 0;
-      p.ring.material.opacity += (pulse - p.ring.material.opacity) * Math.min(1, dt * 8);
-      const rs = p.alarm && !reducedMotion ? 1 + 0.04 * Math.sin(clock * 5) : 1;
-      p.ring.scale.set(rs, 0.72 * rs, rs);
+      p.needsUpdate = true;
     }
-    for (const m of mains) {
-      m.m.opacity += ((m.target || 0) * 0.9 - m.m.opacity) * Math.min(1, dt * 3);
-      if (!reducedMotion) m.tex.offset.y -= dt * 1.4;
-    }
-    for (const fp of flowParts) {
-      const tv = fp.target || 0;
-      fp.mat.emissiveIntensity += (tv * 1.2 - fp.mat.emissiveIntensity) * Math.min(1, dt * 3);
-      fp.glow.material.opacity += (tv * 0.55 - fp.glow.material.opacity) * Math.min(1, dt * 3);
+    W.clouds.children.forEach((c, k) => {
+      c.material.opacity += (W.cloudTarget * 0.85 - c.material.opacity) * Math.min(1, dt * 0.4);
+      if (!o.reducedMotion) c.position.x += dt * (1 + W.u2 * 0.6) * (k % 2 ? 1 : 0.8);
+      if (c.position.x > 700) c.position.x = -700;
+    });
+    W.rain.visible = W.rainTarget > 0.01;
+    W.rain.material.opacity += (W.rainTarget * 0.55 - W.rain.material.opacity) * Math.min(1, dt);
+    if (W.rain.visible) {
+      const p = W.rain.geometry.attributes.position;
+      for (let k = 0; k < p.count; k += 2) {
+        let y = p.getY(k) - dt * 28; if (y < 0) y += 40;
+        p.setY(k, y); p.setY(k + 1, y - 0.9);
+      }
+      p.needsUpdate = true;
     }
     // drone
-    if (clock > droneHomeAt) droneTarget.set(-34, 8 + Math.sin(clock * 0.4), -4);
-    drone.position.lerp(droneTarget, Math.min(1, dt * 1.1));
-    drone.position.y += Math.sin(clock * 2.1) * 0.01;
-    drone.rotation.z = THREE.MathUtils.clamp((droneTarget.x - drone.position.x) * -0.02, -0.25, 0.25);
-    rotors.forEach((r, k) => (r.rotation.y += dt * (k % 2 ? 40 : -40)));
-    const cone = drone.userData.cone;
-    cone.material.opacity += ((clock < scanUntil ? 0.16 + 0.05 * Math.sin(clock * 9) : 0) - cone.material.opacity) * Math.min(1, dt * 5);
-    anim.forEach((f) => f(dt, clock));
-
-    renderer.render(scene, camera);
-    labels.render(scene, camera);
-    requestAnimationFrame(frame);
+    const d = W.drone, du = d.userData;
+    if (clock > du.homeAt) du.target.set(-36 + Math.sin(clock * 0.3) * 4, 10 + Math.sin(clock * 0.5), -10);
+    d.position.lerp(du.target, Math.min(1, dt * 0.9));
+    d.position.y += Math.sin(clock * 2.2) * 0.008;
+    d.rotation.z = THREE.MathUtils.clamp((du.target.x - d.position.x) * -0.03, -0.3, 0.3);
+    d.rotation.x = THREE.MathUtils.clamp((du.target.z - d.position.z) * 0.03, -0.3, 0.3);
+    du.props.forEach((p, k) => (p.rotation.y += dt * (k % 2 ? 50 : -50)));
+    const scanning = clock < du.scanUntil;
+    du.cone.material.opacity += ((scanning ? 0.12 + 0.05 * Math.sin(clock * 8) : 0) - du.cone.material.opacity) * Math.min(1, dt * 5);
+    // infrastructure motion
+    W.infra.cups.rotation.y += dt * (o.reducedMotion ? 0 : 1 + W.u2 * 1.8);
+    if (!o.reducedMotion) { W.infra.wn.offset.x += dt * 0.012 * (1 + W.u2 * 0.3); W.infra.wn2.offset.y -= dt * 0.02; }
+    W.fields.forEach((f) => f.tick(dt, clock, o.reducedMotion));
+    W.markers.tick(dt); W.pulse.tick(dt); W.burst.tick(dt); W.truck.tick(dt);
+    if (W.composer) W.composer.render(); else renderer.render(W.scene, camera);
+    labels.render(W.scene, camera);
   }
+
+  function maybeAuto() {
+    if (!auto || !W || fpsT < 5 || autoChecked > 2) return;
+    if (fps < 34 && QUALITIES.indexOf(quality) > 0) {
+      autoChecked++; fpsT = 0;
+      setQuality(QUALITIES[QUALITIES.indexOf(quality) - 1], true);
+    } else if (fpsT > 8) autoChecked = 3;
+  }
+
+  function setQuality(q, fromAuto = false) {
+    if (!fromAuto) auto = q === "auto";
+    const next = q === "auto" ? suggestQuality() : q;
+    if (!QUALITIES.includes(next)) return;
+    quality = next;
+    disposeWorld();
+    build(quality);
+    o.onQuality && o.onQuality(quality, auto);
+  }
+
+  build(quality);
   requestAnimationFrame(frame);
-  reset();
+  o.onQuality && o.onQuality(quality, auto);
 
   return {
-    setFields, update, setSelected, setAnomaly, scan, hover, addTrial, reset,
-    home() { intro = 0; introFrom.copy(camera.position); controls.target.set(...target); },
-    dispose() { running = false; renderer.dispose(); },
+    setFields, update, setSelected, setAnomaly, scan, hover, addTrial, reset, setOverlay, setLabels, previewPlan, event, view,
+    setTime: (k) => applyTime(TIMES[k] ? k : "golden"),
+    setQuality, getQuality: () => quality, isAuto: () => auto, getFps: () => fps,
+    focus: (i, mode = "field") => views[mode] && views[mode](i),
+    home() { rig.mode = "free"; views.home(); },
+    dispose() {
+      running = false; ro.disconnect(); controls.dispose(); disposeWorld(); renderer.dispose();
+      renderer.domElement.remove(); labels.domElement.remove();
+    },
   };
 }

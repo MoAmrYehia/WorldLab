@@ -49,11 +49,17 @@ class Accounts:
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
                 created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS progress (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id), data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS runs (
                 id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
                 run_dir TEXT NOT NULL, agent TEXT NOT NULL, choices TEXT, created REAL NOT NULL,
                 result TEXT);
         """)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(runs)")}
+        if "award" not in cols:
+            self.db.execute("ALTER TABLE runs ADD COLUMN award TEXT")
+            self.db.commit()
         self._fails: dict[str, list[float]] = {}
 
     # ------------------------------------------------------------------ users
@@ -128,15 +134,28 @@ class Accounts:
             self.db.commit()
         return cur.lastrowid
 
-    def finish_run(self, run_id: int, result: dict | None):
+    def finish_run(self, run_id: int, result: dict | None, award: dict | None = None):
         with self._lock:
-            self.db.execute("UPDATE runs SET result=? WHERE id=?", (json.dumps(result) if result else None, run_id))
+            self.db.execute("UPDATE runs SET result=?, award=? WHERE id=?",
+                            (json.dumps(result) if result else None, json.dumps(award) if award else None, run_id))
+            self.db.commit()
+
+    # --------------------------------------------------------------- progress
+    def progress(self, user_id: int) -> dict:
+        r = self.db.execute("SELECT data FROM progress WHERE user_id=?", (user_id,)).fetchone()
+        return json.loads(r[0]) if r else {}
+
+    def save_progress(self, user_id: int, data: dict):
+        with self._lock:
+            self.db.execute("INSERT INTO progress (user_id, data) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data",
+                            (user_id, json.dumps(data)))
             self.db.commit()
 
     def runs(self, user_id: int, limit: int = 30) -> list[dict]:
         rows = self.db.execute("SELECT * FROM runs WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall()
         return [{"id": r["id"], "agent": r["agent"], "created": r["created"],
-                 "choices": json.loads(r["choices"] or "null"), "result": json.loads(r["result"] or "null")} for r in rows]
+                 "choices": json.loads(r["choices"] or "null"), "result": json.loads(r["result"] or "null"),
+                 "award": json.loads(r["award"] or "null")} for r in rows]
 
     def run(self, user_id: int, run_id: int) -> dict | None:
         r = self.db.execute("SELECT * FROM runs WHERE user_id=? AND id=?", (user_id, run_id)).fetchone()

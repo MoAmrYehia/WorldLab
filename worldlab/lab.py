@@ -67,7 +67,7 @@ class Bus:
     def reset(self):
         self._t0 = time.time()
         self.snapshot = {k: [] for k in self.LISTS}
-        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None, "rl": None})
+        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None, "rl": None, "mission": None, "award": None})
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=5000)
@@ -101,7 +101,7 @@ class Bus:
             s["rl_train"].append(payload)
         elif kind == "scene":
             s["scene"][payload.get("field", "?")] = payload
-        elif kind in ("plan", "status", "fields", "rl"):
+        elif kind in ("plan", "status", "fields", "rl", "mission", "award"):
             s[kind] = payload
         msg = {"kind": kind, "data": payload}
         with self._lock:
@@ -174,10 +174,20 @@ class Lab:
         self._ids[p] += 1
         return f"{p}{self._ids[p]}"
 
+    MISSION_KINDS = {"trial_result", "model_update", "conclusion", "plan", "farmer_choices", "rl_policy", "season_start",
+                     "anomaly", "field_test", "adjust", "harvest", "season_result", "run_end"}
+
     def _log(self, kind: str, data: dict) -> dict:
         e = self.ledger.append(kind, data, t_rig=self.day)
         self.bus.publish("ledger", e)
+        if kind in self.MISSION_KINDS:
+            self.publish_mission()
         return e
+
+    def publish_mission(self):
+        """Mission progress for the game layer, from the ledger and the farm's hidden changes."""
+        from .progression import evaluate
+        self.bus.publish("mission", evaluate(self.ledger.entries, list(self.farm.events), self.result))
 
     def agent_note(self, role: str, text: str, extra: dict | None = None):
         item = {"t": self.day, "role": role, "text": text, **(extra or {})}
@@ -675,8 +685,12 @@ class Lab:
         self.ens.step(np.repeat(g, S))
         self.day = d + 1
         drone_day = d % 4 == 3
-        rec = {"day": d, "date": WX.day_label(d), "tmax": round(obs["weather"]["tmax"], 1),
-               "et0": round(obs["weather"]["et0"], 2), "rain": round(obs["weather"]["rain"], 1), "fields": []}
+        w = obs["weather"]
+        rso = float(WX.clear_sky_rs(self.wx_obs["doy"][0, d]))
+        rec = {"day": d, "date": WX.day_label(d), "tmax": round(w["tmax"], 1), "tmin": round(w["tmin"], 1),
+               "rh": round(w["rh"]), "u2": round(w["u2"], 2), "rs": round(w["rs"], 1),
+               "clearness": round(min(1.0, w["rs"] / max(rso, 1e-6)), 2),      # measured / clear-sky radiation
+               "et0": round(w["et0"], 2), "rain": round(w["rain"], 1), "fields": []}
         alarm = None
         ens_theta = (self.ens.W / self.ens.th)[:, :2].mean(1).reshape(NF, S)
         ens_cc = self.ens.cc.reshape(NF, S)
