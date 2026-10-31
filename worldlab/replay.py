@@ -39,6 +39,8 @@ def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> 
         k, d = m.get("kind"), m.get("data")
         if k in DROP_KINDS:
             continue
+        if k == "reset" and msgs:
+            break                                   # the next season's start, written by older servers: not part of this run
         if k == "reset" and isinstance(d, dict):
             agent = d.get("agent", agent)
         if k == "ledger":

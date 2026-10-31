@@ -43,6 +43,19 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       check(await p.evaluate(() => /Season complete/.test(document.getElementById("drawerBody").textContent)), "harvest report opens with a verdict");
       await p.keyboard.press("Escape"); await p.waitForTimeout(200);
       check(await p.isVisible("#reportBtn"), "report reachable again after closing");
+      // P2: soil carryover in the report, paired experiments, costs from your own prices, weather workspace
+      await p.click("#reportBtn"); await p.waitForTimeout(300);
+      check(await p.evaluate(() => /Soil salinity, start and end/.test(document.getElementById("drawerBody").textContent)), "report shows start and end soil salinity");
+      await p.click('#drawerTabs [data-t="compare"]'); await p.waitForTimeout(800);
+      check(await p.evaluate(() => document.querySelectorAll("#drawerBody .inc-card table").length === 4), "compare shows four paired experiments");
+      await p.click('#drawerTabs [data-t="economics"]'); await p.waitForTimeout(300);
+      check(await p.evaluate(() => /no price/.test(document.getElementById("drawerBody").textContent)), "costs start unpriced (no invented prices)");
+      await p.fill('#drawerBody [data-k="kwh"]', "0.1"); await p.dispatchEvent('#drawerBody [data-k="kwh"]', "change"); await p.waitForTimeout(300);
+      check(await p.evaluate(() => /per person fed for a year/.test(document.getElementById("drawerBody").textContent)), "an entered price gives a cost per person fed");
+      await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+      await p.click("#dt-weather"); await p.waitForTimeout(400);
+      check(await p.evaluate(() => document.querySelectorAll("#wxT path").length >= 3 && /forecast issued/.test(document.getElementById("wxSide").textContent)), "weather tab shows observed weather and the last forecast");
+      await p.click("#dt-timeline"); await p.waitForTimeout(100);
       // seeking back leaves no future state behind
       await p.$eval("#dateScrub", (s) => { s.value = 0; s.dispatchEvent(new Event("input")); }); await p.waitForTimeout(300);
       check(await p.evaluate(() => document.getElementById("reportBtn").hidden), "seeking back hides the report (no future leak)");
@@ -57,6 +70,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       // planner: preview mode is declared before planning, and a draft survives a reload
       await p.click("#tryPlanBtn"); await p.waitForTimeout(500);
       check(await p.isVisible("#previewBanner"), "planner declares preview mode up front");
+      check(await p.evaluate(() => document.querySelectorAll("#scenarioSel option").length === 7 && /Baseline/.test(document.getElementById("plFarmSum").textContent)), "planner offers the scenario library and farm editor");
       await p.selectOption('#fieldRows select[data-i="5"]', "c:maize"); await p.waitForTimeout(200);
       check(await p.evaluate(() => /yield only/.test(document.getElementById("fieldRows").textContent)), "poor crop choice is explained (maize on F6)");
       await p.reload({ waitUntil: "load" }); await p.waitForTimeout(1500);

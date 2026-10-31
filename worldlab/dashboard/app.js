@@ -15,7 +15,10 @@ const TRAIT_UNIT = { wp: (v) => `×${fmt(v, 2)}`, cgc: (v) => `×${fmt(v, 2)}`, 
 const FIELD_IDS = ["F1", "F2", "F3", "F4", "F5", "F6"];
 const NAMES = ["North", "Palm edge", "Dune", "Old wadi", "Loam block", "Sabkha rim"];
 const SOILS = ["loamy sand", "sandy loam", "sand", "sandy loam over loam", "loam", "loamy sand"];
-const ECE0 = [2.0, 1.5, 1.0, 5.0, 3.0, 7.0];       // initial topsoil salinity per field, dS/m (farm definition)
+const ECE0 = [2.0, 1.5, 1.0, 5.0, 3.0, 7.0];
+// flowering window (fraction of the crop's cycle) and heat limit at flowering (°C), from the crop model
+const FLOWER = { wheat: [0.5, 0.65, 31], rice: [0.55, 0.7, 36], maize: [0.48, 0.6, 36], potato: [0.35, 0.6, 30], cassava: [0.45, 0.8, 40],
+  soybean: [0.45, 0.65, 35], sorghum: [0.5, 0.62, 40], millet: [0.48, 0.6, 41], beans: [0.4, 0.6, 32], sweet_potato: [0.4, 0.7, 38] };       // initial topsoil salinity per field, dS/m (farm definition)
 const CHAPTERS = [["discover", "Discover", "Study the farm and run crop experiments."], ["strategize", "Strategize", "Plan crops and water within the limits."],
   ["survive", "Survive", "Run the season through heat, salt and faults."], ["recover", "Recover", "Investigate anomalies, find causes, repair, update the model."],
   ["harvest", "Harvest", "Judge food security, water use and resilience."]];
@@ -24,7 +27,7 @@ const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ==
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* storage blocked */ } } };
 
-const fresh = () => ({ days: [], events: [], perturbations: [], beliefs: null, projections: [], trials: [], scene: {}, drone: [],
+const fresh = () => ({ days: [], events: [], perturbations: [], beliefs: null, projections: [], trials: [], scene: {}, drone: [], forecasts: [], decision: null,
   plan: null, status: {}, fields: null, rl_train: [], rl: null, agentKind: null, mission: null, award: null, lastSeq: -1 });
 let S = fresh();
 let portrait = () => null, stageOf = () => 2, dfSel = -1, dfKey = "", droneTimer = 0;
@@ -95,10 +98,13 @@ function apply(m, live = true) {
       if (d.image) droneArrived({ ...d, kind: "inspection" }, live); break;
     case "drone_frame": droneArrived(d, live); if (live && scene) scene.scan(d.field_index); break;
     case "plan": S.plan = d; if (live && scene && !S.fields) scene.setFields(fieldsNow()); break;
-    case "status": S.status = d; if (live && scene) syncAnomaly(); break;
+    case "status": S.status = d; if (live && scene) syncAnomaly(); if (mode === "live" && "decision" in d) { S.decision = d.decision; showDecision(); } break;
     case "fields": S.fields = d; if (live && scene) scene.setFields(d); break;
     case "rl_train": if (d.reset) S.rl_train = []; else S.rl_train.push(d); break;
     case "rl": S.rl = d; break;
+    case "forecast": S.forecasts.push(d); if (S.forecasts.length > 60) S.forecasts.shift(); break;
+    case "decision_request": S.decision = d; if (live) showDecision(); break;
+    case "decision_answer": S.decision = null; if (live) showDecision(); break;
     case "mission": S.mission = d; if (live) badgeToasts(d); break;
     case "award": S.award = d; if (live) { toast("Season scored", `+${fmt(d.gained)} XP${d.new_achievements && d.new_achievements.length ? `, ${d.new_achievements.length} new achievement${d.new_achievements.length > 1 ? "s" : ""}` : ""}`); loadProgress(); } break;
   }
@@ -127,7 +133,7 @@ function render() {
   if (!dirty) return;
   dirty = false;
   renderTop(); renderTransport(); renderMissions(); renderImpact(); renderDock(); renderInspector(); renderIncident(); renderInvestigation();
-  renderLegend(); renderDrone(); renderMap2d();
+  renderLegend(); renderDrone(); renderMap2d(); renderWeather();
   if (drawer) renderDrawer();
 }
 
@@ -354,6 +360,8 @@ function streamItem(e) {
     case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
     case "rebalance": return ["decide", `Re-plans water: ${d.people_p10_before} → ${d.people_p10_after} people in a bad year`, ""];
     case "anomaly_dismissed": return ["decide", "Dismisses the alarm", why(d.rationale)];
+    case "decision_request": return ["decide", `Asks you: ${esc(d.question)}`, why(`The scientist would choose: ${(d.options.find((o) => o.id === d.default) || {}).label || d.default}`)];
+    case "human_decision": return ["decide", `${d.by === "you" ? "You chose" : "No answer; the scientist's choice used"}: ${esc(d.choice.replace(/_/g, " "))}`, why(d.override ? "This overrides the scientist's own choice and is recorded as yours." : "")];
     case "curtailment": return ["alarm", `Budget reached: irrigation curtailed to ${Math.round(d.fraction_applied * 100)}% of demand`, why(d.note)];
     case "harvest": return ["learn", `${d.field} ${crop(d.crop)} harvested: ${d.yield_t_ha} t/ha`, ""];
     case "season_result": return ["learn", `Season over: ${fmt(d.people_fed)} people fed`, why(`${fmt(d.water_used_m3)} m³ groundwater, ${fmt(d.energy_used_kwh)} kWh`)];
@@ -649,7 +657,7 @@ const DRAWERS = {
   research: { title: "Research lab", tabs: [["trials", "Trial plots"], ["traits", "Crop traits"], ["rl", "Irrigation policy"]] },
   incidents: { title: "Incidents", tabs: [] },
   agent: { title: "The AI agent", tabs: [["record", "Decision record"], ["components", "AI components"], ["ledger", "Audit ledger"]] },
-  results: { title: "Results", tabs: [["report", "Harvest report"], ["seasons", "Your seasons"]] },
+  results: { title: "Results", tabs: [["report", "Harvest report"], ["compare", "Compare"], ["economics", "Costs and emissions"], ["seasons", "Your seasons"]] },
   badges: { title: "Achievements", tabs: [] },
 };
 let drawerTab = null, drawerKey = "", hashLock = false;
@@ -693,6 +701,8 @@ function renderDrawer() {
   else if (drawer === "incidents") { b.innerHTML = incidentsHtml(); drawIncidentCharts(); }
   else if (drawer === "results") {
     if (drawerTab === "seasons") { b.innerHTML = `<p class="empty">Loading…</p>`; historyHtml().then((h) => { if (drawer === "results" && drawerTab === "seasons") b.innerHTML = h; }); }
+    else if (drawerTab === "compare") { b.innerHTML = `<p class="empty">Loading…</p>`; compareHtml().then((h) => { if (drawer === "results" && drawerTab === "compare") { b.innerHTML = h; wireCompare(); } }); }
+    else if (drawerTab === "economics") { b.innerHTML = economicsHtml(); wireEconomics(); }
     else { b.innerHTML = reportHtml(); wireReport(); }
   }
   else if (drawer === "badges") b.innerHTML = badgesHtml();
@@ -1017,9 +1027,13 @@ function reportHtml() {
     <p class="inv-h">Worth trying next</p><ul class="story">${next.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
     ${m && m.achievements.length ? `<p class="inv-h">Achievements earned</p><div class="badges">${m.achievements.map((a) => `<div class="badge on"><span class="hex">✓</span><div><b>${esc(a.title)}</b><span>${esc(a.evidence)}</span></div></div>`).join("")}</div>` : ""}
     ${xp && xp.length ? `<p class="inv-h">${award ? `Experience earned and saved: +${fmt(award.gained)} XP` : "Preview experience (recorded season, not saved)"}</p><ul class="xp-lines">${xp.map((l) => `<li><span>${esc(l.label)}</span><b>+${fmt(l.xp)}</b></li>`).join("")}</ul>` : ""}
+    ${soilHtml(res)}
     <div class="rep-actions">${mode === "replay" ? '<button class="ghost sm" type="button" id="repIncident">Replay the incident</button><button class="ghost sm" type="button" id="repAgain">Watch again</button>' : '<button class="primary sm" type="button" id="repPlan">Plan another season</button>'}
-      <button class="ghost sm" type="button" id="repJson">Export JSON</button><button class="ghost sm" type="button" id="repCsv">Export CSV</button></div>
-    <p class="note">Exports contain the run's inputs, results, assumptions and provenance; no account details.</p>`;
+      <button class="ghost sm" type="button" id="repHtml">Download report (HTML)</button><button class="ghost sm" type="button" id="repJson">Export JSON</button><button class="ghost sm" type="button" id="repCsv">Export CSV</button>
+      ${mode === "live" && info.run_id ? '<button class="ghost sm" type="button" id="repShare">Share a read-only snapshot</button>' : ""}</div>
+    ${mode === "live" && info.run_id ? `<p class="inv-h">Run a controlled experiment</p><p class="note">Rerun this season from the start with exactly one change; the farm seed, weather year and your other choices stay the same, so the two outcomes are a paired comparison.</p>
+      <div class="rep-actions"><button class="ghost sm" type="button" data-branch="controller">Swap the irrigation controller</button><button class="ghost sm" type="button" data-branch="fault">Remove the hidden events</button><button class="ghost sm" type="button" data-branch="human">${S.status.human_mode ? "Turn human decision mode off" : "Make the decisions yourself"}</button><button class="ghost sm" type="button" data-branch="seed">Same choices, next farm seed</button><button class="primary sm" type="button" id="repNext">Next season on this soil</button></div><p class="err" id="repErr" hidden></p>` : ""}
+    <p class="note">Exports and the report contain the run's inputs, results, assumptions and provenance; no account details.${mode === "live" ? " A snapshot link is public to anyone who has it; only finished seasons can be shared." : ""}</p>`;
 }
 function runExport() {
   const res = S.status && S.status.result;
@@ -1043,6 +1057,19 @@ function wireReport() {
   on("repPlan", () => { closeDrawer(); openPlanner(); });
   on("repAgain", () => { closeDrawer(); R.playing = false; seek(0); togglePlay(); });
   on("repIncident", () => { const a = R.msgs.findIndex((x) => x.kind === "ledger" && x.data.kind === "anomaly"); if (a >= 0) { closeDrawer(); R.playing = false; seek(Math.max(0, R.pt[a] - 4)); syncScrub(); togglePlay(); } });
+  on("repHtml", () => download(`worldlab-report-${meta.run || info.run_id || "season"}.html`, reportDocument(), "text/html"));
+  on("repShare", async () => {
+    const r = await apiJson(`api/runs/${info.run_id}/share`, { method: "POST", body: {}, timeout: 10000 }).catch(() => null);
+    if (!r || !r.ok) { toast("Couldn't create a link", (r && r.data.error) || "Try again."); return; }
+    const url = new URL(`${PAGES.demo}${PAGES.demo.includes("?") ? "&" : "?"}shared=${r.data.token}`, location.href).href;
+    try { await navigator.clipboard.writeText(url); toast("Snapshot link copied", url); } catch (e) { toast("Snapshot link", url, 15000); }
+  });
+  document.querySelectorAll("[data-branch]").forEach((b) => (b.onclick = () => branchRun({ kind: b.dataset.branch })));
+  on("repNext", async () => {
+    const r = await apiJson(`api/runs/${info.run_id}/next`, { method: "POST", body: {}, timeout: 20000 }).catch(() => null);
+    if (!r || !r.ok || !r.data.ok) { $("repErr").textContent = (r && r.data.error) || "Couldn't start the next season."; $("repErr").hidden = false; return; }
+    info.run_id = r.data.run_id; closeDrawer(); toast("Next season started", "Same farm; the soil keeps the salt this season left behind.");
+  });
   on("toEnd", () => { R.playing = false; seek(R.total); syncScrub(); renderDrawer(); });
 }
 function showReport() {
@@ -1100,6 +1127,182 @@ function renderDrone() {
   const on = $("dfStrip").querySelector(".on"); if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+// ------------------------------------------------------------ weather and forecast
+function renderWeather() {
+  const pane = $("dp-weather"); if (!pane || pane.hidden) return;
+  const fcs = S.forecasts, fc = fcs[fcs.length - 1];
+  const k = `${S.days.length}|${fcs.length}`;
+  if (pane.dataset.k === k) return; pane.dataset.k = k;
+  const days = S.days;
+  const T = $("wxT"), E = $("wxE"); T.innerHTML = ""; E.innerHTML = "";
+  if (!days.length) { $("wxSide").innerHTML = `<p class="empty">Weather appears when the season starts on 1 October. The scientist plans with the climate of past years until then.</p>`; return; }
+  const W = 300, X = (d) => (d / (D - 1)) * W;
+  // temperature: band between min and max, forecast dashed, heat limits of crops now flowering
+  const fl = fieldsNow(), ld = lastDay();
+  const flowering = [];
+  fl.forEach((f, i) => {
+    const w = ld && ld.world && ld.world[i]; if (!f.crop || !w || !w.sown || w.done) return;
+    const [a, b, lim] = FLOWER[f.crop] || [0.5, 0.6, 35];
+    const st = w.stage || 0;
+    if (st >= a - 0.08 && st <= b + 0.02) flowering.push({ i, crop: f.crop, lim, now: st >= a });
+  });
+  const tmax = days.map((d) => d.tmax), tmin = days.map((d) => d.tmin ?? d.tmax - 12);
+  const fT = fc ? fc.tmax : [];
+  const lims = flowering.map((f) => f.lim);
+  const lo = Math.min(...tmin, ...fT) - 2, hi = Math.max(...tmax, ...fT, ...lims) + 2, Y = (v) => 70 - ((v - lo) / (hi - lo)) * 70;
+  let band = days.map((d, k) => `${k ? "L" : "M"}${X(d.day).toFixed(1)},${Y(tmax[k]).toFixed(1)}`).join("");
+  for (let k = days.length - 1; k >= 0; k--) band += `L${X(days[k].day).toFixed(1)},${Y(tmin[k]).toFixed(1)}`;
+  svgEl("path", { d: band + "Z", fill: "rgba(255,179,107,.22)", stroke: "none" }, T);
+  svgEl("path", { d: days.map((d, k) => `${k ? "L" : "M"}${X(d.day).toFixed(1)},${Y(tmax[k]).toFixed(1)}`).join(""), fill: "none", stroke: css("--measured"), "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }, T);
+  [...new Set(lims)].forEach((v) => svgEl("line", { x1: 0, x2: W, y1: Y(v), y2: Y(v), stroke: css("--alarm"), "stroke-dasharray": "2 3", "stroke-width": 1, "vector-effect": "non-scaling-stroke" }, T));
+  if (fc && fc.days.length) svgEl("path", { d: fc.days.map((d, k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Y(fc.tmax[k]).toFixed(1)}`).join(""), fill: "none", stroke: css("--ink"), "stroke-dasharray": "3 2", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }, T);
+  // ET0 and rain
+  const e0 = days.map((d) => d.et0), mx = Math.max(...e0, ...(fc ? fc.et0 : []), 1), YE = (v) => 60 - (v / mx) * 56;
+  const rmax = Math.max(5, ...days.map((d) => d.rain || 0));
+  days.forEach((d) => { if (d.rain > 0) svgEl("rect", { x: X(d.day), y: 60 - (d.rain / rmax) * 40, width: 1.5, height: (d.rain / rmax) * 40, fill: css("--cyan"), opacity: 0.8 }, E); });
+  svgEl("path", { d: days.map((d, k) => `${k ? "L" : "M"}${X(d.day).toFixed(1)},${YE(e0[k]).toFixed(1)}`).join(""), fill: "none", stroke: css("--emerald"), "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }, E);
+  if (fc && fc.days.length) svgEl("path", { d: fc.days.map((d, k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${YE(fc.et0[k]).toFixed(1)}`).join(""), fill: "none", stroke: css("--ink"), "stroke-dasharray": "3 2", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }, E);
+  // side panel: today, forecast, and what it means for the crops
+  const t = ld;
+  const risk = fc ? flowering.map((f) => { const k = fc.tmax.findIndex((v) => v > f.lim); return k >= 0 ? { ...f, day: fc.days[k], t: fc.tmax[k] } : null; }).filter(Boolean) : [];
+  const hot = flowering.filter((f) => t.tmax > f.lim);
+  const demand = fc ? fc.et0.reduce((a, b) => a + b, 0) / fc.et0.length : null;
+  $("wxCapT").textContent = `Air temperature, ${fmt(lo)}–${fmt(hi)} °C: observed to ${dayLabel(t.day)}${fc ? `; forecast issued ${dayLabel(fc.issued_day)}` : ""}`;
+  $("wxSide").innerHTML = `<p class="wx-now"><b>${fmt(t.tmax, 1)}° / ${fmt(t.tmin, 1)}°</b> on ${dayLabel(t.day)} · humidity ${fmt(t.rh)}% · wind ${fmt(t.u2, 1)} m/s · ET₀ ${fmt(t.et0, 1)} mm${t.rain ? ` · rain ${fmt(t.rain, 1)} mm` : ""}</p>
+    ${fc ? `<p class="note">7-day forecast issued ${dayLabel(fc.issued_day)}: highs ${fmt(Math.min(...fc.tmax))}–${fmt(Math.max(...fc.tmax))} °C, ET₀ about ${fmt(demand, 1)} mm/day${fc.rain.some((r) => r > 0) ? `, rain on ${fc.rain.filter((r) => r > 0).length} day(s)` : ", no rain"}. A forecast is the true weather plus an error that grows with lead time; it is the same product the scientist can ask for.</p>` : `<p class="note">No forecast issued yet.</p>`}
+    <p class="inv-h">Flowering now</p>${flowering.length ? `<ul class="wx-list">${flowering.map((f) => `<li>${FIELD_IDS[f.i]} ${crop(f.crop)}: ${f.now ? "flowering" : "about to flower"}, heat limit ${f.lim} °C${t.tmax > f.lim ? ` <span class="miss">today ${fmt(t.tmax, 1)} °C is above it</span>` : ""}</li>`).join("")}</ul>` : `<p class="note">No field is flowering.</p>`}
+    ${risk.length ? `<p class="wx-warn">⚠ Heat risk: ${risk.map((r) => `${FIELD_IDS[r.i]} ${crop(r.crop)} on ${dayLabel(r.day)} (${fmt(r.t, 1)} °C forecast, limit ${r.lim} °C)`).join("; ")}. Heat at flowering cuts the harvest index in the crop model; water can't prevent it.</p>` : hot.length ? "" : flowering.length ? `<p class="note">The forecast stays below the heat limits of the flowering crops.</p>` : ""}
+    <p class="note">Higher ET₀ means more irrigation demand: the fixed rule waters ET₀ × crop coefficient ÷ drip efficiency each day.</p>`;
+}
+
+// ------------------------------------------------------------ human decision mode
+function showDecision() {
+  const d = S.decision, box = $("decision");
+  if (!d || mode !== "live") { box.hidden = true; return; }
+  if (box.dataset.id === d.id && !box.hidden) return;
+  box.dataset.id = d.id; box.hidden = false;
+  $("decTitle").textContent = d.question;
+  $("decOpts").innerHTML = d.options.map((o) => `<button type="button" class="${o.id === d.default ? "ghost" : "ghost"} dec-opt" data-c="${esc(o.id)}"><b>${esc(o.label)}</b>${o.detail ? `<span>${esc(o.detail)}</span>` : ""}${o.id === d.default ? '<em>the scientist\'s choice</em>' : ""}</button>`).join("");
+  $("decOpts").querySelectorAll("button").forEach((b) => (b.onclick = async () => {
+    $("decOpts").querySelectorAll("button").forEach((x) => (x.disabled = true));
+    const r = await apiJson("api/decide", { method: "POST", body: { request: d.id, choice: b.dataset.c }, timeout: 10000 }).catch(() => null);
+    if (!r || !r.ok) { toast("Not recorded", (r && r.data.error) || "Try again."); $("decOpts").querySelectorAll("button").forEach((x) => (x.disabled = false)); return; }
+    box.hidden = true;
+  }));
+  $("decOpts").querySelector("button").focus({ preventScroll: true });
+}
+
+// ------------------------------------------------------------ soil condition, branching, comparison
+function soilHtml(res) {
+  if (!res || !res.soil) return "";
+  return `<p class="inv-h">Soil salinity, start and end of the season</p>
+    <table><thead><tr><th>Field</th><th class="n">Start, dS/m (top 50 cm)</th><th class="n">End, measured</th><th class="n">Change</th></tr></thead><tbody>${res.soil.map((r) => {
+      const dlt = r.ece_top_end_measured_dS_m - r.ece_top_start_dS_m;
+      return `<tr><td>${r.field}</td><td class="n">${fmt(r.ece_top_start_dS_m, 1)}</td><td class="n">${fmt(r.ece_top_end_measured_dS_m, 1)}</td><td class="n ${dlt > 0.5 ? "miss" : dlt < -0.5 ? "ok" : ""}">${signed(Math.round(dlt * 10) / 10)}</td></tr>`;
+    }).join("")}</tbody></table>
+    <p class="note">Salt builds up when irrigation doesn't leach it below the roots. Over the summer the fields rest without irrigation, so salt stays where it is; the next season starts from it. Soil nitrogen is modelled as a seasonal supply, not a stock, so it does not carry over.</p>`;
+}
+async function branchRun(change) {
+  const r = await apiJson(`api/runs/${info.run_id}/branch`, { method: "POST", body: { change }, timeout: 20000 }).catch(() => null);
+  if (!r || !r.ok || !r.data.ok) { const e = $("repErr"); if (e) { e.textContent = (r && r.data.error) || "Couldn't start the experiment."; e.hidden = false; } return; }
+  info.run_id = r.data.run_id; info.agent = r.data.agent; closeDrawer(); toast("Experiment started", "Same farm and weather with one change. Compare the two in Results when it finishes.");
+}
+let EXPS = null, cmpSel = [], recorded = true;
+function row(label, a, b, unit, dec = 0, better = 1) {
+  const d = b - a, pct = a ? (100 * d) / a : 0;
+  const cls = Math.abs(pct) < 0.5 ? "" : (d * better > 0 ? "ok" : "miss");
+  return `<tr><td>${label}</td><td class="n">${fmt(a, dec)}${unit}</td><td class="n">${fmt(b, dec)}${unit}</td><td class="n ${cls}">${d > 0 ? "+" : ""}${fmt(d, dec)} (${pct > 0 ? "+" : ""}${fmt(pct, 1)}%)</td></tr>`;
+}
+function pairTable(A, B, la, lb) {
+  const fields = FIELD_IDS.map((f) => [f, A.harvest && A.harvest[f], B.harvest && B.harvest[f]]);
+  return `<table><thead><tr><th></th><th class="n">${esc(la)}</th><th class="n">${esc(lb)}</th><th class="n">Difference</th></tr></thead><tbody>
+    ${row("People fed", A.people_fed, B.people_fed, "", 1)}
+    ${row("Groundwater, m³", A.water_used_m3, B.water_used_m3, "", 0, -1)}
+    ${row("Energy, kWh", A.energy_used_kwh, B.energy_used_kwh, "", 0, -1)}
+    ${fields.map(([f, a, b]) => (a || b) ? `<tr><td>${f} ${crop((a || b).crop)}${a && b && a.crop !== b.crop ? ` → ${crop(b.crop)}` : ""}, t/ha</td><td class="n">${a ? yfmt(a.yield_t_ha) : "–"}</td><td class="n">${b ? yfmt(b.yield_t_ha) : "–"}</td><td class="n">${a && b ? signed(Math.round((b.yield_t_ha - a.yield_t_ha) * 10) / 10) : ""}</td></tr>` : "").join("")}
+    <tr><td>Within both limits</td><td class="n">${A.within_limits ? "yes" : "no"}</td><td class="n">${B.within_limits ? "yes" : "no"}</td><td></td></tr></tbody></table>`;
+}
+async function compareHtml() {
+  if (mode !== "live" && !recorded) return `<p class="empty">Paired comparisons are stored with the recorded demo season and with your own seasons on the WorldLab server.</p>`;
+  if (mode !== "live") {
+    if (!EXPS) { try { EXPS = await (await fetch("experiments.json")).json(); } catch (e) { return `<p class="empty">The paired experiments for the recorded season couldn't be loaded.</p>`; } }
+    const B0 = EXPS.baseline;
+    return `<p style="margin:0 0 10px">${esc(EXPS.note)}</p>${EXPS.experiments.map((x) => `<section class="inc-card"><div class="inc-head"><b>${esc(x.label)}</b><span class="pill">${esc(x.change.label)}</span></div>
+      ${pairTable(B0, x, "Recorded season", x.label)}
+      ${x.change.kind === "next_season" ? soilCompare(B0, x) : ""}
+      ${x.change.kind === "fault" ? `<p class="note">The clog cost ${fmt(x.people_fed - B0.people_fed, 1)} person-years in this paired comparison, after the scientist detected and repaired it. This is a controlled counterfactual on the same farm and weather, not an estimate.</p>` : ""}</section>`).join("")}
+      <p class="note">Recorded on simulated farms with the scripted decision protocol. Run your own experiments on the hosted server: any finished season can be rerun with one change.</p>`;
+  }
+  let d;
+  try { d = (await apiJson("api/runs", { timeout: 10000 })).data; } catch (e) { return `<p class="empty">Couldn't load your seasons.</p>`; }
+  const done = (d.runs || []).filter((r) => r.result);
+  if (done.length < 2) return `<p class="empty">Finish two seasons to compare them. From a harvest report you can rerun a season with one change for a paired comparison.</p>`;
+  if (cmpSel.length !== 2) {
+    const child = done.find((r) => r.parent && done.some((p) => p.id === r.parent));
+    cmpSel = child ? [child.parent, child.id] : [done[1].id, done[0].id];
+  }
+  const A = done.find((r) => r.id === cmpSel[0]), B = done.find((r) => r.id === cmpSel[1]);
+  const opt = (sel) => done.map((r) => `<option value="${r.id}" ${r.id === sel ? "selected" : ""}>Season ${r.id}${r.settings && r.settings.change ? ` (${esc(r.settings.change.label)})` : ""}</option>`).join("");
+  const sum = (r) => ({ ...r.result, within_limits: r.result.within_quota && r.result.within_energy, harvest: null });
+  const paired = B.parent === A.id || A.parent === B.id;
+  return `<div class="trace-bar"><label class="filter">Season <select id="cmpA">${opt(cmpSel[0])}</select></label><label class="filter">against <select id="cmpB">${opt(cmpSel[1])}</select></label></div>
+    <p class="note">${paired ? "A paired comparison: the second season reran the first with one change, on the same farm seed and weather." : "These seasons were not branched from each other; differences may come from several inputs at once (farm seed, scenario, crops)."}</p>
+    ${pairTable(sum(A), sum(B), `Season ${A.id}`, `Season ${B.id}`)}`;
+}
+function soilCompare(A, B) {
+  return `<p class="note">Topsoil salinity at the start of season 2 equals the end of season 1: ${B.soil.map((r) => `${r.field} ${fmt(r.ece_top_start_dS_m, 1)}`).join(", ")} dS/m (season 1 started at ${A.soil.map((r) => fmt(r.ece_top_start_dS_m, 1)).join(", ")}).</p>`;
+}
+function wireCompare() {
+  const a = $("cmpA"), b = $("cmpB");
+  if (a) a.onchange = b.onchange = () => { cmpSel = [Number(a.value), Number(b.value)]; drawerKey = ""; renderDrawer(); };
+}
+
+// ------------------------------------------------------------ costs and emissions (your own prices; none are shipped)
+const ECON_KEY = "wl-econ";
+const ECON = [["kwh", "Electricity", "per kWh"], ["n", "Nitrogen fertiliser", "per kg N"], ["ha", "Seed and planting", "per hectare sown"],
+  ["test", "Field test", "each"], ["repair", "Repair", "each"], ["plot", "Trial plot", "each"], ["co2", "Grid emissions", "kg CO₂ per kWh"]];
+function economicsHtml() {
+  const res = S.status && S.status.result, q = res && res.quantities;
+  if (!q) return `<p class="empty">Costs and emissions are worked out when the season ends, from what it actually used.</p>`;
+  const f = store.get(ECON_KEY, {}), cur = store.get("wl-econ-cur", "");
+  const qty = { kwh: res.energy_used_kwh, n: q.nitrogen_kg, ha: q.area_sown_ha, test: q.field_tests, repair: q.repairs, plot: q.trial_plots };
+  const lines = ECON.filter(([k]) => k !== "co2").map(([k, l, u]) => { const v = parseFloat(f[k]); return [l, qty[k], u, Number.isFinite(v) ? v * qty[k] : null]; });
+  const total = lines.reduce((a, l) => a + (l[3] || 0), 0), any = lines.some((l) => l[3] != null);
+  const co2 = parseFloat(f.co2), em = Number.isFinite(co2) ? co2 * res.energy_used_kwh : null;
+  return `<p style="margin:0 0 10px">WorldLab doesn't ship prices or emission factors: enter your own, and the season's actual quantities turn them into a cost per person fed. Nothing here changes the simulation; values are kept only in this browser.</p>
+    <div class="econ-in">${ECON.map(([k, l, u]) => `<label>${l} <span class="note">${u}</span><input type="number" min="0" step="any" data-k="${k}" value="${esc(f[k] ?? "")}" placeholder="enter a value"></label>`).join("")}<label>Currency label <input id="econCur" value="${esc(cur)}" placeholder="e.g. AED" maxlength="6"></label></div>
+    <table><thead><tr><th>Item</th><th class="n">This season used</th><th class="n">Cost</th></tr></thead><tbody>
+      ${lines.map(([l, n, u, c]) => `<tr><td>${l}</td><td class="n">${fmt(n, Number.isInteger(n) || n >= 10 ? 0 : 1)} ${esc(u.replace(/^per |^each$/, ""))}</td><td class="n">${c == null ? '<span class="note">no price</span>' : `${fmt(c, 2)} ${esc(cur)}`}</td></tr>`).join("")}
+      <tr><td>Energy split</td><td class="n">${fmt(q.energy_pumping_kwh)} kWh pumping, ${fmt(q.energy_desal_kwh)} kWh desalination (${fmt(q.desal_m3)} m³ desalinated)</td><td></td></tr></tbody></table>
+    <div class="res-kpis">${any ? `<div><b>${fmt(total, 0)} ${esc(cur)}</b><span>total of the priced items</span></div><div><b>${fmt(total / res.people_fed, 2)} ${esc(cur)}</b><span>per person fed for a year</span></div>` : ""}${em != null ? `<div><b>${fmt(em / 1000, 1)} t CO₂</b><span>from electricity</span></div><div><b>${fmt(em / res.people_fed, 1)} kg CO₂</b><span>per person fed</span></div>` : ""}</div>
+    <p class="note">Water is not priced here: the groundwater quota is a physical limit, and its extraction cost is the pumping energy above. Unpriced items are left out of the total, not counted as zero.</p>`;
+}
+function wireEconomics() {
+  document.querySelectorAll("[data-k]").forEach((i) => (i.onchange = () => { const f = store.get(ECON_KEY, {}); f[i.dataset.k] = i.value; store.set(ECON_KEY, f); drawerKey = ""; renderDrawer(); }));
+  const c = $("econCur"); if (c) c.onchange = () => { store.set("wl-econ-cur", c.value); drawerKey = ""; renderDrawer(); };
+}
+
+// ------------------------------------------------------------ a shareable, self-contained scientific report
+function reportDocument() {
+  const res = S.status.result, plan = S.plan, m = S.mission, x = runExport();
+  const inc = incidentList().map((i) => { const F = incidentFacts(i); return { f: F, a: i.a.data }; });
+  const r = (v) => esc(v == null ? "–" : v);
+  const T = (rows, head) => `<table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((c) => `<tr>${c.map((v) => `<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const rl = S.rl && S.rl.held_out_comparison;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WorldLab season report</title>
+<style>body{font:15px/1.55 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 18px;color:#14201a;background:#fff}h1{font-size:26px;margin:0}h2{font-size:18px;margin:28px 0 8px;border-bottom:1px solid #d6e2da;padding-bottom:4px}table{border-collapse:collapse;width:100%;font-size:14px;margin:6px 0}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #e3ece6;vertical-align:top}.k{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.k div{border:1px solid #d6e2da;border-radius:8px;padding:8px}.k b{display:block;font-size:20px}.n{color:#5b6b62;font-size:13px}@media print{body{margin:0}}</style></head><body>
+<h1>WorldLab season report</h1><p class="n">Generated ${esc(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC from ${esc(x.source)}${x.run ? `, run ${esc(x.run)}` : ""}. Decision source: ${esc(x.decision_source)}; perception: ${esc(x.perception)}; irrigation: ${esc(x.controller)}; budget mode: ${esc(x.budget_mode)}.</p>
+<h2>Outcome</h2><div class="k"><div><b>${r(fmt(res.people_fed))}</b>people fed (person-years, scarcest of calories, protein, vitamin A)</div><div><b>${r(fmt(res.water_used_m3))}</b>m³ groundwater of ${r(fmt(S.status.water_quota_m3))}</div><div><b>${r(fmt(res.energy_used_kwh))}</b>kWh of ${r(fmt(S.status.energy_kwh))}</div><div><b>${r(NUTRIENT[res.limiting])}</b>limiting need</div></div>
+<p>${esc(m && m.outcome ? m.outcome : "")} Plan before the season: ${r(plan && fmt(plan.people_p10))} people in a bad year (10th percentile), ${r(plan && fmt(plan.people_p50))} in a typical year.</p>
+<h2>Fields</h2>${T((plan ? plan.fields : []).map((f) => { const h = (S.status.harvest || {})[f.field]; return [f.field, f.crop ? crop(f.crop) : "fallow", f.crop ? dayLabel(f.mgmt.sow) : "", f.crop ? f.yield_t_ha_p10_p50_p90.map(yfmt).join(" / ") : "", h ? yfmt(h.yield_t_ha) : "–"]; }), ["Field", "Crop", "Sown", "Plan yield t/ha (bad / typical / good)", "Harvested t/ha"])}
+<h2>Incidents</h2>${inc.length ? inc.map(({ f, a }) => `<p><b>${esc(a.field)}: ${esc(a.signal_label)} ${esc(a.direction)}</b>, measured ${dayLabel(a.detected_day)} (drift from about ${dayLabel(a.onset_day)}).</p><ul>${f.hyps.map((h) => `<li>Hypothesis: ${esc(h.statement)} — ${esc((f.concl[h.id] || {}).verdict || "open")}${(f.concl[h.id] || {}).evidence ? ` (${esc(f.concl[h.id].evidence)})` : ""}</li>`).join("")}${f.fixes.map((e) => `<li>${dayLabel(e.t)}: ${(streamItem(e) || ["", e.kind])[1]}</li>`).join("")}<li>Recovery: ${f.recovery ? (f.recovery.ok ? `back inside the model's band on ${dayLabel(f.recovery.day)} (${f.recovery.lag ? `${f.recovery.lag} days after the first action` : "the same day as the first action"})` : "not observed") : "no action"}</li></ul>`).join("") : "<p>None.</p>"}
+${rl ? `<h2>Irrigation policy</h2><p>${esc(rlStatus())}. On held-out imagined seasons: people fed in a bad year ${signed(rl.people_p10_change_pct)}%, water ${signed(rl.water_change_pct)}%, energy ${signed(rl.energy_change_pct)}% against the fixed rule. ${S.rl.deployment_criterion ? `Deployment criterion: ${esc(S.rl.deployment_criterion)}.` : ""} Imagined seasons come from the scientist's calibrated model, not the realised harvest.</p>` : ""}
+${res.soil ? `<h2>Soil salinity</h2>${T(res.soil.map((s) => [s.field, fmt(s.ece_top_start_dS_m, 1), fmt(s.ece_top_end_measured_dS_m, 1)]), ["Field", "Start dS/m", "End dS/m (measured)"])}` : ""}
+<h2>Assumptions and limits</h2><ul><li>Simulated 12 ha farm near Al Ain: six 2 ha fields, drip irrigation from brackish groundwater (4.5 dS/m); desalinated water is made from the same groundwater and counts against the quota.</li><li>Crop parameters are approximate published values; local-variety traits are hidden and learned from trial plots.</li><li>"People fed" is a model metric across calories, protein and vitamin A; it is not a full diet or a validated real-world impact estimate.</li><li>${esc(x.budget_mode === "hard" ? "Hard budget: no day's irrigation may exceed what remains of the water quota or energy budget." : "Soft budget: use could exceed the limits.")}</li></ul>
+<h2>Reproducibility</h2><p class="n">Schema ${esc(x.schema)}; calendar: ${esc(x.calendar)}; hidden changes: ${esc(typeof x.hidden_changes === "string" ? x.hidden_changes : x.hidden_changes.map((p) => `${p.kind} ${p.field} day ${p.day}`).join(", ") || "none")}. The audit ledger of this run is hash-chained; verify it on the WorldLab server.</p>
+</body></html>`;
+}
+
 // ------------------------------------------------------------ toasts and achievements
 function toast(title, body, ms = 5200) {
   const t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status");
@@ -1121,6 +1324,7 @@ async function openPlanner() {
   }
   const draft = store.get(DRAFT_KEY, null);
   if (draft && Array.isArray(draft.picks) && draft.picks.length === 6) { P.picks = draft.picks; P.season = draft.season || P.season; }
+  renderFarmSettings(draft && draft.farm);
   if (drawer) closeDrawer();
   $("inspector").hidden = true;
   if (mode === "replay" && R.playing) togglePlay();
@@ -1153,7 +1357,50 @@ function closePlanner() {
   if (lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll: true });
 }
 const seasonLabel = (id) => { const x = P.data && P.data.seasons.find((s) => s.id === id); return x ? x.label : id; };
-function saveDraft() { store.set(DRAFT_KEY, { picks: P.picks, season: P.season, saved: Date.now() }); }
+function saveDraft() { store.set(DRAFT_KEY, { picks: P.picks, season: P.season, farm: farmSettings(), saved: Date.now() }); }
+// scenario library and farm editor: values are clamped again by the server
+const ED = [["edSeed", "seed"], ["edQuota", "water_quota_m3"], ["edEnergy", "energy_kwh"], ["edSalt", "salinity_scale"]];
+function farmSettings() {
+  if (!$("scenarioSel").options.length) return P.farm || null;
+  const farm = {};
+  ED.forEach(([id, k]) => { const v = parseFloat($(id).value); if (Number.isFinite(v)) farm[k] = v; });
+  return { scenario: $("scenarioSel").value, farm, human: $("humanChk").checked };
+}
+function renderFarmSettings(saved) {
+  const sel = $("scenarioSel"), sc = P.data.scenarios || [], rg = P.data.editor || {};
+  if (!sel.options.length) sel.innerHTML = sc.map((x) => `<option value="${esc(x.id)}">${esc(x.title)} (${esc(x.difficulty)})</option>`).join("");
+  const dflt = { seed: 7, water_quota_m3: 60000, energy_kwh: 90000, salinity_scale: 1 };
+  const applyScenario = (id, keep) => {
+    const x = sc.find((s) => s.id === id) || sc[0]; if (!x) return;
+    sel.value = x.id;
+    $("scenarioAbout").textContent = `${x.about}${x.hidden_events ? ` ${x.hidden_events} hidden event${x.hidden_events > 1 ? "s" : ""}; the scientist isn't told when.` : ""}`;
+    if (!keep) {
+      $("edQuota").value = x.limits.water_quota_m3 ?? dflt.water_quota_m3;
+      $("edEnergy").value = x.limits.energy_kwh ?? dflt.energy_kwh;
+      $("edSalt").value = x.salinity_scale ?? 1;
+    }
+    summary();
+  };
+  const summary = () => {
+    const x = sc.find((s) => s.id === sel.value);
+    $("plFarmSum").textContent = `· ${x ? x.title : ""}, seed ${$("edSeed").value}${$("humanChk").checked ? ", you decide" : ""}`;
+  };
+  ED.forEach(([id, k]) => { const r = rg[k]; if (r) { $(id).min = r[0]; $(id).max = r[1]; } });
+  if (saved && saved.farm) {
+    applyScenario(saved.scenario, true);
+    ED.forEach(([id, k]) => { if (saved.farm[k] != null) $(id).value = saved.farm[k]; });
+    $("humanChk").checked = !!saved.human;
+  } else if (!sel.dataset.init) applyScenario(sel.value || "baseline", false);
+  sel.dataset.init = "1";
+  sel.onchange = () => { applyScenario(sel.value, false); saveDraft(); };
+  ED.forEach(([id, k]) => ($(id).onchange = () => {
+    const r = rg[k], v = parseFloat($(id).value);
+    if (r && Number.isFinite(v)) $(id).value = Math.min(r[1], Math.max(r[0], k === "seed" ? Math.round(v) : v));
+    summary(); saveDraft();
+  }));
+  $("humanChk").onchange = () => { summary(); saveDraft(); };
+  summary();
+}
 function setPick(i, v) { P.undo.push(JSON.stringify(P.picks)); if (P.undo.length > 50) P.undo.shift(); P.picks[i] = v; saveDraft(); renderFieldRows(); preview(); }
 function renderSeasonTabs() {
   $("seasonTabs").innerHTML = P.data.seasons.map((x) => {
@@ -1264,10 +1511,10 @@ async function startSeason() {
   if (caps && caps.busy) { $("plErr").textContent = "The server is running as many seasons as it can right now. Your draft is saved; try again in a few minutes."; $("plErr").hidden = false; return; }
   const btn = $("startBtn"); btn.disabled = true; $("plErr").hidden = true; btn.textContent = "Starting…";
   try {
-    const r = await apiJson("api/start", { method: "POST", body: { agent: $("agentSel").value, speed: Number($("speed").value), choices: P.picks }, timeout: 20000 });
+    const r = await apiJson("api/start", { method: "POST", body: { agent: $("agentSel").value, speed: Number($("speed").value), choices: P.picks, ...(farmSettings() || {}) }, timeout: 20000 });
     if (r.status === 401) { go("login", `?next=${encodeURIComponent(PAGES.app)}`); return; }
     if (!r.ok || !r.data.ok) throw new Error(r.data.error || "The season could not start.");
-    store.del(DRAFT_KEY); P.undo = [];
+    store.del(DRAFT_KEY); P.undo = []; info.run_id = r.data.run_id; info.agent = r.data.agent;
     closePlanner(); $("modeNote").textContent = ""; seenBadges = new Set();
   } catch (e) { $("plErr").textContent = e.name === "TimeoutError" ? "The server didn't answer in time. Your draft is saved; try again." : e.message; $("plErr").hidden = false; }
   finally { btn.disabled = false; btn.textContent = "Start the season"; }
@@ -1284,6 +1531,7 @@ function hydrate(state) {
 async function startLive(state) {
   mode = "live";
   info = state.info || {};
+  $("modeChip").textContent = "Your farm, live";
   $("liveControls").hidden = false;
   $("profileName").textContent = info.user ? `${info.user.name} (${info.user.email})` : "Signed in";
   $("loginLink").hidden = true;
@@ -1480,6 +1728,7 @@ function setDockTab(b) {
   document.querySelectorAll(".dt-pane").forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.dt));
   $("dock").classList.remove("collapsed");
   if (b.dataset.dt === "drone") { $("droneDot").hidden = true; dfKey = ""; renderDrone(); }
+  if (b.dataset.dt === "weather") { $("dp-weather").dataset.k = ""; renderWeather(); }
 }
 function wireUi() {
   document.querySelectorAll(".home-link").forEach((a) => (a.href = PAGES.home));
@@ -1565,6 +1814,10 @@ async function boot() {
   const isDemo = /\/demo\/?$/.test(location.pathname) || q.has("demo");
   let replay = q.get("replay") || window.WORLDLAB_REPLAY || (isDemo ? "replay.json" : null);
   if (q.get("run")) replay = `api/runs/${encodeURIComponent(q.get("run"))}/replay`;
+  if (q.get("shared")) replay = `api/shared/${encodeURIComponent(q.get("shared"))}`;
+  recorded = !replay || replay === "replay.json";
+  if (q.get("shared")) $("modeChip").textContent = "Shared season";
+  else if (q.get("run")) $("modeChip").textContent = "Your past season";
   // what the server can do, with a short timeout so a missing server never blocks the page
   try { const r = await api("api/capabilities", { timeout: 4000 }); if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) { caps = await r.json(); serverUp = true; } } catch (e) { /* no server */ }
   let state = null;
@@ -1579,7 +1832,7 @@ async function boot() {
   else {
     if (serverUp) { try { const m = await api("api/me", { timeout: 4000 }); if (m.status === 200) { $("profileName").textContent = (await m.json()).user.name; $("loginLink").hidden = true; } } catch (e) { /* ignore */ } }
     if (!serverUp) { $("demoCta").href = "https://github.com/MoAmrYehia/WorldLab#quick-start"; $("demoCta").textContent = "Run WorldLab locally"; $("logoutBtn").hidden = true; }
-    if (q.get("run")) $("demoCta").outerHTML = `<a class="ghost" href="${PAGES.app}">Back to your farm</a>`;
+    if (q.get("run") || q.get("shared")) $("demoCta").outerHTML = `<a class="ghost" href="${PAGES.app}">Back to your farm</a>`;
     await startReplay(replay || "replay.json").catch((e) => { $("modeNote").textContent = `No live server and no recording found (${e.message}).`; });
   }
   const loop = () => { render(); requestAnimationFrame(loop); };
