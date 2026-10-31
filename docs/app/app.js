@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=ce00be84d4";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=3aa927c371";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -433,12 +433,38 @@ function renderInspector() {
   $("droneFig").hidden = !sc || !sc.image;
   if (sc && sc.image) {
     if ($("droneImg").dataset.src !== sc.image) { $("droneImg").src = sc.image; $("droneImg").dataset.src = sc.image; }
-    const diag = sc.diagnosis && sc.diagnosis.condition ? ` Analysis: ${String(sc.diagnosis.condition).replace(/_/g, " ")}.` : "";
+    if (sc.expected_image && $("droneExp").dataset.src !== sc.expected_image) { $("droneExp").src = sc.expected_image; $("droneExp").dataset.src = sc.expected_image; }
+    document.querySelector('[data-dv="exp"]').hidden = !sc.expected_image;
+    document.querySelector('[data-dv="sam"]').hidden = !(sc.objects && sc.objects.length);
+    droneView(sc);
+    const ev = sc.diagnosis && sc.diagnosis.evidence ? ` “${esc(sc.diagnosis.evidence)}”` : "";
+    const isSam = String(sc.source || "").startsWith("SAM");
+    const cereal = ["wheat", "rice", "millet"].includes(sc.crop);
+    const counts = !isSam ? "" : cereal || sc.plants_counted == null
+      ? ` SAM 3.1 found ${sc.salt_crust_patches} salt-crust patches (a drilled cereal isn't counted plant by plant).`
+      : ` SAM 3.1 counted ${sc.plants_counted} plants and ${sc.salt_crust_patches} salt-crust patches.`;
+    const diag = (sc.diagnosis && sc.diagnosis.condition ? ` Analysis: ${String(sc.diagnosis.condition).replace(/_/g, " ")}.` : "") + counts + ev;
     const age = ld ? ld.day - sc.day : 0;
     const old = age > 8 || (w && w.done);
-    $("droneCap").innerHTML = `${old ? "<b>Historical evidence.</b> " : ""}Drone image captured ${dayLabel(sc.day)}${age > 0 ? `, ${age} days before the date shown` : ""}; analysed by ${esc(sc.source || "perception")}.${esc(diag)}${old ? " It may not reflect the field now." : ""}`;
+    $("droneCap").innerHTML = `${old ? "<b>Historical evidence.</b> " : ""}Drone image captured ${dayLabel(sc.day)}${age > 0 ? `, ${age} days before the date shown` : ""}; analysed by ${esc(sc.source || "perception")}.${diag}${old ? " It may not reflect the field now." : ""}`;
   }
   $("perturb").hidden = !(mode === "live" && S.status.phase === "season");
+}
+let dv = "obs";
+function droneView(sc) {
+  $("droneImg").hidden = dv === "exp"; $("droneExp").hidden = dv !== "exp";
+  document.querySelectorAll("[data-dv]").forEach((b) => { const on = b.dataset.dv === dv; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+  const box = $("droneBoxes"); box.toggleAttribute("hidden", dv !== "sam");    // SVG has no .hidden property
+  if (dv !== "sam" || !sc) return;
+  const [W, H] = sc.image_size || [960, 600];
+  box.setAttribute("viewBox", `0 0 ${W} ${H}`); box.setAttribute("preserveAspectRatio", "none");
+  box.innerHTML = (sc.objects || []).map((o) => `<rect x="${o.box[0]}" y="${o.box[1]}" width="${o.box[2] - o.box[0]}" height="${o.box[3] - o.box[1]}" class="sam-${o.label}"/>`).join("");
+}
+// a full-screen view of the same figure: the figure moves into a body-level layer and back
+function droneBig(on) {
+  const fig = $("droneFig"), layer = $("droneLayer");
+  if (on && !fig.classList.contains("big")) { fig._home = fig.parentNode; fig._next = fig.nextSibling; layer.appendChild(fig); fig.classList.add("big"); layer.hidden = false; }
+  else if (!on && fig.classList.contains("big")) { fig.classList.remove("big"); fig._home.insertBefore(fig, fig._next); layer.hidden = true; }
 }
 function markersFor(i) {
   const id = FIELD_IDS[i], m = [];
@@ -933,8 +959,8 @@ function componentsHtml() {
   const rows = [
     ["Muse Spark", "meta", "Meta model", "The scientist: decides the next step by calling tools", "Reads the farm state and tool results, writes hypotheses and calls its 19 tools by function calling", "spark"],
     ["Muse Glimmer", "meta", "Meta open weights", "The same scientist on your own GPU", "Any OpenAI-compatible endpoint serving Glimmer, same tools and prompt", "glimmer"],
-    ["SAM 3.1", "meta", "Meta model", "Reads drone images", "Segments green plants, white salt crust and brown leaf damage by text prompt; counts and areas feed the diagnosis", "sam"],
-    ["Muse Spark vision", "meta", "Meta model", "Diagnoses crop stress from the same image", "Returns a structured diagnosis: healthy, water, salt or pest stress, gaps, with its evidence", "vision"],
+    ["SAM 3.1", "meta", "Meta model", "Reads drone photos", "Counts plants tile by tile (prompt \u201cplant\u201d) and segments white salt crust on the soil; every count is scored afterwards against what the frame shows", "sam"],
+    ["Muse Spark vision", "meta", "Meta model", "Compares the photo with what the model expects", "Gets the drone photo and a view rendered from the scientist's own model (same plants, predicted canopy, no faults) and returns a structured diagnosis with evidence", "vision"],
     ["Scripted protocol", "rule", "Rules", "Baseline and fallback scientist", "A fixed sequence over the same tools; the comparison the language model must beat", "scripted"],
     ["Experiment design", "num", "Numerical", "Chooses which trial plots to plant", "Scores candidate plots by expected information about the traits that move the plan", "design"],
     ["Bayesian calibration", "num", "Numerical", "Learns each crop's hidden traits", "MAP fit of water productivity, canopy growth, heat and salt tolerance from trial harvests and drone canopy", "calib"],
@@ -1695,7 +1721,7 @@ function showTour() {
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=ce00be84d4");
+    const mod = await import("./scene.js?v=3aa927c371");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
@@ -1723,6 +1749,13 @@ async function loadScene() {
     dirty = true;
   }
 }
+document.addEventListener("click", (e) => {
+  if (e.target.id === "droneLayer") { droneBig(false); return; }
+  const v = e.target.closest(".drone-view");
+  if (v) { droneBig(!$("droneFig").classList.contains("big")); return; }
+  const b = e.target.closest("[data-dv]"); if (!b) return; dv = b.dataset.dv; droneView(S.scene[FIELD_IDS[sel]]);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("droneFig").classList.contains("big")) { droneBig(false); e.stopPropagation(); } }, true);
 function setDockTab(b) {
   document.querySelectorAll(".dock-tabs [data-dt]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", String(on)); x.tabIndex = on ? 0 : -1; });
   document.querySelectorAll(".dt-pane").forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.dt));

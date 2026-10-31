@@ -1,0 +1,67 @@
+[
+ {
+  "agent": "spark",
+  "scenario": "none",
+  "runs": 5,
+  "people_fed": 472.5,
+  "pct_of_oracle": 107.1,
+  "detected": "\u2013",
+  "detect_days_median": null,
+  "diagnosis_ok": "5/5",
+  "false_alarms": 0,
+  "within_limits": "5/5",
+  "trait_error": 0.3
+ },
+ {
+  "agent": "spark",
+  "scenario": "clog",
+  "runs": 5,
+  "people_fed": 453.6,
+  "pct_of_oracle": 102.8,
+  "detected": "5/5",
+  "detect_days_median": 23.0,
+  "diagnosis_ok": "5/5",
+  "false_alarms": 0,
+  "within_limits": "5/5",
+  "trait_error": 0.3
+ },
+ {
+  "agent": "spark",
+  "scenario": "pest",
+  "runs": 5,
+  "people_fed": 470.6,
+  "pct_of_oracle": 106.4,
+  "detected": "4/5",
+  "detect_days_median": 13.0,
+  "diagnosis_ok": "5/5",
+  "false_alarms": 0,
+  "within_limits": "5/5",
+  "trait_error": 0.3
+ },
+ {
+  "agent": "spark",
+  "scenario": "salinity",
+  "runs": 5,
+  "people_fed": 425.3,
+  "pct_of_oracle": 94.9,
+  "detected": "5/5",
+  "detect_days_median": 11.0,
+  "diagnosis_ok": "5/5",
+  "false_alarms": 0,
+  "within_limits": "5/5",
+  "trait_error": 0.3
+ },
+ {
+  "agent": "spark",
+  "scenario": "heatwave",
+  "runs": 5,
+  "people_fed": 457.7,
+  "pct_of_oracle": 103.6,
+  "detected": "\u2013",
+  "detect_days_median": null,
+  "diagnosis_ok": "5/5",
+  "false_alarms": 0,
+  "within_limits": "5/5",
+  "trait_error": 0.3
+ }
+]

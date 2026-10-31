@@ -42,6 +42,7 @@ EC_GROUNDWATER = 4.5
 class Farm:
     def __init__(self, seed: int = 7, randomize_traits: bool = True, fields: list[dict] | None = None):
         self.seed = seed
+        self.image_mime = "image/jpeg"
         # this farm's fields: the standard six, or a variant (scenario soil, or soil carried over from last season)
         self.fields = [dict(f, layers=list(f["layers"]), ece=list(f["ece"])) for f in (fields or FIELDS)]
         r = np.random.default_rng(seed)
@@ -245,73 +246,48 @@ class Farm:
         return {"traits": self.traits, "eff": self.eff.round(3).tolist(), "events": self.events}
 
     # --------------------------------------------------------- imagery
-    def image(self, f: int, half: bool = False) -> bytes:
+    def expected_image(self, f: int, cc: float, ece_top: float) -> bytes:
+        """The same field drawn from a model's expectation instead of the truth: same plant positions,
+        the predicted canopy cover and topsoil salinity, full stand, no water stress, pests or clogs."""
         with self.lock:
             s = self.sim
+            crop = self.plan[f]["crop"] if self.plan else None
+            done = bool(s.done[f]) if s else False
+            stage = float(np.clip(s.frac()[f], 0, 1)) if s else 0.0
+        img = DR.render(crop, cc, 1.0, 1.0, ece_top, 0.0, done, wet=0.5, deliver=1.0, stage=stage,
+                        seed=self.seed * 1000 + f * 31 + 5)
+        return DR.encode(img)[0]
+
+    def image(self, f: int, half: bool = False, truth: dict | None = None) -> bytes:
+        """A top-down drone photo of field f, rendered from the true state (see drone_render)."""
+        with self.lock:
+            s = self.sim
+            d = max(self.day - 1, 0)
             crop = self.plan[f]["crop"] if self.plan else None
             cc = float(s.cc[f]) if s else 0.0
             stand = float(s.stand[f]) if s else 1.0
             ksw = float(s.ks_w[f]) if s else 1.0
-            ece_top = float(s.ece_layers()[f, 0]) if s else 2.0
-            pest = float(self.pest[f, max(self.day - 1, 0)]) if s else 0.0
+            ece_top = float(s.ece_layers()[f, 0]) if s else float(self.fields[f]["ece"][0])
+            pest = float(self.pest[f, d]) if s else 0.0
             done = bool(s.done[f]) if s else False
-        img = render_field(crop, cc, stand, ksw, ece_top, pest, done, seed=f * 31 + 5)
-        if half:                         # 320 x 200, a quarter of the bytes, for the live drone feed
-            img = (img.reshape(IH // 2, 2, IW // 2, 2, 3).mean((1, 3)) // 4 * 4).astype(np.uint8)
-        return encode_png(img)
+            wet = float(np.clip(((s.W / s.th)[f, 0] - 0.2) / 0.6, 0, 1)) if s else 0.3
+            deliver = float(self.deliver[f, d]) if s is not None else 1.0
+            stage = float(np.clip(s.frac()[f], 0, 1)) if s else 0.0
+        img = DR.render(crop, cc, stand, ksw, ece_top, pest, done, wet=wet, deliver=deliver, stage=stage,
+                        seed=self.seed * 1000 + f * 31 + 5, truth=truth)
+        if truth is not None:
+            truth["crop"] = crop
+        if half:                         # half size, a quarter of the bytes, for the live drone feed
+            img = img.reshape(IH // 2, 2, IW // 2, 2, 3).mean((1, 3)).astype(np.uint8)
+        data, self.image_mime = DR.encode(img)
+        return data
 
 
 # ---------------------------------------------------------------- renderer
-IW, IH = 640, 400
-_YY, _XX = np.mgrid[0:IH, 0:IW].astype(np.float32)
+from . import drone_render as DR          # noqa: E402  photoreal drone frames
+IW, IH = DR.IW, DR.IH
 
 
-def render_field(crop, cc, stand, ksw, ece_top, pest, done, seed=1) -> np.ndarray:
-    """Top-down drone view: sandy soil, drip lines, plants sized by canopy cover,
-    yellowing with drought, white salt crust, brown pest damage, gaps for lost plants."""
-    rng = np.random.default_rng(seed)
-    noise = rng.normal(0, 6, (IH, IW, 1))
-    base = np.array([196, 164, 118], np.float32)
-    img = (base + noise + 8 * np.sin(_XX[..., None] * 0.02 + _YY[..., None] * 0.013)).astype(np.float32)
-    # salt crust patches
-    if ece_top > 5:
-        k = min((ece_top - 5) / 8, 1.0)
-        for _ in range(int(14 * k) + 1):
-            cx, cy, r = rng.uniform(0, IW), rng.uniform(0, IH), rng.uniform(15, 45)
-            m = (_XX - cx) ** 2 + (_YY - cy) ** 2 < r * r
-            img[m] = img[m] * (1 - 0.55 * k) + np.array([238, 236, 228]) * 0.55 * k
-    rows = np.arange(30, IH, 42)
-    for ry in rows:  # drip lines
-        img[(np.abs(_YY - ry - 12) < 1.2)] = [40, 40, 44]
-    if crop is None or cc <= 0.005 or done:
-        if done and crop:
-            for ry in rows:
-                for px in np.arange(20, IW, 36):
-                    m = ((_XX - px) ** 2 / 9 + (_YY - ry) ** 2 / 4) < 6
-                    img[m] = [150, 128, 90]
-        return np.clip(img, 0, 255).astype(np.uint8)
-    leafy = crop in ("potato", "sweet_potato", "cassava", "beans", "soybean")
-    green = np.array([58, 128, 52], np.float32)
-    yellow = np.array([170, 165, 70], np.float32)
-    stress = float(np.clip(1 - ksw, 0, 1))
-    col = green * (1 - 0.8 * stress) + yellow * 0.8 * stress
-    radius = 4 + 17 * math.sqrt(cc)
-    spacing = 36
-    for ry in rows:
-        for px in np.arange(20, IW, spacing):
-            if rng.random() > stand:
-                continue
-            jx, jy = rng.normal(0, 2, 2)
-            cx, cy = px + jx, ry + jy
-            if leafy:
-                m = (_XX - cx) ** 2 + (_YY - cy) ** 2 < radius ** 2
-            else:
-                m = ((_XX - cx) ** 2 / (radius * 0.55) ** 2 + (_YY - cy) ** 2 / (radius * 1.0) ** 2) < 1
-            shade = rng.uniform(0.85, 1.1)
-            img[m] = col * shade
-            if pest > 0.004 and rng.random() < 0.6:
-                for _ in range(3):
-                    sx, sy = cx + rng.normal(0, radius / 2.5), cy + rng.normal(0, radius / 2.5)
-                    mm = (_XX - sx) ** 2 + (_YY - sy) ** 2 < (radius * 0.28) ** 2
-                    img[mm & m] = [112, 74, 40]
-    return np.clip(img, 0, 255).astype(np.uint8)
+def render_field(crop, cc, stand, ksw, ece_top, pest, done, seed=1, truth: dict | None = None) -> np.ndarray:
+    """Kept for callers of the old signature; draws with the photoreal renderer."""
+    return DR.render(crop, cc, stand, ksw, ece_top, pest, done, seed=seed, truth=truth)

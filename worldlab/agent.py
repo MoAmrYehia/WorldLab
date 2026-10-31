@@ -29,10 +29,11 @@ Method:
 5. plan_season again. If it relies on crops you never trialled (untested_crops), consider trialling them first.
    Then consider train_irrigation_policy for the final plan: reinforcement learning (evolution strategies) inside your calibrated model learns a daily irrigation and water-blend policy from the sensors, and reports it against the plan's fixed rule on held-out imagined seasons. Start the season with controller rl_policy only if it is recommended; remember it was trained in your model, not on the real farm.
    Then start_season.
-6. During the season, advance in steps (up to 60 days). The lab runs your model alongside the farm and stops when measurements leave the predicted band. Then investigate instead of guessing:
+6. During the season, advance in steps (up to 60 days), and about once a month look_at_field on a field or two to check your model against the crop itself. The lab runs your model alongside the farm and stops when measurements leave the predicted band. Then investigate instead of guessing:
    - Soil drier than predicted: a clogged or leaking drip line (emitter_flow test) or the crop using more water than modelled.
    - Canopy lower or soil wetter than predicted: pests (leaf_inspection, look_at_field) or salt damage (water_test, soil_sample).
    - Soil salinity higher than predicted: saltier irrigation water (water_test), or less water reaching the roots so less salt is leached (a clogged drip line: emitter_flow). Test both before dismissing.
+   - Look before you test: look_at_field sends the drone over the field. Muse Spark compares the photo with the view your own model expects (same plants, predicted canopy, no faults) and SAM 3.1 counts plants and segments salt crust. Use what it sees to shape your hypotheses; a photo is evidence, not proof, so confirm with a field test.
    - Record competing hypotheses, run the test that tells them apart, conclude.
    - Act on what you found (adjust_field: repair_drip, pest_control, more desalinated water), then update_model with the measured value and the onset day so predictions match reality again. Use dismiss_anomaly only if the tests show nothing changed.
    - After a fault that cost water or yield, rebalance_water to re-plan irrigation for the rest of the season within the remaining quota.
@@ -86,7 +87,7 @@ TOOLS = [
      "parameters": _obj({"controller": {"type": "string", "enum": ["rule", "rl_policy"]}, "rationale": S}, ["controller", "rationale"])},
     {"name": "advance", "description": "Run the season forward up to 60 days. Stops early if measurements leave the model's predicted band.",
      "parameters": _obj({"days": {"type": "integer"}, "rationale": S}, ["days", "rationale"])},
-    {"name": "look_at_field", "description": "Drone image of a field analysed by SAM 3.1 (plants, salt crust, damaged leaves) and Muse Spark (stress diagnosis), with measured vs predicted canopy cover.",
+    {"name": "look_at_field", "description": "Fly the drone over a field. SAM 3.1 counts plants (on image tiles) and segments white salt crust; Muse Spark compares the photo with the view your model expects and diagnoses stress, pests or salt; also measured vs predicted canopy cover.",
      "parameters": _obj({"field": S, "reason": S}, ["field", "reason"])},
     {"name": "field_test", "description": "Run a field test: emitter_flow (drip delivery vs design), soil_sample (salinity by layer vs model), water_test (groundwater salinity vs model), leaf_inspection (pests).",
      "parameters": _obj({"field": S, "test": {"type": "string", "enum": ["emitter_flow", "soil_sample", "water_test", "leaf_inspection"]},
@@ -165,7 +166,7 @@ def _brief(name: str, r) -> dict:
         "plan_season": ["plan_id", "people_p10", "people_p50", "limiting", "cost_of_uncertainty_people", "untested_crops", "refused"],
         "advance": ["stopped_because", "day", "date", "anomaly", "result", "refused"],
         "field_test": None,
-        "look_at_field": ["field", "canopy_cover_measured", "canopy_cover_predicted", "diagnosis", "source"],
+        "look_at_field": ["field", "canopy_cover_measured", "canopy_cover_predicted", "plants_counted", "salt_crust_patches", "diagnosis", "source"],
         "rebalance_water": ["people_p10_before", "people_p10_after"],
         "train_irrigation_policy": ["recommend", "trained_seconds", "best_checkpoint_iter", "held_out_comparison", "refused"],
         "record_hypothesis": ["hypothesis_id"], "update_model": ["ok", "error"],

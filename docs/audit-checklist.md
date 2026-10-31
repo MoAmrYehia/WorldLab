@@ -51,6 +51,17 @@ Response to the detailed audit of snapshot `ec95a56`. **Tested** means an automa
 | Farm/scenario editor | Done | Planner > Farm and scenario: seed, water quota, energy budget, starting salinity; server-side bounds (`EDITOR_RANGES`); clients can't set soil or parent runs. Tested. |
 | Shareable scientific report | Done | Self-contained HTML report download; `POST /api/runs/ID/share` creates an opt-in public read-only link (`?shared=TOKEN`). Tested (share, public fetch, bad token). |
 
+## Meta models in the recorded season (31 October 2026, evening)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Muse Spark decides the demo | Done | `replay.json` is a Muse Spark season (`muse-spark-1.3`, Meta Model API): 506.4 people, both limits met, clog found by drone look plus two competing hypotheses and two tests. 34 scientist calls, 54 perception calls. |
+| SAM 3.1 on drone photos | Done | Streaming Responses API; plants counted on 16 overlapping tiles, salt crust on the whole frame; prompts chosen by testing. Tested (parse, scoring); counts compared with what each frame shows in `result.perception_check`. |
+| Muse Spark vision | Done | Two images in (the photo and the model's expected view), structured diagnosis out; 12 of 12 test frames correct with the expected view. |
+| Photoreal drone frames | Done | `farm/drone_render.py`, JPEG frames; truth record per frame never given to the agent. Tested (truth record, frame size, JPEG). |
+| Muse Spark benchmark | Done | 25 farm-scenarios, same seeds as the scripted benchmark, real perception: 455.9 people mean (scripted + policy 471.3, fixed rule 421.6), 15/15 faults diagnosed, 0 false alarms, 25/25 within limits. `docs/bench/spark/`. Diagnosis now scored on actions and model findings, not keywords. |
+| Muse Glimmer / Muse Spark Open | Not run | Needs a hosted open-weights endpoint (partner credits). |
+
 ## Not done in this round (P2 or later)
 
 Branching from exact mid-season checkpoints, nitrogen carryover, password recovery, soil-depth selector, field comparison view, activity filters, segmentation layers, signed ledger checkpoints, and a move from bearer tokens to same-origin cookies for a public deployment.
