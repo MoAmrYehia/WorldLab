@@ -18,6 +18,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 import numpy as np
+from .farm.drone_render import IW as IMG_W, IH as IMG_H
 
 from .farm import weather as WX
 from .farm.belief import CropBelief, calibrate, trial_information, typical_year, predict_trials
@@ -133,6 +134,7 @@ class Lab:
                  perception=None, bus: Bus | None = None, speed: float = 0.0):
         self.farm = farm
         self.human = False                        # human decision mode: pause at selected decisions
+        self.perception_checks: list[dict] = []   # SAM 3.1 counts against what each drone frame shows
         self._decision = None
         self._decision_n = 0
         self.fields = farm.fields                 # this farm's soils (standard, scenario or carried over)
@@ -727,6 +729,9 @@ class Lab:
                "fields": self._field_summary()}
         if self.anomaly:
             out["anomaly"] = self.anomaly
+            out["protocol"] = ("Investigate before acting: look_at_field, record_hypothesis for each competing explanation "
+                               "(with a prediction and what would falsify it), run the field test that separates them, "
+                               "conclude each hypothesis, act, then update_model.")
         if self.result:
             out["result"] = self.result
         return out
@@ -825,7 +830,7 @@ class Lab:
                 self.bus.publish("drone_frame", {"field": FIELDS[i]["id"], "field_index": i, "crop": self.run_plan[i]["crop"],
                                                  "day": d, "kind": "survey", "canopy_cover_measured": fr["cc_obs"],
                                                  "canopy_cover_predicted": fr["cc_pred"],
-                                                 "image": "data:image/png;base64," + base64.b64encode(img).decode()})
+                                                 "image": f"data:{self.farm.image_mime};base64," + base64.b64encode(img).decode()})
         if alarm:
             self.anomaly = alarm
             self.anomalies.append(alarm)
@@ -877,7 +882,7 @@ class Lab:
         soil = [{"field": FIELDS[i]["id"], "ece_top_start_dS_m": round(float(np.mean(self.fields[i]["ece"][:2])), 2),
                  "ece_top_end_measured_dS_m": ec_end[FIELDS[i]["id"]]} for i in range(NF)]
         self.result = {"people_fed": round(pf["people"], 1), "limiting": pf["limiting"],
-                       "quantities": quantities, "soil": soil,
+                       "quantities": quantities, "soil": soil, "perception_check": self.perception_summary(),
                        "by_nutrient": {n: round(pf[n], 1) for n in NUTRIENTS},
                        "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
                        "within_quota": self.water_used <= self.limits.water_quota_m3 * 1.001,
@@ -964,6 +969,30 @@ class Lab:
                                "you set management there and choose crops for the other fields. Trial the farmer's crops too.")
         return out
 
+    def perception_summary(self) -> dict | None:
+        """How SAM 3.1 and Muse Spark's image diagnosis compare with what the drone frames showed
+        (computed after the fact; the agent never sees the drawn record)."""
+        pc = self.perception_checks
+        if not pc:
+            return None
+        countable = [c for c in pc if c["drawn"].get("crop") not in ("wheat", "rice", "millet") and c["drawn"].get("plants", 0)]
+        drawn_p = sum(c["drawn"]["plants"] for c in countable)
+        sam_p = sum(c["sam"]["plants"] for c in countable)
+        salt = [c for c in pc if c["drawn"].get("salt_patches", 0) >= 5]
+        clean = [c for c in pc if c["drawn"].get("salt_patches", 0) == 0]
+        dmg = [c for c in pc if c["drawn"].get("damaged_plants", 0) > 0]
+        nodmg = [c for c in pc if c["drawn"].get("damaged_plants", 0) == 0 and c["drawn"].get("plants", 0)]
+        flag = lambda c: bool((c.get("diagnosis") or {}).get("pest_damage_visible"))
+        return {"frames": len(pc), "plant_frames": [{"field": c["field"], "day": c["day"], "crop": c["drawn"].get("crop"),
+                                                    "drawn": c["drawn"]["plants"], "sam": c["sam"]["plants"],
+                                                    "canopy_closed": not c["drawn"].get("separate_plants")} for c in countable],
+                "plants_drawn": drawn_p, "plants_found_by_sam": sam_p,
+                "plant_count_ratio_pct": round(100 * sam_p / drawn_p, 1) if drawn_p else None,
+                "salt_frames_detected_by_sam": f"{sum(c['sam']['salt_patches'] > 0 for c in salt)}/{len(salt)}",
+                "salt_false_alarms_by_sam": f"{sum(c['sam']['salt_patches'] > 0 for c in clean)}/{len(clean)}",
+                "pest_frames_flagged_by_spark": f"{sum(flag(c) for c in dmg)}/{len(dmg)}",
+                "pest_false_alarms_by_spark": f"{sum(flag(c) for c in nodmg)}/{len(nodmg)}"}
+
     # ---------------------------------------------------------- in-season tools
     def look_at_field(self, field: str, reason: str = "") -> dict:
         i = self._fi(field)
@@ -971,21 +1000,29 @@ class Lab:
             return {"error": f"unknown field {field}"}
         if self.phase not in ("season", "harvested"):
             return {"error": "nothing is growing yet"}
-        img = self.farm.image(i)
-        res = self.perception.analyze(img, "image/png", self.farm, i) if self.perception else {"source": "none"}
+        drawn = {}                                  # what the frame really shows; never given to the agent
+        img = self.farm.image(i, truth=drawn)
+        ccp = self.ens.cc.reshape(NF, self.S_mon)[i]
+        ece_model = float(self.ens.ece_layers().reshape(NF, self.S_mon, 3)[i, :, 0].mean())
+        ref = self.farm.expected_image(i, float(ccp.mean()), ece_model)   # what the scientist's model expects to see
+        res = self.perception.analyze(img, self.farm.image_mime, self.farm, i, reference=ref) if self.perception else {"source": "none"}
+        if str(res.get("source", "")).startswith("SAM"):
+            self.perception_checks.append({"day": self.day, "field": FIELDS[i]["id"], "drawn": drawn,
+                                           "sam": {"plants": res.get("plants_counted") or 0, "salt_patches": res.get("salt_crust_patches", 0)},
+                                           "diagnosis": (res.get("diagnosis") or {})})
         fname = None
         if self.run_dir:
-            fname = f"images/{FIELDS[i]['id']}_day{self.day:03d}.png"
+            fname = f"images/{FIELDS[i]['id']}_day{self.day:03d}.{'jpg' if 'jpeg' in self.farm.image_mime else 'png'}"
             (self.run_dir / fname).write_bytes(img)
         dr = self.farm.drone(i)
-        ccp = self.ens.cc.reshape(NF, self.S_mon)[i]
         out = {"field": FIELDS[i]["id"], "crop": self.run_plan[i]["crop"], "day": self.day,
                "canopy_cover_measured": dr["cc"], "canopy_cover_predicted": round(float(ccp.mean()), 3),
                "canopy_cover_predicted_90pct": [round(float(np.percentile(ccp, 5)), 3), round(float(np.percentile(ccp, 95)), 3)],
                **{k: v for k, v in res.items() if k != "objects"}}
-        self.bus.publish("scene", {**out, "objects": res.get("objects", [])[:60], "image_size": [640, 400],
-                                   "image": "data:image/png;base64," + base64.b64encode(img).decode(), "reason": reason})
-        self._log("look", {"reason": reason, "frame": fname, **out})
+        self.bus.publish("scene", {**out, "objects": res.get("objects", [])[:240], "image_size": [IMG_W, IMG_H],
+                                   "image": f"data:{self.farm.image_mime};base64," + base64.b64encode(img).decode(),
+                                   "expected_image": f"data:{self.farm.image_mime};base64," + base64.b64encode(ref).decode(), "reason": reason})
+        self._log("look", {"reason": reason, "frame": fname, **out, "drawn_in_frame": drawn})
         return out
 
     def field_test(self, field: str, test: str, rationale: str) -> dict:
