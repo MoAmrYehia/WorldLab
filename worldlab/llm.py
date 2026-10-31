@@ -111,6 +111,48 @@ class LLMClient:
     def responses(self, body: dict) -> dict:
         return self._post("/responses", body)
 
+    def responses_stream_text(self, body: dict, retries: int = 3) -> str:
+        """Streamed Responses call; returns the concatenated output_text deltas. SAM 3.1 returns its
+        boxes and masks this way (Meta recommends streaming for segmentation)."""
+        url = self.cfg.base_url.rstrip("/") + "/responses"
+        data = json.dumps({**body, "stream": True}).encode()
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.cfg.api_key}",
+                   "Accept": "text/event-stream"}
+        delay = 2.0
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            try:
+                parts = []
+                with urllib.request.urlopen(req, timeout=self.cfg.timeout) as r:
+                    for raw in r:
+                        line = raw.decode("utf-8", "replace").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        try:
+                            ev = json.loads(line[5:])
+                        except json.JSONDecodeError:
+                            continue
+                        if ev.get("type") == "response.output_text.delta":
+                            parts.append(ev.get("delta", ""))
+                        elif ev.get("type") in ("response.failed", "error"):
+                            raise APIError(500, json.dumps(ev)[:400])
+                self.calls += 1
+                return "".join(parts)
+            except urllib.error.HTTPError as e:
+                txt = e.read().decode(errors="replace")
+                if e.code in (429, 500, 502, 503, 504) and attempt < retries:
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise APIError(e.code, txt) from None
+            except (urllib.error.URLError, TimeoutError) as e:
+                if attempt < retries:
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise APIError(0, str(e)) from None
+        raise APIError(0, "unreachable")
+
 
 def responses_text(resp: dict) -> str:
     """Concatenate output_text parts from a (non-streamed) Responses API result."""

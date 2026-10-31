@@ -703,3 +703,21 @@ input[type="number"]:focus-visible, .econ-in input:focus-visible { outline: 2px 
 input::placeholder { color: var(--ink-3); }
 .econ-in .note { font-size: 11px; }
 #planBtn, #stopBtn { white-space: nowrap; }
+
+/* drone photo, the model's expected view and SAM 3.1 segments */
+.drone-view { position: relative; }
+.drone-view img { display: block; width: 100%; border-radius: 8px; }
+#droneFig .drone-view svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+#droneFig .drone-view svg[hidden] { display: none; }
+.drone-view { cursor: zoom-in; }
+.drone-layer { position: fixed; inset: 0; z-index: 40; background: rgba(4, 10, 8, 0.72); display: grid; place-items: center; padding: 16px; }
+#droneFig.big { width: min(1100px, 94vw); max-height: 94vh; overflow: auto; margin: 0;
+  background: var(--panel-solid); border: 1px solid var(--edge-2); border-radius: 14px; padding: 14px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+#droneFig.big .drone-view { cursor: zoom-out; }
+#droneFig.big figcaption { font-size: 14px; }
+.drone-view rect { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.drone-view rect.sam-plant { stroke: #7dffb0; }
+.drone-view rect.sam-salt { stroke: #ffffff; stroke-dasharray: 3 2; }
+.drone-tg { display: flex; gap: 4px; margin: 6px 0 2px; flex-wrap: wrap; }
+.drone-tg button { font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--edge-2); background: transparent; color: var(--ink-2); cursor: pointer; }
+.drone-tg button.on { background: rgba(61, 220, 132, 0.16); border-color: var(--emerald); color: var(--ink); }

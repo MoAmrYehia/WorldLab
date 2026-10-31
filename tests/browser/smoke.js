@@ -43,11 +43,24 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       check(await p.evaluate(() => /Season complete/.test(document.getElementById("drawerBody").textContent)), "harvest report opens with a verdict");
       await p.keyboard.press("Escape"); await p.waitForTimeout(200);
       check(await p.isVisible("#reportBtn"), "report reachable again after closing");
+      // drone photos: the scientist's look at F6 has an expected view and SAM 3.1 segments; it enlarges and closes
+      await p.keyboard.press("Escape"); await p.keyboard.press("6"); await p.waitForTimeout(400);
+      check(await p.isVisible("#droneFig"), "inspector shows the drone photo the scientist analysed");
+      await p.click('[data-dv="sam"]'); await p.waitForTimeout(200);
+      check(await p.evaluate(() => !document.getElementById("droneBoxes").hasAttribute("hidden") && document.querySelectorAll("#droneBoxes rect").length > 50), "SAM 3.1 segments overlay the photo");
+      await p.click('[data-dv="exp"]'); await p.waitForTimeout(200);
+      check(await p.evaluate(() => !document.getElementById("droneExp").hidden && document.getElementById("droneImg").hidden), "the model's expected view can be shown");
+      await p.click("#droneFig .drone-view"); await p.waitForTimeout(200);
+      check(await p.evaluate(() => document.getElementById("droneFig").classList.contains("big") && !document.getElementById("droneLayer").hidden), "drone photo enlarges");
+      await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+      check(await p.evaluate(() => !document.getElementById("droneFig").classList.contains("big")), "enlarged photo closes with Escape");
+      await p.click('[data-dv="obs"]');
+      await p.click("#reportBtn"); await p.waitForTimeout(300); await p.keyboard.press("Escape"); await p.waitForTimeout(200);
       // P2: soil carryover in the report, paired experiments, costs from your own prices, weather workspace
       await p.click("#reportBtn"); await p.waitForTimeout(300);
       check(await p.evaluate(() => /Soil salinity, start and end/.test(document.getElementById("drawerBody").textContent)), "report shows start and end soil salinity");
       await p.click('#drawerTabs [data-t="compare"]'); await p.waitForTimeout(800);
-      check(await p.evaluate(() => document.querySelectorAll("#drawerBody .inc-card table").length === 4), "compare shows four paired experiments");
+      check(await p.evaluate(() => document.querySelectorAll("#drawerBody .inc-card table").length === 4 && /Scripted scientist/.test(document.getElementById("drawerBody").textContent)), "compare shows four paired experiments, including the scripted scientist");
       await p.click('#drawerTabs [data-t="economics"]'); await p.waitForTimeout(300);
       check(await p.evaluate(() => /no price/.test(document.getElementById("drawerBody").textContent)), "costs start unpriced (no invented prices)");
       await p.fill('#drawerBody [data-k="kwh"]', "0.1"); await p.dispatchEvent('#drawerBody [data-k="kwh"]', "change"); await p.waitForTimeout(300);

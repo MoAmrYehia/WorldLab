@@ -107,6 +107,10 @@ class Session:
         try:
             if self.agent_kind in ("spark", "glimmer"):
                 self.result = LLMScientist(self.lab, LLMConfig.for_agent(self.agent_kind)).run()
+                pc = getattr(getattr(self.lab.perception, "client", None), "calls", None)
+                self.lab._log("model_usage", {"scientist_model": LLMConfig.for_agent(self.agent_kind).model,
+                                              "scientist_calls": self.result.get("api_calls"), "scientist_tokens": self.result.get("usage"),
+                                              "perception_calls": pc})
             elif self.agent_kind == "scripted-noadapt":
                 self.result = ScriptedScientist(self.lab, adapt=False).run()
             elif self.agent_kind == "scripted-rl":

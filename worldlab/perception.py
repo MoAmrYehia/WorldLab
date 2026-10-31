@@ -15,7 +15,14 @@ import struct
 
 from .llm import LLMClient, LLMConfig, responses_text, APIError
 
-CONCEPTS = {"plant": "green plant", "salt": "white salt crust", "damage": "brown leaf damage"}
+# How SAM 3.1 is used on the drone frames (chosen by testing against what each frame shows):
+# - plants: the frame is cut into overlapping tiles and SAM is prompted with "plant" on each, because a
+#   whole frame of dense rows is mostly segmented as one canopy; a plant counts once, in the tile that
+#   holds its centre. Separate plants are counted well; a closed canopy is undercounted.
+# - salt: "white patch" on the whole frame finds the white salt efflorescence on the soil.
+# Pest and water stress are left to Muse Spark's image diagnosis ("brown spot" also fires on soil shadows).
+CONCEPTS = {"plant": "plant", "salt": "white patch"}
+TILE_W, TILE_H, TILE_PAD = 240, 150, 30
 _BOX = re.compile(r"(\d+)<\|box;([^|]*)\|>")
 DIAG_SCHEMA = {"type": "object", "properties": {
     "condition": {"type": "string", "enum": ["healthy", "water_stress", "pest_damage", "salt_damage", "sparse_stand", "mixed", "harvested_or_bare"]},
@@ -31,6 +38,17 @@ def image_size(data: bytes):
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         w, h = struct.unpack(">II", data[16:24])
         return int(w), int(h)
+    if data[:2] == b"\xff\xd8":                       # JPEG: read the frame header
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker, ln = data[i + 1], struct.unpack(">H", data[i + 2:i + 4])[0]
+            if marker in (0xC0, 0xC1, 0xC2):
+                h, w = struct.unpack(">HH", data[i + 5:i + 9])
+                return int(w), int(h)
+            i += 2 + ln
     return None
 
 
@@ -58,53 +76,105 @@ class MetaPerception:
         self.errors: list[str] = []
 
     def _sam(self, url: str, phrase: str) -> list[dict]:
-        resp = self.client.responses({
+        text = self.client.responses_stream_text({
             "model": "sam-3.1",
             "input": [{"type": "message", "role": "user", "content": [
                 {"type": "input_text", "text": phrase}, {"type": "input_image", "image_url": url}]}],
             "metadata": {"include_confidence": "true", "mask_encoding": "one_bit"},
         })
-        return parse_sam_boxes(responses_text(resp))
+        return parse_sam_boxes(text)
 
-    def _diagnose(self, url: str, crop: str | None) -> dict | None:
-        msg = self.client.chat([{"role": "user", "content": [
-            {"type": "text", "text": f"Top-down drone image of a drip-irrigated {crop or 'crop'} field in the UAE. "
-                                     "Diagnose what you see: healthy canopy, water stress (yellowing, wilting), pest "
-                                     "damage (brown spots, holes), salt damage (white crust on soil, scorched plants), "
-                                     "or a sparse stand. One sentence of evidence."},
-            {"type": "image_url", "image_url": {"url": url}}]}],
-            response_format={"type": "json_schema", "json_schema": {"name": "FieldDiagnosis", "schema": DIAG_SCHEMA}})
+    def _diagnose(self, url: str, crop: str | None, ref_url: str | None = None) -> dict | None:
+        cues = ("Healthy: leaves as broad and deep-green as expected for this crop. Water stress: leaves rolled into "
+                "thinner, duller grey-green or olive strips than expected, older leaves yellow or brown from the tip. "
+                "Pest damage: brown lesions with yellow halos, holes or ragged leaves. Salt damage: white crust on the "
+                "soil, scorched leaf margins. Sparse stand: missing plants in the rows.")
+        if ref_url:
+            content = [{"type": "text", "text": f"Two top-down drone photos of the same drip-irrigated {crop or 'crop'} field in the UAE, "
+                                                "about 15 m across, with the same plant positions. IMAGE A is what the scientist's crop model "
+                                                "expects to see today if nothing is wrong (healthy plants at the predicted canopy size). "
+                                                "IMAGE B is the real drone photo. Diagnose IMAGE B by comparing it with IMAGE A. " + cues +
+                                                " One sentence of evidence naming the differences."},
+                       {"type": "text", "text": "IMAGE A (expected):"}, {"type": "image_url", "image_url": {"url": ref_url}},
+                       {"type": "text", "text": "IMAGE B (observed):"}, {"type": "image_url", "image_url": {"url": url}}]
+        else:
+            content = [{"type": "text", "text": f"Top-down drone photo of a drip-irrigated {crop or 'crop'} field in the UAE, about 15 m across. "
+                                                "Diagnose what you see. " + cues + " One sentence of evidence."},
+                       {"type": "image_url", "image_url": {"url": url}}]
+        msg = self.client.chat([{"role": "user", "content": content}],
+                               response_format={"type": "json_schema", "json_schema": {"name": "FieldDiagnosis", "schema": DIAG_SCHEMA}})
         return json.loads(msg.get("content") or "{}")
 
-    def analyze(self, frame: bytes, mime: str, farm=None, i: int | None = None) -> dict:
+    def _tiles(self, frame: bytes):
+        """Overlapping tiles of the frame as data URLs, with the core region each one owns."""
+        import io
+        from PIL import Image
+        im = Image.open(io.BytesIO(frame)).convert("RGB")
+        W, H = im.size
+        out = []
+        for y0 in range(0, H, TILE_H):
+            for x0 in range(0, W, TILE_W):
+                bx = (max(x0 - TILE_PAD, 0), max(y0 - TILE_PAD, 0), min(x0 + TILE_W + TILE_PAD, W), min(y0 + TILE_H + TILE_PAD, H))
+                buf = io.BytesIO()
+                im.crop(bx).save(buf, "JPEG", quality=90)
+                out.append(("data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(), bx,
+                            (x0, y0, min(x0 + TILE_W, W), min(y0 + TILE_H, H))))
+        return out
+
+    def analyze(self, frame: bytes, mime: str, farm=None, i: int | None = None, reference: bytes | None = None) -> dict:
+        """reference: the frame the scientist's model expects (same plant positions, no faults), if any."""
         url = f"data:{mime};base64,{base64.b64encode(frame).decode()}"
-        size = image_size(frame) or (640, 400)
-        objects, counts = [], {}
-        for key, phrase in CONCEPTS.items():
+        ref_url = f"data:{mime};base64,{base64.b64encode(reference).decode()}" if reference else None
+        size = image_size(frame) or (960, 600)
+        from concurrent.futures import ThreadPoolExecutor
+
+        def sam(args):
+            phrase, u = args
             try:
-                boxes = self._sam(url, phrase)
+                return self._sam(u, phrase)
             except APIError as e:
-                self.errors.append(f"sam {key}: {e}")
-                boxes = []
-            counts[key] = len(boxes)
-            objects += [{"label": key, "box": [round(v, 1) for v in b["box"]], "score": b["score"]} for b in boxes]
+                self.errors.append(f"sam {phrase}: {e}")
+                return []
+        crop = farm.plan[i]["crop"] if farm is not None and farm.plan and i is not None else None
+        cereal = crop in ("wheat", "rice", "millet")       # drilled cereals form rows, not countable plants
+        try:
+            tiles = [] if cereal else self._tiles(frame)
+        except Exception as e:                              # undecodable frame: whole-frame counting only
+            self.errors.append(f"tiling: {e}")
+            tiles = [(url, (0, 0, size[0], size[1]), (0, 0, size[0], size[1]))]
+        jobs = [(CONCEPTS["plant"], t[0]) for t in tiles] + [(CONCEPTS["salt"], url)]
+        with ThreadPoolExecutor(8) as ex:
+            found = list(ex.map(sam, jobs))
+        objects = []
+        for (turl, (ox, oy, _, _), (cx0, cy0, cx1, cy1)), boxes in zip(tiles, found[:len(tiles)]):
+            for b in boxes:
+                x0, y0, x1, y1 = b["box"][0] + ox, b["box"][1] + oy, b["box"][2] + ox, b["box"][3] + oy
+                mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+                if cx0 <= mx < cx1 and cy0 <= my < cy1 and (x1 - x0) * (y1 - y0) < 0.5 * TILE_W * TILE_H:
+                    objects.append({"label": "plant", "box": [round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)], "score": b["score"]})
+        salt = found[-1]
+        objects += [{"label": "salt", "box": [round(v, 1) for v in b["box"]], "score": b["score"]} for b in salt]
+        n_plants = sum(o["label"] == "plant" for o in objects)
         area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "plant")
+        salt_area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "salt")
         diag = None
         try:
-            crop = farm.plan[i]["crop"] if farm is not None and farm.plan else None
-            diag = self._diagnose(url, crop)
+            diag = self._diagnose(url, crop, ref_url)
         except (APIError, json.JSONDecodeError) as e:
             self.errors.append(f"diagnosis: {e}")
-        return {"source": "SAM 3.1 + Muse Spark", "plants_counted": counts.get("plant", 0),
-                "salt_crust_patches": counts.get("salt", 0), "damaged_leaf_spots": counts.get("damage", 0),
+        return {"source": "SAM 3.1 + Muse Spark", "plants_counted": None if cereal else n_plants,
+                "salt_crust_patches": len(salt), "salt_box_cover_pct": round(100 * salt_area / (size[0] * size[1]), 1),
                 "plant_box_cover_pct": round(100 * area / (size[0] * size[1]), 1),
+                "sam_prompts": {"plant": f"'{CONCEPTS['plant']}' on {len(tiles)} tiles" if tiles else "not counted", "salt": f"'{CONCEPTS['salt']}' on the frame"},
+                "counting_note": "drilled cereal: plants are not counted one by one" if cereal else "SAM counts separate plants well; a closed canopy is undercounted",
+                "diagnosis_method": "Muse Spark compares the photo with the model's expected view" if reference else "Muse Spark, photo only",
                 "diagnosis": diag, "objects": objects, "errors": self.errors[-3:]}
 
 
 class SimPerception:
     """Stands in for SAM 3.1 + Muse Spark when no API key is set: reads the simulator."""
 
-    def analyze(self, frame: bytes, mime: str, farm=None, i: int | None = None) -> dict:
+    def analyze(self, frame: bytes, mime: str, farm=None, i: int | None = None, reference: bytes | None = None) -> dict:
         s = farm.sim
         crop = farm.plan[i]["crop"]
         stand = float(s.stand[i])

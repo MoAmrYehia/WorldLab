@@ -63,7 +63,7 @@
       <a class="btn solid big" href="demo" id="demoLink">Explore the recorded season</a>
       <a class="btn glassy big" href="signup" data-needs-server data-own>Start your own farm</a>
     </div>
-    <p class="prov">Recorded simulation · scripted decision protocol · learned irrigation policy · no account needed</p>
+    <p class="prov">Recorded simulation · decided by Muse Spark · drone photos read by SAM 3.1 and Muse Spark · no account needed</p>
     <p class="place">Brackish groundwater, a fixed water quota, and summer highs above 45 °C.</p>
   </div>
   <p class="hero-caption" id="heroCaption">This flyover is the simulation itself, replaying a recorded season.</p>
@@ -145,21 +145,23 @@
 <section class="band" id="results">
   <div class="wrap">
     <h2>Benchmarked on 25 farm-scenarios with hidden faults</h2>
-    <p class="intro">5 random farm seeds × 5 scenarios per agent (none, clogged drip line, pests, saltier groundwater, forecast heat wave), 25 runs per agent. Each farm seed has its own hidden crop traits, drip systems and weather year; the change arrives on day 90 without telling the scientist. These are <b>scripted-agent</b> results with the hard water and energy budget; the same harness can run Muse Spark or Muse Glimmer, but those numbers are not reported here.</p>
+    <p class="intro">5 random farm seeds × 5 scenarios per agent (none, clogged drip line, pests, saltier groundwater, forecast heat wave), 25 runs per agent. Each farm seed has its own hidden crop traits, drip systems and weather year; the change arrives on day 90 without telling the scientist. All runs use the hard water and energy budget. Muse Spark ran with SAM 3.1 and Muse Spark vision reading its drone photos; the scripted agents follow a fixed protocol over the same tools.</p>
     <div class="results">
       <table>
         <caption class="sr-only">Average over 25 farm-scenarios per agent, hard water and energy budget</caption>
-        <thead><tr><th>Scripted agent, hard budget (25 runs each)</th><th class="n">People fed, mean</th><th class="n">Groundwater, m³, mean</th><th class="n">Energy, kWh, mean</th><th class="n">Runs within both limits</th></tr></thead>
+        <thead><tr><th>Scientist, hard budget (25 runs each)</th><th class="n">People fed, mean</th><th class="n">Groundwater, m³, mean</th><th class="n">Energy, kWh, mean</th><th class="n">Runs within both limits</th></tr></thead>
         <tbody>
-          <tr><td>With the learned irrigation policy</td><td class="n"><b>471</b></td><td class="n">57,580</td><td class="n">85,501</td><td class="n">25 of 25</td></tr>
-          <tr><td>With the fixed irrigation rule</td><td class="n">422</td><td class="n">56,108</td><td class="n">83,284</td><td class="n">25 of 25</td></tr>
+          <tr><td>Muse Spark, with SAM 3.1 and Muse Spark vision</td><td class="n">456</td><td class="n">57,411</td><td class="n">86,635</td><td class="n">25 of 25</td></tr>
+          <tr><td>Scripted protocol with the learned irrigation policy</td><td class="n"><b>471</b></td><td class="n">57,580</td><td class="n">85,501</td><td class="n">25 of 25</td></tr>
+          <tr><td>Scripted protocol with the fixed irrigation rule</td><td class="n">422</td><td class="n">56,108</td><td class="n">83,284</td><td class="n">25 of 25</td></tr>
         </tbody>
       </table>
       <ul class="facts">
-        <li>All 15 hidden faults per agent (clog, pests, salty groundwater on 5 farm seeds) were detected and their causes identified, at a median of 13 to 22 days.</li>
+        <li>Muse Spark identified the cause of all 15 hidden faults (clog, pests, salty groundwater on 5 farm seeds), with no false alarms; once it found a pest outbreak on a routine drone look before any sensor alarm. It learned the hidden crop traits more accurately than the scripted protocol (0.3 against 0.4 prior standard deviations).</li>
+        <li>The hand-written protocol with its learned irrigation policy still fed 3% more people on average; Muse Spark fed more in 10 of the 25 paired runs and in the salty-groundwater scenario on average.</li>
         <li>Under the hard budget, the learned policy used about 3% more of the water and energy allowance than the fixed rule to feed 12% more people, and no run went over a limit.</li>
         <li>Earlier soft-budget ablations: skipping the trial plots fed about 50 fewer people; ignoring alarms lowered the harvest in every fault scenario.</li>
-        <li><a href="https://github.com/MoAmrYehia/WorldLab#benchmark">Method</a> and <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/hard/runs.json">raw runs</a>.</li>
+        <li><a href="https://github.com/MoAmrYehia/WorldLab#benchmark">Method</a> and raw runs: <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/spark/runs.json">Muse Spark</a>, <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/hard/runs.json">scripted</a>.</li>
       </ul>
     </div>
   </div>
@@ -175,9 +177,9 @@
         <tbody>
           <tr><td>Muse Spark</td><td><span class="kind meta">Meta model</span></td><td>The scientist. Chooses every next step</td><td>Function calling over 19 tools: hypotheses, trial designs, field tests, repairs, model updates, conclusions</td></tr>
           <tr><td>Muse Glimmer</td><td><span class="kind meta">Meta open weights</span></td><td>The same scientist on your own GPU</td><td>Any OpenAI-compatible endpoint, same tools and prompt</td></tr>
-          <tr><td>SAM 3.1</td><td><span class="kind meta">Meta model</span></td><td>Reads drone images</td><td>Segments green plants, white salt crust and brown leaf damage by text prompt</td></tr>
-          <tr><td>Muse Spark vision</td><td><span class="kind meta">Meta model</span></td><td>Diagnoses crop stress from the image</td><td>Structured diagnosis (water, salt or pest stress, gaps) with its evidence</td></tr>
-          <tr><td>Scripted protocol</td><td><span class="kind rule">Rules</span></td><td>Baseline and fallback scientist</td><td>A fixed sequence over the same tools, used when no model key is set; the recorded season uses it</td></tr>
+          <tr><td>SAM 3.1</td><td><span class="kind meta">Meta model</span></td><td>Reads the drone photos</td><td>Counts plants tile by tile and segments salt crust by text prompt; every count is checked against what the frame shows</td></tr>
+          <tr><td>Muse Spark vision</td><td><span class="kind meta">Meta model</span></td><td>Compares the photo with what the model expects</td><td>Gets the drone photo and a view rendered from the scientist's own model; returns a structured diagnosis (water, salt or pest stress, gaps) with its evidence</td></tr>
+          <tr><td>Scripted protocol</td><td><span class="kind rule">Rules</span></td><td>Baseline and fallback scientist</td><td>A fixed sequence over the same tools, used when no model key is set; Muse Spark is compared with it</td></tr>
           <tr><td>Experiment design</td><td><span class="kind num">Numerical</span></td><td>Picks the trial plots worth planting</td><td>Expected information about the traits that move the plan</td></tr>
           <tr><td>Bayesian calibration</td><td><span class="kind num">Numerical</span></td><td>Learns each crop's hidden traits</td><td>MAP fit of four traits per crop from trial harvests and drone canopy</td></tr>
           <tr><td>Digital twin</td><td><span class="kind num">Numerical</span></td><td>Predicts every field with uncertainty</td><td>Ensemble crop and soil model run beside the farm; the 90% bands in the charts</td></tr>

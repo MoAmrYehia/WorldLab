@@ -2,23 +2,23 @@
  "baseline": {
   "label": "Recorded season",
   "settings": {},
-  "people_fed": 485.1,
+  "people_fed": 506.4,
   "limiting": "kcal",
   "by_nutrient": {
-   "kcal": 485.1,
-   "protein_g": 520.1,
-   "vitA_ug": 3408.7
+   "kcal": 506.4,
+   "protein_g": 540.0,
+   "vitA_ug": 2163.7
   },
-  "water_used_m3": 54998,
-  "energy_used_kwh": 85678,
+  "water_used_m3": 57650,
+  "energy_used_kwh": 87888,
   "within_limits": true,
   "quantities": {
-   "desal_m3": 15051,
-   "energy_pumping_kwh": 32999,
-   "energy_desal_kwh": 52679,
-   "nitrogen_kg": 2100,
+   "desal_m3": 15228,
+   "energy_pumping_kwh": 34590,
+   "energy_desal_kwh": 53298,
+   "nitrogen_kg": 2140,
    "area_sown_ha": 12.0,
-   "trial_plots": 10,
+   "trial_plots": 12,
    "field_tests": 2,
    "repairs": 1
   },
@@ -26,91 +26,104 @@
    {
     "field": "F1",
     "ece_top_start_dS_m": 2.25,
-    "ece_top_end_measured_dS_m": 3.59
+    "ece_top_end_measured_dS_m": 3.7
    },
    {
     "field": "F2",
     "ece_top_start_dS_m": 1.75,
-    "ece_top_end_measured_dS_m": 4.84
+    "ece_top_end_measured_dS_m": 4.28
    },
    {
     "field": "F3",
     "ece_top_start_dS_m": 1.25,
-    "ece_top_end_measured_dS_m": 2.8
+    "ece_top_end_measured_dS_m": 3.4
    },
    {
     "field": "F4",
     "ece_top_start_dS_m": 5.5,
-    "ece_top_end_measured_dS_m": 4.31
+    "ece_top_end_measured_dS_m": 5.5
    },
    {
     "field": "F5",
     "ece_top_start_dS_m": 3.25,
-    "ece_top_end_measured_dS_m": 2.76
+    "ece_top_end_measured_dS_m": 4.33
    },
    {
     "field": "F6",
     "ece_top_start_dS_m": 7.5,
-    "ece_top_end_measured_dS_m": 2.45
+    "ece_top_end_measured_dS_m": 1.68
    }
   ],
   "harvest": {
    "F5": {
     "crop": "maize",
-    "yield_t_ha": 11.01
+    "yield_t_ha": 9.13
    },
    "F4": {
     "crop": "wheat",
-    "yield_t_ha": 3.93
-   },
-   "F6": {
-    "crop": "wheat",
-    "yield_t_ha": 3.32
+    "yield_t_ha": 3.4
    },
    "F1": {
     "crop": "maize",
-    "yield_t_ha": 10.02
+    "yield_t_ha": 10.76
    },
    "F2": {
     "crop": "maize",
-    "yield_t_ha": 10.86
+    "yield_t_ha": 10.54
    },
    "F3": {
+    "crop": "maize",
+    "yield_t_ha": 11.86
+   },
+   "F6": {
     "crop": "sweet_potato",
-    "yield_t_ha": 52.15
+    "yield_t_ha": 32.76
    }
   },
-  "controller": "rl_policy",
+  "controller": "rule",
   "faults": [
    {
     "kind": "clog",
     "field": "F4",
     "day": 95,
-    "detected_day": 113
+    "detected_day": 115
    }
   ],
-  "seconds": 76
+  "seconds": 197,
+  "agent": "spark",
+  "perception_check": {
+   "frames": 3,
+   "frames_with_separate_plants": 0,
+   "plants_drawn": 0,
+   "plants_found_by_sam": 0,
+   "plant_count_ratio_pct": null,
+   "salt_frames_detected_by_sam": "1/1",
+   "salt_false_alarms_by_sam": "0/2",
+   "pest_frames_flagged_by_spark": "0/0",
+   "pest_false_alarms_by_spark": "0/3"
+  }
  },
  "experiments": [
   {
-   "label": "Fixed irrigation rule",
+   "label": "Scripted scientist",
    "settings": {
-    "agent": "scripted"
+    "agent": "scripted-rl",
+    "perception": "sim"
    },
-   "people_fed": 464.9,
+   "people_fed": 485.1,
    "limiting": "kcal",
    "by_nutrient": {
-    "kcal": 464.9,
-    "protein_g": 498.2,
-    "vitA_ug": 3338.4
+    "kcal": 485.1,
+    "protein_g": 520.1,
+    "vitA_ug": 3408.7
    },
-   "water_used_m3": 58279,
-   "energy_used_kwh": 87875,
+   "water_used_m3": 54998,
+   "energy_used_kwh": 85678,
    "within_limits": true,
    "quantities": {
-    "desal_m3": 15116,
-    "energy_pumping_kwh": 34967,
-    "energy_desal_kwh": 52907,
+    "desal_m3": 15051,
+    "energy_pumping_kwh": 32999,
+    "energy_desal_kwh": 52679,
     "nitrogen_kg": 2100,
     "area_sown_ha": 12.0,
     "trial_plots": 10,
@@ -121,73 +134,75 @@
     {
      "field": "F1",
      "ece_top_start_dS_m": 2.25,
-     "ece_top_end_measured_dS_m": 3.39
+     "ece_top_end_measured_dS_m": 3.59
     },
     {
      "field": "F2",
      "ece_top_start_dS_m": 1.75,
-     "ece_top_end_measured_dS_m": 4.55
+     "ece_top_end_measured_dS_m": 4.84
     },
     {
      "field": "F3",
      "ece_top_start_dS_m": 1.25,
-     "ece_top_end_measured_dS_m": 1.25
+     "ece_top_end_measured_dS_m": 2.8
     },
     {
      "field": "F4",
      "ece_top_start_dS_m": 5.5,
-     "ece_top_end_measured_dS_m": 4.77
+     "ece_top_end_measured_dS_m": 4.31
     },
     {
      "field": "F5",
      "ece_top_start_dS_m": 3.25,
-     "ece_top_end_measured_dS_m": 3.07
+     "ece_top_end_measured_dS_m": 2.76
     },
     {
      "field": "F6",
      "ece_top_start_dS_m": 7.5,
-     "ece_top_end_measured_dS_m": 2.74
+     "ece_top_end_measured_dS_m": 2.45
     }
    ],
    "harvest": {
     "F5": {
      "crop": "maize",
-     "yield_t_ha": 10.29
+     "yield_t_ha": 11.01
     },
     "F4": {
      "crop": "wheat",
-     "yield_t_ha": 3.85
+     "yield_t_ha": 3.93
     },
     "F6": {
      "crop": "wheat",
-     "yield_t_ha": 3.21
+     "yield_t_ha": 3.32
     },
     "F1": {
      "crop": "maize",
-     "yield_t_ha": 10.01
+     "yield_t_ha": 10.02
     },
     "F2": {
      "crop": "maize",
-     "yield_t_ha": 9.9
+     "yield_t_ha": 10.86
     },
     "F3": {
      "crop": "sweet_potato",
-     "yield_t_ha": 51.09
+     "yield_t_ha": 52.15
     }
    },
-   "controller": "rule",
+   "controller": "rl_policy",
    "faults": [
     {
      "kind": "clog",
      "field": "F4",
      "day": 95,
-     "detected_day": 116
+     "detected_day": 113
     }
    ],
-   "seconds": 24,
+   "seconds": 102,
+   "agent": "scripted-rl",
+   "perception_check": null,
    "change": {
-    "kind": "controller",
-    "label": "irrigation by the fixed rule instead of the learned policy"
+    "kind": "agent",
+    "label": "the scripted protocol with a learned irrigation policy instead of Muse Spark"
    }
   },
   {
@@ -196,23 +211,23 @@
     "scenario": "baseline",
     "perturb": []
    },
-   "people_fed": 492.0,
+   "people_fed": 535.5,
    "limiting": "kcal",
    "by_nutrient": {
-    "kcal": 492.0,
-    "protein_g": 528.4,
-    "vitA_ug": 3376.4
+    "kcal": 535.5,
+    "protein_g": 572.5,
+    "vitA_ug": 2246.9
    },
-   "water_used_m3": 59110,
-   "energy_used_kwh": 90000,
+   "water_used_m3": 60000,
+   "energy_used_kwh": 88292,
    "within_limits": true,
    "quantities": {
-    "desal_m3": 15581,
-    "energy_pumping_kwh": 35466,
-    "energy_desal_kwh": 54534,
-    "nitrogen_kg": 2100,
+    "desal_m3": 14941,
+    "energy_pumping_kwh": 36000,
+    "energy_desal_kwh": 52292,
+    "nitrogen_kg": 2140,
     "area_sown_ha": 12.0,
-    "trial_plots": 10,
+    "trial_plots": 14,
     "field_tests": 0,
     "repairs": 0
    },
@@ -220,63 +235,75 @@
     {
      "field": "F1",
      "ece_top_start_dS_m": 2.25,
-     "ece_top_end_measured_dS_m": 3.19
+     "ece_top_end_measured_dS_m": 1.5
     },
     {
      "field": "F2",
      "ece_top_start_dS_m": 1.75,
-     "ece_top_end_measured_dS_m": 4.15
+     "ece_top_end_measured_dS_m": 2.76
     },
     {
      "field": "F3",
      "ece_top_start_dS_m": 1.25,
-     "ece_top_end_measured_dS_m": 1.58
+     "ece_top_end_measured_dS_m": 1.9
     },
     {
      "field": "F4",
      "ece_top_start_dS_m": 5.5,
-     "ece_top_end_measured_dS_m": 3.38
+     "ece_top_end_measured_dS_m": 6.3
     },
     {
      "field": "F5",
      "ece_top_start_dS_m": 3.25,
-     "ece_top_end_measured_dS_m": 2.94
+     "ece_top_end_measured_dS_m": 4.78
     },
     {
      "field": "F6",
      "ece_top_start_dS_m": 7.5,
-     "ece_top_end_measured_dS_m": 2.97
+     "ece_top_end_measured_dS_m": 1.23
     }
    ],
    "harvest": {
-    "F5": {
-     "crop": "maize",
-     "yield_t_ha": 10.72
-    },
     "F4": {
      "crop": "wheat",
-     "yield_t_ha": 4.13
+     "yield_t_ha": 3.85
     },
-    "F6": {
-     "crop": "wheat",
-     "yield_t_ha": 3.22
+    "F5": {
+     "crop": "maize",
+     "yield_t_ha": 8.44
     },
     "F1": {
      "crop": "maize",
-     "yield_t_ha": 11.14
+     "yield_t_ha": 11.93
     },
     "F2": {
      "crop": "maize",
-     "yield_t_ha": 10.79
+     "yield_t_ha": 11.06
     },
     "F3": {
+     "crop": "maize",
+     "yield_t_ha": 13.2
+    },
+    "F6": {
      "crop": "sweet_potato",
-     "yield_t_ha": 51.64
+     "yield_t_ha": 34.01
     }
    },
    "controller": "rl_policy",
    "faults": [],
-   "seconds": 74,
+   "seconds": 194,
+   "agent": "spark",
+   "perception_check": {
+    "frames": 4,
+    "frames_with_separate_plants": 0,
+    "plants_drawn": 0,
+    "plants_found_by_sam": 0,
+    "plant_count_ratio_pct": null,
+    "salt_frames_detected_by_sam": "2/3",
+    "salt_false_alarms_by_sam": "0/1",
+    "pest_frames_flagged_by_spark": "0/0",
+    "pest_false_alarms_by_spark": "0/4"
+   },
    "change": {
     "kind": "fault",
     "label": "the drip line is never clogged"
@@ -285,7 +312,8 @@
   {
    "label": "Ignore alarms",
    "settings": {
-    "agent": "scripted-noadapt"
+    "agent": "scripted-noadapt",
+    "perception": "sim"
    },
    "people_fed": 457.3,
    "limiting": "kcal",
@@ -374,10 +402,12 @@
      "detected_day": 116
     }
    ],
-   "seconds": 23,
+   "seconds": 49,
+   "agent": "scripted-noadapt",
+   "perception_check": null,
    "change": {
     "kind": "adapt",
-    "label": "the scientist ignores its alarms (no investigation or repair), fixed rule"
+    "label": "a scientist that ignores its alarms (no investigation or repair), fixed rule"
    }
   },
   {
@@ -385,127 +415,139 @@
    "settings": {
     "soil": [
      [
-      3.84,
-      3.43,
-      8.7
+      4.03,
+      2.99,
+      5.21
      ],
      [
-      4.4,
-      5.2,
-      6.01
+      4.22,
+      4.37,
+      6.97
      ],
      [
-      3.44,
-      2.13,
-      3.24
+      3.67,
+      2.79,
+      7.13
      ],
      [
-      2.72,
-      5.22,
-      13.46
+      3.0,
+      8.72,
+      9.35
      ],
      [
-      1.98,
-      3.81,
-      7.92
+      3.32,
+      4.98,
+      6.86
      ],
      [
-      2.02,
-      3.3,
-      14.42
+      1.61,
+      1.68,
+      7.86
      ]
     ],
     "scenario": "baseline",
     "perturb": []
    },
-   "people_fed": 434.5,
+   "people_fed": 475.2,
    "limiting": "kcal",
    "by_nutrient": {
-    "kcal": 434.5,
-    "protein_g": 445.1,
-    "vitA_ug": 2454.5
+    "kcal": 475.2,
+    "protein_g": 506.3,
+    "vitA_ug": 2191.9
    },
    "water_used_m3": 60000,
-   "energy_used_kwh": 86258,
+   "energy_used_kwh": 87637,
    "within_limits": true,
    "quantities": {
-    "desal_m3": 14359,
+    "desal_m3": 14753,
     "energy_pumping_kwh": 36000,
-    "energy_desal_kwh": 50258,
-    "nitrogen_kg": 2120,
+    "energy_desal_kwh": 51637,
+    "nitrogen_kg": 2140,
     "area_sown_ha": 12.0,
-    "trial_plots": 12,
+    "trial_plots": 9,
     "field_tests": 0,
     "repairs": 0
    },
    "soil": [
     {
      "field": "F1",
-     "ece_top_start_dS_m": 3.63,
-     "ece_top_end_measured_dS_m": 2.59
+     "ece_top_start_dS_m": 3.51,
+     "ece_top_end_measured_dS_m": 1.19
     },
     {
      "field": "F2",
-     "ece_top_start_dS_m": 4.8,
-     "ece_top_end_measured_dS_m": 2.96
+     "ece_top_start_dS_m": 4.29,
+     "ece_top_end_measured_dS_m": 2.42
     },
     {
      "field": "F3",
-     "ece_top_start_dS_m": 2.79,
-     "ece_top_end_measured_dS_m": 1.62
+     "ece_top_start_dS_m": 3.23,
+     "ece_top_end_measured_dS_m": 1.69
     },
     {
      "field": "F4",
-     "ece_top_start_dS_m": 3.97,
-     "ece_top_end_measured_dS_m": 3.61
+     "ece_top_start_dS_m": 5.86,
+     "ece_top_end_measured_dS_m": 4.56
     },
     {
      "field": "F5",
-     "ece_top_start_dS_m": 2.9,
-     "ece_top_end_measured_dS_m": 3.44
+     "ece_top_start_dS_m": 4.15,
+     "ece_top_end_measured_dS_m": 3.58
     },
     {
      "field": "F6",
-     "ece_top_start_dS_m": 2.66,
-     "ece_top_end_measured_dS_m": 1.55
+     "ece_top_start_dS_m": 1.65,
+     "ece_top_end_measured_dS_m": 1.07
     }
    ],
    "harvest": {
     "F5": {
      "crop": "maize",
-     "yield_t_ha": 6.68
-    },
-    "F4": {
-     "crop": "potato",
-     "yield_t_ha": 19.23
+     "yield_t_ha": 6.39
     },
     "F3": {
      "crop": "maize",
-     "yield_t_ha": 12.91
+     "yield_t_ha": 10.01
+    },
+    "F4": {
+     "crop": "wheat",
+     "yield_t_ha": 3.48
     },
     "F1": {
      "crop": "maize",
-     "yield_t_ha": 6.43
-    },
-    "F2": {
-     "crop": "maize",
-     "yield_t_ha": 6.73
+     "yield_t_ha": 10.87
     },
     "F6": {
+     "crop": "maize",
+     "yield_t_ha": 11.55
+    },
+    "F2": {
      "crop": "sweet_potato",
-     "yield_t_ha": 37.4
+     "yield_t_ha": 33.25
     }
    },
    "controller": "rl_policy",
    "faults": [],
-   "seconds": 82,
+   "seconds": 187,
+   "agent": "spark",
+   "perception_check": {
+    "frames": 3,
+    "frames_with_separate_plants": 1,
+    "plants_drawn": 176,
+    "plants_found_by_sam": 175,
+    "plant_count_ratio_pct": 99.4,
+    "salt_frames_detected_by_sam": "0/0",
+    "salt_false_alarms_by_sam": "0/3",
+    "pest_frames_flagged_by_spark": "0/0",
+    "pest_false_alarms_by_spark": "0/3"
+   },
    "change": {
     "kind": "next_season",
     "label": "a second season starting from the salt the first one left, no hidden fault"
    }
   }
  ],
- "note": "Paired experiments: each reruns the recorded season from the start with one input changed; farm seed, weather year and crop choices are the same. 'Ignore alarms' also uses the fixed rule, so compare it with 'Fixed irrigation rule'. Exact mid-season checkpoints are not stored, so every branch is a full rerun.",
+ "note": "Paired experiments: each reruns the recorded season from the start with one input changed; farm seed, weather year and hidden faults are the same. Exact mid-season checkpoints are not stored, so every branch is a full rerun. Muse Spark's choices can differ between runs (it is a language model), so a Muse Spark rerun shows one outcome, not an average.",
  "fields": [
   "F1",
   "F2",

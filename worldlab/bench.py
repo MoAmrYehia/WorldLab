@@ -66,8 +66,13 @@ def one(args) -> dict:
     farm = Farm(seed=seed)
     if scenario != "none":
         farm.schedule(scenario, EVENT_DAY)
-    lab = Lab(farm, perception=SimPerception())
+    perception = SimPerception()
+    if agent in ("spark", "glimmer") and os.environ.get("MODEL_API_KEY") and os.environ.get("WORLDLAB_BENCH_PERCEPTION") == "meta":
+        from .perception import MetaPerception
+        perception = MetaPerception()
+    lab = Lab(farm, perception=perception)
     t0 = time.time()
+    usage = None
     err = None
     try:
         if agent == "scripted":
@@ -79,7 +84,7 @@ def one(args) -> dict:
         elif agent == "scripted-rl":
             ScriptedScientist(lab, rl=True).run()
         else:
-            LLMScientist(lab, LLMConfig.for_agent(agent), max_turns=140).run()
+            usage = LLMScientist(lab, LLMConfig.for_agent(agent), max_turns=140).run()
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
     ev = farm.events[0]["day"] if farm.events else None
@@ -90,11 +95,23 @@ def one(args) -> dict:
         false_alarms = len(alarms)
         detect = None
     sup = [h["statement"].lower() for h in lab.hyps.values() if h["status"] == "supported" and h.get("phase") == "season"]
+    # diagnosis is scored on what the scientist did, not on how it phrased it: the cause it wrote into its model
+    # (update_model finding) or treated (repair, pest control), and no wrong cause; supported hypotheses count too
+    FIND = {"clog": "drip_delivery", "pest": "pest", "salinity": "groundwater_ec"}
+    findings = {e["data"].get("finding") for e in lab.ledger.entries if e["kind"] == "model_update" and (e["t"] or 0) > 0}
+    acts = set()
+    for e in lab.ledger.entries:
+        if e["kind"] == "adjust" and (e["t"] or 0) > 0:
+            if e["data"].get("repair"):
+                acts.add("drip_delivery")
+            if e["data"].get("pest_control"):
+                acts.add("pest")
     named = {k: any(all(w in s for w in kw[:1]) for s in sup) for k, kw in KEYWORDS.items() if kw}
+    found = {k: (FIND[k] in findings or FIND[k] in acts or named[k]) for k in FIND}
     if scenario in ("clog", "pest", "salinity"):
-        diag = named[scenario] and not any(v for k, v in named.items() if k != scenario)
+        diag = found[scenario] and not any(v for k, v in found.items() if k != scenario)
     else:
-        diag = not any(named.values())
+        diag = not any(found.values())
     planted = sorted({f["crop"] for f in getattr(lab, "run_plan", []) if f.get("crop")})
     terr = []
     for c in planted:
@@ -108,7 +125,11 @@ def one(args) -> dict:
             "detect_days": detect, "detected": detect is not None, "false_alarms": false_alarms,
             "diagnosis_ok": diag, "trait_error": round(float(np.mean(terr)), 3) if terr else None,
             "controller": lab.controller, "rl_recommended": bool(lab.policy and lab.policy.get("recommended")),
-            "crops": planted, "plots": lab.plots_used, "tests": lab.tests_used, "wall_s": round(time.time() - t0, 1)}
+            "crops": planted, "plots": lab.plots_used, "tests": lab.tests_used, "wall_s": round(time.time() - t0, 1),
+            "perception": "SAM 3.1 + Muse Spark" if not isinstance(perception, SimPerception) else "simulated",
+            "model_calls": (usage or {}).get("api_calls"), "tokens": (usage or {}).get("usage"),
+            "looks": sum(1 for e in lab.ledger.entries if e["kind"] == "look"),
+            "findings": sorted(f for f in findings if f), "treated": sorted(acts), "supported": sup}
 
 
 def run_bench(farms: int, agents: list[str], scenarios: list[str], out: str, seed0: int = 200, workers: int = 0):
@@ -119,9 +140,19 @@ def run_bench(farms: int, agents: list[str], scenarios: list[str], out: str, see
     llm = any(a in ("spark", "glimmer") for a in agents)
     print(f"{len(jobs)} runs: {farms} farms x {len(scenarios)} scenarios x {len(agents)} agents (+ {farms} oracle runs)")
     workers = workers or max(1, min(8, os.cpu_count() or 2))
-    if llm:
-        rows = [one(j) for j in jobs]
-        oracles = [oracle(s) for s in seeds]
+    if llm:                                     # language-model runs wait on the API: run several at once, save as they finish
+        from concurrent.futures import as_completed
+        rows = []
+        with ProcessPoolExecutor(max_workers=min(workers, 5)) as ex:
+            orc_f = [ex.submit(oracle, s) for s in seeds]
+            futs = {ex.submit(one, j): j for j in jobs}
+            for k, f in enumerate(as_completed(futs), 1):
+                r = f.result()
+                rows.append(r)
+                print(f"[{k}/{len(jobs)}] seed {r['seed']} {r['scenario']:<9} {r['agent']}: {r['people_fed']} people, "
+                      f"detected {r['detected']}, diagnosis {r['diagnosis_ok']}, {r['wall_s']} s{'  ERROR ' + r['error'] if r['error'] else ''}", flush=True)
+                (out_dir / "partial.json").write_text(json.dumps(rows, indent=1))
+            oracles = [f.result() for f in orc_f]
     else:
         with ProcessPoolExecutor(max_workers=workers) as ex:
             orc = ex.map(oracle, seeds)

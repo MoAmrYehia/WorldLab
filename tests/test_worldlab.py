@@ -303,12 +303,36 @@ class PerceptionTests(unittest.TestCase):
         self.assertEqual(len(b), 2)
         self.assertEqual(b[0]["box"], [211, 228, 271, 255])
 
+    def test_frames_report_what_they_show_and_sam_is_scored(self):
+        from worldlab.farm.world import render_field
+        t = {}
+        render_field("maize", 0.6, 0.8, 0.9, 11.0, 0.01, False, seed=3, truth=t)
+        self.assertGreater(t["plants"], 50)
+        self.assertGreater(t["salt_patches"], 0)
+        self.assertGreater(t["damaged_plants"], 0)
+        clean = {}
+        render_field("maize", 0.6, 1.0, 1.0, 2.0, 0.0, False, seed=3, truth=clean)
+        self.assertEqual((clean["salt_patches"], clean["damaged_plants"]), (0, 0))
+        lab = Lab(Farm(seed=7), run_dir=tempfile.mkdtemp(), perception=SimPerception())
+        self.assertIsNone(lab.perception_summary())                 # simulated perception isn't scored
+        t["crop"], clean["crop"] = "maize", "maize"
+        t["separate_plants"] = clean["separate_plants"] = True
+        lab.perception_checks = [{"day": 100, "field": "F1", "drawn": t, "sam": {"plants": t["plants"] - 10, "salt_patches": 2}, "diagnosis": {"pest_damage_visible": True}},
+                                 {"day": 100, "field": "F2", "drawn": clean, "sam": {"plants": clean["plants"], "salt_patches": 0}, "diagnosis": {"pest_damage_visible": False}}]
+        ps = lab.perception_summary()
+        self.assertEqual((ps["salt_frames_detected_by_sam"], ps["salt_false_alarms_by_sam"]), ("1/1", "0/1"))
+        self.assertEqual((ps["pest_frames_flagged_by_spark"], ps["pest_false_alarms_by_spark"]), ("1/1", "0/1"))
+        self.assertLess(ps["plant_count_ratio_pct"], 100)
+
     def test_drone_image_is_a_png(self):
         farm = Farm(seed=7)
         farm.start_season([{"crop": "wheat", **mg("wheat")}] + [{"crop": None, "sow": 0, "density": 1, "irr": 0, "desal": 0, "nfert": 0, "mulch": 0}] * 5)
         for d in range(80):
             farm.step(farm.sim.irrigation_demand(d))
-        self.assertEqual(farm.image(0)[:8], b"\x89PNG\r\n\x1a\n")
+        img = farm.image(0)
+        self.assertIn(img[:2], (b"\xff\xd8", b"\x89P"))                 # JPEG (or PNG without Pillow)
+        from worldlab.perception import image_size
+        self.assertEqual(image_size(img), (960, 600))
 
 
 class ProgressionTests(unittest.TestCase):
@@ -409,7 +433,7 @@ class ProgressionTests(unittest.TestCase):
         self.assertTrue(0 <= day["clearness"] <= 1)
         frames = [m["data"] for m in data["messages"] if m["kind"] == "drone_frame"]
         self.assertTrue(frames)
-        self.assertTrue(frames[0]["image"].startswith("data:image/png;base64,"))
+        self.assertTrue(frames[0]["image"].startswith(("data:image/jpeg;base64,", "data:image/png;base64,")))
         self.assertIn("canopy_cover_measured", frames[0])
         calls = [m["data"]["data"] for m in data["messages"] if m["kind"] == "ledger" and m["data"]["kind"] == "agent_step"]
         self.assertTrue(any(c["role"] == "tool_call" for c in calls))
@@ -529,7 +553,8 @@ class P2Tests(unittest.TestCase):
         x = json.loads((root / "experiments.json").read_text())
         base = x["baseline"]
         kinds = [e["change"]["kind"] for e in x["experiments"]]
-        self.assertEqual(kinds, ["controller", "fault", "adapt", "next_season"])
+        self.assertIn(kinds, (["controller", "fault", "adapt", "next_season"],     # scripted recording
+                              ["agent", "fault", "adapt", "next_season"]))         # Muse Spark recording
         self.assertIn("same", x["note"])
         for e in x["experiments"]:
             self.assertTrue(e["within_limits"])

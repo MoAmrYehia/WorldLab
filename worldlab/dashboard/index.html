@@ -209,7 +209,11 @@
     <figure class="chart"><figcaption id="capCc">Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
     <figure class="chart"><figcaption id="capEc">Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
     <figure class="chart short"><figcaption>Irrigation applied (mm per day, gross at the meter), darker share desalinated</figcaption><svg id="chIrr" viewBox="0 0 300 40" preserveAspectRatio="none"></svg></figure>
-    <figure class="drone" id="droneFig" hidden><img id="droneImg" alt="Drone image of the field"><figcaption id="droneCap"></figcaption></figure>
+    <figure class="drone" id="droneFig" hidden>
+      <div class="drone-view"><img id="droneImg" alt="Drone photo of the field"><img id="droneExp" alt="The view the scientist's model expected" hidden><svg id="droneBoxes" aria-hidden="true" hidden></svg></div>
+      <div class="seg drone-tg" role="group" aria-label="Drone view"><button type="button" class="on" data-dv="obs" aria-pressed="true">Drone photo</button><button type="button" data-dv="exp" aria-pressed="false">Model expected</button><button type="button" data-dv="sam" aria-pressed="false">SAM 3.1</button></div>
+      <figcaption id="droneCap"></figcaption>
+    </figure>
     <div class="perturb" id="perturb" hidden>
       <h3>Scenario tool (operator)</h3>
       <p>Make a hidden change to the simulated farm. The scientist is not told; see whether its model notices. The true cause is revealed after the season.</p>
@@ -314,6 +318,7 @@
   <div class="dec-opts" id="decOpts"></div>
   <p class="note" id="decNote">The season is paused until you choose. If no one answers within 15 minutes, the scientist's own choice is used and logged as such.</p>
 </section>
+<div class="drone-layer" id="droneLayer" hidden></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
 <div class="tip" id="tip" hidden role="tooltip"></div>

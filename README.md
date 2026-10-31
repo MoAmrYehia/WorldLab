@@ -47,7 +47,10 @@ The local varieties don't behave quite like the published values, and the agent 
 Every hypothesis, prediction, trial, test, decision and result is written to a hash-chained ledger and shown live in the web app: a dark command-centre interface over an interactive 3D farm at golden hour. Everything in the 3D world is real geometry driven by the simulation, not a picture: ten botanically distinct crops that grow through their stages, wilt under water stress, pale under salt and heat, show pest damage and sway with the measured wind; soil that darkens around wet emitters and crusts with salt; drip lines that turn red when clogged; dust, clouds and rain driven by the weather record; a drone that flies out to scan a field; a service truck that drives out to repair a line; an alarm ring on the field whose measurements left the model's predicted band. Orbit, zoom and pan, click a field to inspect it, or switch to scientific overlays of crop health, soil moisture, salinity and irrigation (with units).
 
 
-**The recorded season** (the demo on the website; scripted decision protocol, simulated perception, learned irrigation policy, hard water and energy budget): on 4 January a drip line in field F4 is silently clogged. The water meter can't see it, and the scientist isn't told. Less water reaches the roots, so less salt is leached, and on the measurement of 22 January soil salinity leaves the model's 90% band. The scientist pauses and, on 23 January, writes two hypotheses and runs the tests that separate them: the groundwater test reads near normal (4.78 dS/m against an assumed 4.5) and the emitter flow test reads 44% of design. It concludes the line is clogged, repairs it, teaches its model the delivered fraction and re-plans water; measured salinity returns inside the band afterwards. Before sowing it had trained an irrigation policy by reinforcement learning (322 parameters, 39,000 imagined seasons in 51 s) that, on held-out imagined seasons, fed 6.2% more people in a bad year than the fixed rule while using 2.8% more water and 11% more energy, all within the hard limits; its reward was higher, so it was deployed. The harvest feeds 485 people (modelled person-years; the farm goal of 500 is not reached), using 54,998 m³ of a 60,000 m³ groundwater quota and 85,678 kWh of a 90,000 kWh energy budget.
+**The recorded season** (the demo on the website): Muse Spark (`muse-spark-1.3`, Meta Model API) is the scientist, and SAM 3.1 and Muse Spark vision read the drone photos; hard water and energy budget, farm 7. Before sowing it writes a hypothesis that the local varieties match the published values, plants 12 trial plots and refutes it: local sorghum collapses in the spring heat (1.08 t/ha against 6.44 predicted), so it drops sorghum, re-plans and trains an irrigation policy by reinforcement learning (322 parameters, 39,000 imagined seasons in 52 s; +13.7% people fed in a bad year on held-out imagined seasons), which it deploys. On 4 January a drip line in field F4 is silently clogged; the water meter can't see it and the scientist isn't told. On the measurement of 24 January the soil is drier than its model's 90% band. Muse Spark sends the drone: compared with the view its own model expects, the photo shows white salt crust between the rows (SAM 3.1 segments 13 patches). It writes two competing hypotheses, a clogged line or saltier groundwater, runs both tests (emitter flow 46% of design; groundwater 4.35 dS/m against an assumed 4.5), supports the first and refutes the second, repairs the line, teaches its model the delivered fraction since the onset, switches irrigation back to the rule (the policy was trained on a fault-free farm) and re-plans the water. The harvest feeds 506 people (modelled person-years, above the farm goal of 500), using 57,650 m³ of a 60,000 m³ groundwater quota and 87,888 kWh of a 90,000 kWh energy budget. The whole season took 34 Muse Spark calls and 54 perception calls, under a dollar of API credit.
+
+![The drone analysis in the recorded season: the view F4's model expects, the drone photo with salt crust, and SAM 3.1's plant boxes on F6](docs/screens/drone.jpg)
+
 
 
 ### The website
@@ -75,7 +78,7 @@ For each of the six fields you pick a season and a crop, leave it fallow, or let
 
 **Controls and performance.** Drag to orbit, scroll or pinch to zoom, right-drag to pan, arrow keys to move. Keys: `1`–`6` fly to a field, `O` overview, `D` follow the drone, `I` close-up, `R` reset, `V` cycle overlays, space play or pause a replay, `Esc` close a panel. Settings offer Low, Medium, High and Ultra quality or automatic (it steps down when the measured frame rate drops), time of day (morning, noon, golden hour, night) and 3D labels; the measured frame rate is shown there. Crops and palms are instanced, geometry is shared and disposed on quality changes, and reduced-motion settings stop the camera flights. Camera flights to events can be turned off in settings. Without WebGL the farm is drawn as a 2D map with the same selection, overlays and alarms.
 
-**Experiments and seasons over time.** *Compare* in Results shows, for the recorded season, four paired reruns on the same farm seed, weather year and crop choices: the fixed irrigation rule instead of the learned policy (464.9 people against 485.1), no hidden fault (492.0), a scientist that ignores its alarms (457.3, with the fixed rule) and a second season on the salt the first left behind (434.5; starting topsoil salinity 2.7–4.8 dS/m instead of 1.3–7.5). With an account, any finished season can be rerun with one change and compared with its parent. Exact mid-season checkpoints aren't stored, so a branch reruns the whole season with the same random seed. Salt carries over between seasons; soil water and nitrogen start fresh (nitrogen is modelled as a seasonal supply, not a soil stock).
+**Experiments and seasons over time.** *Compare* in Results shows, for the recorded season, four reruns on the same farm seed, weather year and hidden fault: the scripted protocol with a learned irrigation policy instead of Muse Spark (485.1 people against Muse Spark's 506.4), no hidden fault (535.5), a scientist that ignores its alarms (457.3) and a second season on the salt the first left behind (475.2; starting topsoil salinity 1.7–5.9 dS/m instead of 1.3–7.5, after Muse Spark leached the saltiest field from 7.5 to 1.7). Muse Spark's choices can differ between runs, so each Muse Spark rerun shows one outcome, not an average. With an account, any finished season can be rerun with one change and compared with its parent. Exact mid-season checkpoints aren't stored, so a branch reruns the whole season with the same random seed. Salt carries over between seasons; soil water and nitrogen start fresh (nitrogen is modelled as a seasonal supply, not a soil stock).
 
 **Accounts** are stored in SQLite (`WORLDLAB_DATA`, default `./data`). Passwords are hashed with scrypt and a per-user salt; sessions are random tokens in an HttpOnly cookie, stored only as SHA-256 digests; cross-site POSTs are refused and repeated failed logins are throttled.
 
@@ -90,8 +93,8 @@ Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (a
 | Model | Role |
 |---|---|
 | **Muse Spark** (`muse-spark-1.3`, Meta Model API) | The scientist. It drives everything through **tool calling**: it records hypotheses, designs trials, decides when beliefs are good enough to plan, chooses which field test to run, interprets results, acts and concludes. Every call carries a written rationale that lands in the ledger. |
-| **SAM 3.1** (`sam-3.1`, Meta Model API) | Reads drone images. It counts plants (stand loss), finds white salt crust and spots brown leaf damage by noun phrase. |
-| **Muse Spark** vision + **structured output** | Gives a stress diagnosis for each drone image (healthy, water stress, pest damage, salt damage, sparse stand) with evidence. |
+| **SAM 3.1** (`sam-3.1`, Meta Model API) | Reads the drone photos. It counts plants by segmenting "plant" on 16 overlapping tiles of each frame (a plant counts once, in the tile that holds its centre) and segments white salt crust ("white patch") on the whole frame. Each count is scored afterwards against what the frame really shows: in testing it counted 120 of 120, 165 of 167 and 158 of 159 separate plants; a closed maize canopy is undercounted. |
+| **Muse Spark** vision + **structured output** | Compares the drone photo with a view rendered from the scientist's own model (same plant positions, the predicted canopy, no faults) and returns a structured diagnosis with evidence: healthy, water stress, pest damage, salt damage or a sparse stand. Given only the photo it confused narrow maize leaves with drought; with the expected view it got 12 of 12 test frames right. |
 | **Muse Glimmer** (open weights, Apache 2.0) | A drop-in scientist running on your own GPU or any OpenAI-compatible host. It gets the same tools and prompt, so the two can be benchmarked head to head. |
 
 The language model never acts on the farm directly. It decides, numerical code does the agronomy, and budgets bound every action: trial plots, field tests, the groundwater quota and the energy budget.
@@ -102,11 +105,11 @@ WorldLab is an agent. Its loop: **observe** the farm, write a testable **hypothe
 
 | Component | Kind | What it does | How it works | In the recorded demo |
 |---|---|---|---|---|
-| Muse Spark | Meta model | The scientist: chooses every next step | Function calling over 19 tools (`worldlab/agent.py`) | Replaced by the scripted protocol (no API key on a static host) |
+| Muse Spark | Meta model | The scientist: chooses every next step | Function calling over 19 tools (`worldlab/agent.py`) | Decides the recorded season |
 | Muse Glimmer | Meta open weights | The same scientist on your own GPU | Any OpenAI-compatible endpoint, same tools and prompt | Not used |
-| SAM 3.1 | Meta model | Reads drone images | Segments green plants, white salt crust and brown leaf damage by text prompt (`perception.py`) | Simulated perception, labelled as such |
-| Muse Spark vision | Meta model | Diagnoses crop stress from the image | Structured output: condition plus evidence | Simulated perception, labelled as such |
-| Scripted protocol | Rules | Baseline and fallback scientist | A fixed sequence over the same tools | Decides the recorded season |
+| SAM 3.1 | Meta model | Reads drone photos | Counts plants tile by tile and segments salt crust by text prompt (`perception.py`); scored against what each frame shows | Found the salt crust in F4; counted 175 of 176 plants in F6 |
+| Muse Spark vision | Meta model | Compares the photo with what the model expects | Two images in, structured diagnosis with evidence out | Saw the salt crust the model didn't expect |
+| Scripted protocol | Rules | Baseline and fallback scientist | A fixed sequence over the same tools | Compared with Muse Spark in Results |
 | Experiment design | Numerical | Picks the trial plots worth planting | Expected information about the traits that move the plan (`farm/belief.py`) | Used |
 | Bayesian calibration | Numerical | Learns each crop's hidden traits | MAP fit of four traits per crop from trials and drone canopy (`farm/belief.py`) | Used |
 | Digital twin | Numerical | Predicts every field with uncertainty | Ensemble of the crop and soil model run beside the farm (`farm/sim.py`) | Used |
@@ -115,7 +118,7 @@ WorldLab is an agent. Its loop: **observe** the farm, write a testable **hypothe
 | Reinforcement learning | Numerical | Learns a daily irrigation policy | Evolution strategies inside the agent's model; deployed only if it beats the rule (`farm/rl.py`) | Deployed |
 | Audit ledger | Integrity | Makes every step checkable | Hash-chained log; missions and achievements are scored from it (`ledger.py`, `progression.py`) | Used |
 
-**Drone feed.** The Drone feed tab shows two things side by side and labels them: the drone's live camera in the 3D farm, and the frames the drone captures. Survey frames are taken every 12 days from the farm simulator's true state (the canopy figure beside each is the drone's noisy measurement); inspection frames are the images the scientist asked for, with the image analysis that went into its decision.
+**Drone photos.** The drone frames are photorealistic top-down images drawn from the simulator's true state: textured soil and raised beds, wet soil around working emitters (a clogged line shows dry emitters), crops with their own leaf shapes and shadows, leaves that roll and fire under drought, white salt efflorescence on dry ridges and at the edge of the wetted zone, brown lesions and holes from pests. The renderer also records what it drew, so the image models can be scored; the scientist never sees that record. In the field inspector, click a drone photo to enlarge it and switch between the photo, the view the model expected and SAM 3.1's segments. **Drone feed.** The Drone feed tab shows two things side by side and labels them: the drone's live camera in the 3D farm, and the frames the drone captures. Survey frames are taken every 12 days from the farm simulator's true state (the canopy figure beside each is the drone's noisy measurement); inspection frames are the images the scientist asked for, with the image analysis that went into its decision.
 
 **Crop pictures.** Every crop name in the planner, the field gauges, the inspector and the results comes with a picture rendered from the same 3D model that grows in the field, at the growth stage the field is in.
 
@@ -169,6 +172,10 @@ Crop and nutrition values are approximate published figures (AquaCrop-style para
 
 ---
 
+## Built during the hackathon
+
+Everything in this repository was written during the Meta Global AI Developer Hackathon build period (first commit 29 October 2026): the farm and crop simulator, the scientist's tools and protocol, the Muse Spark, SAM 3.1 and Muse Glimmer integrations, the experiment design, calibration, planning and reinforcement-learning code, the photoreal drone renderer, the audit ledger, the server and accounts, the 3D web app and the website. The commit history shows the order it was built in. Third-party code is used only as libraries: NumPy, SciPy and Pillow on the server, Three.js in the browser.
+
 ## Quick start
 
 Needs Python 3.10+ with `numpy` and `scipy` (Anaconda has both). No other packages are required.
@@ -211,7 +218,10 @@ Every public page has a title, a description, a canonical URL, Open Graph and Tw
 ### Record a replay
 
 ```bash
-python -m worldlab run --agent scripted-rl --seed 7 --perturb clog@95 --perception sim
+export MODEL_API_KEY=...                                   # the recorded demo uses Muse Spark and SAM 3.1
+python scripts/build_experiments.py --spark                # demo season + paired experiments -> replay.json, experiments.json
+python scripts/build_experiments.py                        # the same without an API key (scripted scientist)
+python -m worldlab run --agent spark --seed 7 --perturb clog@95 --perception meta    # or record any single run
 python -m worldlab export-replay runs/<run> --out worldlab/dashboard/replay.json --note "What this run shows"
 python scripts/build_site_data.py                          # refresh the landing page's season calendar
 python scripts/build_artifact.py docs                      # refresh the static site in docs/
@@ -224,7 +234,7 @@ export MODEL_API_KEY=...                 # Windows PowerShell: $env:MODEL_API_KE
 python -m worldlab serve --agent spark --open
 ```
 
-Optional settings: `WORLDLAB_SPARK_MODEL` (default `muse-spark-1.3`) and `WORLDLAB_REASONING` (default `medium`).
+Optional settings: `WORLDLAB_SPARK_MODEL` (default `muse-spark-1.3`) and `WORLDLAB_REASONING` (default `medium`). With the key set, `--perception meta` (the default when a key is present) sends drone photos to SAM 3.1 and Muse Spark vision. A full season used about 600,000 input tokens (mostly cached), 7,000 output tokens and 54 perception calls; at the published prices that is under US$1.
 
 ### Muse Glimmer (open weights)
 
@@ -328,7 +338,30 @@ After the hard water and energy budget was added, the two headline agents were r
 
 No run exceeded a limit. Trained and compared under the same cap, the policy learned to use more of the allowance (about 3% more water and energy) and fed 12% more people on average; the policy was deployed in all 25 farm-scenarios. The oracle (true traits, fixed rule, no faults) averages 441 people, so the policy's gain comes from irrigation timing, not from knowing the traits. These remain scripted-agent results on simulated farms; the soft-budget table above is kept as the historical record.
 
-These are scripted-agent numbers. The same harness runs Muse Spark and Muse Glimmer (`--agents spark,glimmer,scripted`) once an API key or endpoint is set.
+### Muse Spark on the same 25 farm-scenarios
+
+Muse Spark (`muse-spark-1.3`) ran the same 5 farm seeds × 5 scenarios under the hard budget, with SAM 3.1 and Muse Spark vision reading its drone photos (`WORLDLAB_BENCH_PERCEPTION=meta python -m worldlab bench --farms 5 --agents spark`; raw runs in `docs/bench/spark/runs.json`, table in `docs/bench/spark/summary.md`). Each pair below shares the farm seed, weather year and hidden change.
+
+| scientist, hard budget | people fed, mean | groundwater m³ | energy kWh | within both limits | faults diagnosed | false alarms | trait error | drone looks per season |
+|---|---|---|---|---|---|---|---|---|
+| Muse Spark + SAM 3.1 + Muse Spark vision | 455.9 | 57,411 | 86,635 | 25/25 | 15/15 | 0 | 0.3 | 4.6 |
+| scripted protocol + learned irrigation policy | 471.3 | 57,580 | 85,501 | 25/25 | 15/15 | 0 | 0.4 | 1 per alarm |
+| scripted protocol + fixed rule | 421.6 | 56,108 | 83,284 | 25/25 | 15/15 | 0 | 0.4 | 1 per alarm |
+
+| scenario | Muse Spark | scripted + policy | Muse Spark ahead in |
+|---|---|---|---|
+| none | 472.5 | 499.7 | 2 of 5 |
+| clog | 453.6 | 478.4 | 2 of 5 |
+| pest | 470.6 | 483.4 | 2 of 5 |
+| salinity | 425.3 | 416.6 | 3 of 5 |
+| heat wave | 457.7 | 478.6 | 1 of 5 |
+
+What this shows:
+
+- **Muse Spark is a sound scientist.** It found the cause of every hidden fault, with no false alarms, and learned the hidden crop traits more accurately than the protocol (0.3 against 0.4 prior standard deviations). It detected saltier groundwater sooner (median 11 days against 14) and fed more people in that scenario. In one pest run it found the outbreak on a routine drone look before any sensor alarm (so 14 of 15 faults raised an alarm, and all 15 were found).
+- **The hand-tuned protocol still feeds more on average** (3% more people). Muse Spark beats the plain fixed-rule protocol by 8% and wins 10 of 25 paired runs against the protocol with its learned policy. Its choices vary between runs, so these are single outcomes, not averages over repeats.
+- **Diagnosis is scored on what the scientist did**: the cause it wrote into its model (`update_model`) or treated (repair, pest control), with no wrong cause. The first Muse Spark run of the pest scenarios was scored by keywords in its hypotheses and marked 0/5 because it wrote "pest damage", not "pests"; those five scenarios were rerun with the structured score (5/5), and the rerun is what the table reports.
+- **Cost:** about 680,000 input tokens (mostly cached), 8,500 output tokens and 34 scientist calls per season, plus about 18 SAM 3.1 calls and one Muse Spark vision call per drone look.
 
 
 ---
