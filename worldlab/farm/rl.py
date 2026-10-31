@@ -127,7 +127,8 @@ class Envs:
     Ordering is field-major, so (P*F*E) reshapes to (P, F, E)."""
 
     def __init__(self, fields_plan: list[dict], field_idx: list[int], beliefs: dict, per_field: int, seed: int,
-                 quota_m3: float, energy_kwh: float, ecgw: float = EC_GROUNDWATER, hard_budget: bool = True):
+                 quota_m3: float, energy_kwh: float, ecgw: float = EC_GROUNDWATER, hard_budget: bool = True,
+                 fields: list[dict] | None = None):
         rng = np.random.default_rng(seed)
         self.F = len(fields_plan)
         self.E = per_field
@@ -145,7 +146,7 @@ class Envs:
                 traits[k].append(smp[k])
             for k in mg:
                 mg[k] += [float(f[k])] * per_field
-            soils += [FIELDS[fi]] * per_field
+            soils += [(fields or FIELDS)[fi]] * per_field
             rows += [fi] * per_field
             widx += list(range(per_field))
         self.crops = crops

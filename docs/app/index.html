@@ -27,8 +27,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=d20cd99018">
-<script src="../config.js?v=d20cd99018"></script>
+<link rel="stylesheet" href="style.css?v=ce00be84d4">
+<script src="../config.js?v=ce00be84d4"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -155,6 +155,7 @@
     <button role="tab" data-dt="fields" class="on" id="dt-fields" aria-selected="true" aria-controls="dp-fields">Field analytics</button>
     <button role="tab" data-dt="timeline" id="dt-timeline" aria-selected="false" aria-controls="dp-timeline" tabindex="-1">Season timeline</button>
     <button role="tab" data-dt="activity" id="dt-activity" aria-selected="false" aria-controls="dp-activity" tabindex="-1">Recent activity</button>
+    <button role="tab" data-dt="weather" id="dt-weather" aria-selected="false" aria-controls="dp-weather" tabindex="-1">Weather</button>
     <button role="tab" data-dt="drone" id="droneTab" aria-selected="false" aria-controls="dp-drone" tabindex="-1">Drone feed <i class="rec-dot" id="droneDot" hidden></i></button>
     <button class="collapse" type="button" aria-label="Collapse details" data-collapse="dock">–</button>
   </div>
@@ -169,6 +170,16 @@
       <div class="timeline" id="timeline"><div class="tl-track"><i class="tl-fill" id="tlFill"></i></div><div class="tl-months" id="tlMonths"></div></div>
     </div>
     <div class="dt-pane" data-pane="activity" id="dp-activity" role="tabpanel" aria-labelledby="dt-activity" hidden><ol class="activity" id="activity"></ol></div>
+    <div class="dt-pane" data-pane="weather" id="dp-weather" role="tabpanel" aria-labelledby="dt-weather" hidden>
+      <div class="wx">
+        <div class="wx-charts">
+          <figure class="chart"><figcaption id="wxCapT">Air temperature, °C: daily maximum and minimum</figcaption><svg id="wxT" viewBox="0 0 300 70" preserveAspectRatio="none"></svg></figure>
+          <figure class="chart"><figcaption>Reference evapotranspiration ET₀, mm/day, and rain, mm</figcaption><svg id="wxE" viewBox="0 0 300 60" preserveAspectRatio="none"></svg></figure>
+          <div class="legend"><span class="lg meas">Observed</span><span class="lg fc">Forecast (dashed)</span><span class="lg heat">Crop heat limits at flowering</span></div>
+        </div>
+        <div class="wx-side" id="wxSide"></div>
+      </div>
+    </div>
     <div class="dt-pane" data-pane="drone" id="dp-drone" role="tabpanel" aria-labelledby="droneTab" hidden>
       <div class="drone-feed">
         <figure class="df-view">
@@ -270,6 +281,19 @@
     <p class="note pl-how">Pick a sowing season and a crop card, then sow it on fields here or in the map. Fields you leave open are planned by the scientist.</p>
     <div class="seasons" id="seasonTabs" role="tablist" aria-label="Sowing season"></div>
     <p class="note" id="seasonAbout"></p>
+    <details class="pl-farm" id="plFarm">
+      <summary>Farm and scenario <span id="plFarmSum"></span></summary>
+      <label>Scenario <select id="scenarioSel"></select></label>
+      <p class="note" id="scenarioAbout"></p>
+      <div class="pl-grid">
+        <label>Farm seed <input id="edSeed" type="number" min="1" max="999" step="1" value="7"></label>
+        <label>Water quota, m³ <input id="edQuota" type="number" min="30000" max="90000" step="1000" value="60000"></label>
+        <label>Energy budget, kWh <input id="edEnergy" type="number" min="40000" max="150000" step="1000" value="90000"></label>
+        <label title="Starting soil salinity relative to the standard farm">Soil salinity, × <input id="edSalt" type="number" min="0.5" max="2" step="0.1" value="1"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="humanChk"> Human decision mode: you choose the first test at each alarm and approve repairs</label>
+      <p class="note">The season always starts on 1 October. The seed sets the hidden crop traits, drip systems and weather year; the same seed and choices give a paired comparison.</p>
+    </details>
     <div class="pl-tools"><button class="ghost sm" id="plUndo" type="button" disabled>Undo</button><button class="ghost sm" id="plClear" type="button">Leave all to the scientist</button></div>
     <ol class="pl-fields" id="fieldRows"></ol>
     <div class="pl-summary" id="plSummary" aria-live="polite"></div>
@@ -285,10 +309,16 @@
   </section>
 </div>
 
+<section class="panel decision" id="decision" hidden role="dialog" aria-modal="false" aria-labelledby="decTitle">
+  <p class="eyebrow">Your decision</p>
+  <h2 id="decTitle"></h2>
+  <div class="dec-opts" id="decOpts"></div>
+  <p class="note" id="decNote">The season is paused until you choose. If no one answers within 15 minutes, the scientist's own choice is used and logged as such.</p>
+</section>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
 <div class="tip" id="tip" hidden role="tooltip"></div>
 
-<script type="module" src="app.js?v=d20cd99018"></script>
+<script type="module" src="app.js?v=ce00be84d4"></script>
 </body>
 </html>

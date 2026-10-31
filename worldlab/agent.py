@@ -326,14 +326,50 @@ class ScriptedScientist:
         res = lab.result or {}
         return self.call("finish", {"summary": f"Scripted protocol finished: {res.get('people_fed')} people fed."})
 
+    # ------------------------------------------------ human decision mode: the person may pick tests and approve actions
+    TEST_OPTIONS = [("water_test", "Water test", "groundwater salinity against the model's assumption"),
+                    ("emitter_flow", "Emitter flow test", "drip delivery against design flow"),
+                    ("soil_sample", "Soil sample", "salinity in each soil layer"),
+                    ("leaf_inspection", "Leaf inspection", "insects and leaf damage")]
+
+    def _human_first_test(self, a: dict):
+        if not self.lab.human:
+            return
+        default = "water_test" if a["signal"] == "ec" else "emitter_flow" if a["signal"] == "sw" else "leaf_inspection"
+        opts = [{"id": "auto", "label": "Let the scientist choose", "detail": f"it would start with the {dict((k, l) for k, l, _ in self.TEST_OPTIONS)[default].lower()}"}]
+        opts += [{"id": k, "label": l, "detail": d} for k, l, d in self.TEST_OPTIONS]
+        ch = self.lab.ask_human("first_test", f"Alarm in {a['field']}: {a['signal_label']} {a['direction']}. Which test should run first?",
+                                opts, "auto", {"field": a["field"], "signal": a["signal"]})
+        if ch != "auto":
+            self._test(a["field"], ch, "chosen by you in human decision mode")
+
+    def _test(self, f: str, test: str, rationale: str) -> dict:
+        """Run a field test once per investigation; a test you already chose is reused, not paid for twice."""
+        if test not in self._tests:
+            self._tests[test] = self.call("field_test", {"field": f, "test": test, "rationale": rationale})
+        return self._tests[test]
+
+    def _act(self, f: str, args: dict):
+        what = "Repair the drip line" if args.get("repair_drip") else "Apply pest control" if args.get("pest_control") else "Adjust the field"
+        ch = self.lab.ask_human("approve_action", f"{what} in {f}? Evidence: {args.get('rationale', '')}.",
+                                [{"id": "approve", "label": "Approve", "detail": what.lower()},
+                                 {"id": "decline", "label": "Decline", "detail": "leave the field as it is; the scientist still updates its model"}],
+                                "approve", {"field": f})
+        if ch == "approve":
+            return self.call("adjust_field", {"field": f, **args})
+        self.lab.agent_note("system", f"{what} in {f} declined by you")
+        return {"declined": True}
+
     def investigate(self, a: dict):
         f, onset = a["field"], a["onset_day"]
+        self._tests = {}
+        self._human_first_test(a)
         self.call("look_at_field", {"field": f, "reason": f"{a['signal_label']} {a['direction']}"})
         if a["signal"] == "ec" and "higher" in a["direction"]:
             hs = self.call("record_hypothesis", {"statement": "The groundwater has become saltier than the model assumes.",
                                                  "prediction": "The water test reads well above the assumed 4.5 dS/m.",
                                                  "falsified_if": "The water test is within 1 dS/m of the assumption."})["hypothesis_id"]
-            wt = self.call("field_test", {"field": f, "test": "water_test", "rationale": "saltier water would raise soil salinity"})
+            wt = self._test(f, "water_test", "saltier water would raise soil salinity")
             ec = wt.get("groundwater_ec_dS_m", 4.5)
             if ec > wt.get("assumed_by_model", 4.5) + 1.0:
                 r = self.call("update_model", {"finding": "groundwater_ec", "value": ec, "since_day": onset,
@@ -346,10 +382,10 @@ class ScriptedScientist:
             hc = self.call("record_hypothesis", {"statement": f"The drip line in {f} is clogged or leaking, so less salt is leached.",
                                                  "prediction": "The emitter flow test reads well below the design flow.",
                                                  "falsified_if": "Emitters deliver at least 90% of design flow."})["hypothesis_id"]
-            t = self.call("field_test", {"field": f, "test": "emitter_flow", "rationale": "under-delivery cuts leaching and concentrates salt"})
+            t = self._test(f, "emitter_flow", "under-delivery cuts leaching and concentrates salt")
             v = t.get("delivered_vs_design", 1.0)
             if v < 0.85 * t.get("expected_if_healthy", 1.0):
-                self.call("adjust_field", {"field": f, "repair_drip": True, "rationale": f"emitters deliver {v:.0%} of design"})
+                self._act(f, {"repair_drip": True, "rationale": f"emitters deliver {v:.0%} of design"})
                 self.call("update_model", {"finding": "drip_delivery", "value": v, "since_day": max(onset - 14, 0), "field": f,
                                            "rationale": "the salt built up because the crop received this fraction of its water"})
                 self.call("conclude", {"hypothesis_id": hc, "verdict": "supported", "evidence": f"emitter flow {v:.2f} of design"})
@@ -365,11 +401,11 @@ class ScriptedScientist:
             h2 = self.call("record_hypothesis", {"statement": f"The crop in {f} uses more water than the model predicts.",
                                                  "prediction": "Emitters deliver the design flow.",
                                                  "falsified_if": "Emitter flow is low."})["hypothesis_id"]
-            t = self.call("field_test", {"field": f, "test": "emitter_flow", "rationale": "separates a delivery fault from crop water use"})
+            t = self._test(f, "emitter_flow", "separates a delivery fault from crop water use")
             v = t.get("delivered_vs_design", 1.0)
             ev = f"emitter flow {v:.2f} of design"
             if v < 0.85 * t.get("expected_if_healthy", 1.0):
-                self.call("adjust_field", {"field": f, "repair_drip": True, "rationale": ev})
+                self._act(f, {"repair_drip": True, "rationale": ev})
                 self.call("update_model", {"finding": "drip_delivery", "value": v, "since_day": onset, "field": f,
                                            "rationale": "the crop received this fraction from the onset until the repair"})
                 self.call("conclude", {"hypothesis_id": h1, "verdict": "supported", "evidence": ev})
@@ -386,17 +422,17 @@ class ScriptedScientist:
         hs = self.call("record_hypothesis", {"statement": "The groundwater has become saltier than the model assumes.",
                                              "prediction": "The water test reads well above the assumed 4.5 dS/m.",
                                              "falsified_if": "The water test is within 1 dS/m of the assumption."})["hypothesis_id"]
-        li = self.call("field_test", {"field": f, "test": "leaf_inspection", "rationale": "pests would explain lost canopy"})
+        li = self._test(f, "leaf_inspection", "pests would explain lost canopy")
         if li.get("pest_damage_seen"):
             rate = 0.03 if li.get("severity") == "heavy" else 0.01
-            self.call("adjust_field", {"field": f, "pest_control": True, "rationale": f"{li.get('severity')} pest damage"})
+            self._act(f, {"pest_control": True, "rationale": f"{li.get('severity')} pest damage"})
             self.call("update_model", {"finding": "pest", "value": rate, "since_day": onset, "field": f,
                                        "rationale": "canopy loss rate from the onset until treatment"})
             self.call("conclude", {"hypothesis_id": hp, "verdict": "supported", "evidence": f"{li.get('insects_per_leaf')} insects per leaf"})
             self.call("conclude", {"hypothesis_id": hs, "verdict": "inconclusive", "evidence": "not needed: pests explain the loss"})
             self.call("rebalance_water", {"rationale": "re-plan after canopy loss"})
             return
-        wt = self.call("field_test", {"field": f, "test": "water_test", "rationale": "salty water would stunt the canopy"})
+        wt = self._test(f, "water_test", "salty water would stunt the canopy")
         ec = wt.get("groundwater_ec_dS_m", 4.5)
         self.call("conclude", {"hypothesis_id": hp, "verdict": "refuted", "evidence": "no pests on inspection"})
         if ec > wt.get("assumed_by_model", 4.5) + 1.0:

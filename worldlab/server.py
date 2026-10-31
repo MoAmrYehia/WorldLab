@@ -28,6 +28,12 @@ GET  /api/verify                   verify your run's ledger hash chain
 GET  /api/runs                     your past seasons
 GET  /api/progress                 level, XP and achievements (awarded from each season's ledger)
 GET  /api/runs/ID/replay           a past season as a replay
+GET  /api/scenarios                the scenario library and the farm editor's allowed ranges
+POST /api/decide                   {request, choice} answer a decision in human decision mode
+POST /api/runs/ID/branch           {change} rerun a finished season with one input changed
+POST /api/runs/ID/next             start the next season on the soil this one left behind
+POST /api/runs/ID/share            make a public read-only snapshot link
+GET  /api/shared/TOKEN             a shared snapshot (no account needed)
 """
 from __future__ import annotations
 
@@ -54,7 +60,7 @@ SITE = HERE / "site"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
          ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json"}
-STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "classic.html")}
+STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "experiments.json", "classic.html")}
 STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json", "favicon.ico",
                                                "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og-image.jpg", "site.webmanifest", "hero-still.jpg")})
 PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SITE / "signup.html",
@@ -128,14 +134,92 @@ class App:
         s = Settings(**{**asdict(self.defaults), "agent": agent, "speed": max(0.5, min(speed, 60.0)),
                         "runs_dir": str(self.data_dir / "runs" / str(user["id"])),
                         "choices": body.get("choices") or [], "perturb": []})
+        # scenario library and farm editor, validated here whatever the browser sent
+        from . import scenarios as SC
+        sc = SC.BY_ID.get(body.get("scenario") or "baseline")
+        if sc is None:
+            raise ValueError("unknown scenario")
+        s.scenario, s.perturb = sc["id"], list(sc["perturb"])
+        s.limits = {**s.limits, **sc["limits"]}
+        s.salinity_scale = sc["salinity_scale"]
+        ed = body.get("farm") or {}
+        if "seed" in ed:
+            s.seed = int(SC.clamp("seed", ed["seed"]))
+        for k in ("water_quota_m3", "energy_kwh"):
+            if k in ed:
+                s.limits[k] = SC.clamp(k, ed[k])
+        if "salinity_scale" in ed:
+            s.salinity_scale = SC.clamp("salinity_scale", ed["salinity_scale"])
+        s.human = bool(body.get("human"))
+        for k in ("soil", "parent_run", "change"):            # set only by branch and next-season requests
+            if k in body:
+                setattr(s, k, body[k])
+        slot.bus.record_to(None)                         # stop recording into the previous season's log
         slot.bus.reset()
         slot.bus.publish("reset", {"agent": agent})
         sess = Session(s, bus=slot.bus)                  # raises ValueError for an impossible crop choice
-        run_id = self.accounts.add_run(user["id"], str(sess.run_dir), agent, sess.lab.choices_summary())
+        run_id = self.accounts.add_run(user["id"], str(sess.run_dir), agent, sess.lab.choices_summary(),
+                                       {k: v for k, v in asdict(s).items() if k not in ("runs_dir",)}, s.parent_run)
         sess.on_finish = lambda ss: self._finish(user, run_id, ss)
         slot.session, slot.run_id = sess, run_id
         sess.start()
         return {"ok": True, "agent": agent, "run_id": run_id}
+
+    BRANCH_CHANGES = {"controller", "fault", "crop", "seed", "human"}
+
+    def branch(self, user: dict, run_id: int, change: dict) -> dict:
+        """Rerun a season from the start with exactly one input changed: same farm seed, weather, scenario
+        and choices otherwise, so the two outcomes form a paired comparison. Exact mid-season checkpoints
+        aren't stored, so the whole season is rerun."""
+        r = self.accounts.run(user["id"], run_id)
+        if not r:
+            raise ValueError("run not found")
+        st = json.loads(r["settings"] or "{}")
+        kind = (change or {}).get("kind")
+        if kind not in self.BRANCH_CHANGES:
+            raise ValueError("change one of: controller, fault, crop, seed, human")
+        body = {"agent": r["agent"], "choices": st.get("choices") or [], "scenario": st.get("scenario") or "baseline",
+                "farm": {"seed": st.get("seed", 7), "salinity_scale": st.get("salinity_scale", 1.0),
+                         **{k: v for k, v in (st.get("limits") or {}).items() if k in ("water_quota_m3", "energy_kwh")}},
+                "human": st.get("human", False), "parent_run": run_id, "speed": st.get("speed", 12)}
+        if st.get("soil"):
+            body["soil"] = st["soil"]
+        if kind == "controller":
+            body["agent"] = "scripted" if r["agent"] == "scripted-rl" else "scripted-rl"
+            label = f"irrigation by {'the fixed rule' if body['agent'] == 'scripted' else 'the learned policy'}"
+        elif kind == "fault":
+            body["scenario"] = "baseline"
+            label = "no hidden events"
+        elif kind == "seed":
+            body["farm"]["seed"] = int(SC_clamp_seed(change.get("value", st.get("seed", 7) + 1)))
+            label = f"farm seed {body['farm']['seed']}"
+        elif kind == "human":
+            body["human"] = not st.get("human", False)
+            label = "human decision mode " + ("on" if body["human"] else "off")
+        else:
+            fld, cr, season = change.get("field"), change.get("crop"), change.get("season")
+            ch = list(body["choices"]) if body["choices"] else [{"mode": "scientist"}] * 6
+            fi = ["F1", "F2", "F3", "F4", "F5", "F6"].index(str(fld).upper())
+            ch = [dict(c) if isinstance(c, dict) else {"mode": "scientist"} for c in ch]
+            ch[fi] = {"mode": "crop", "crop": cr, "season": season} if cr else {"mode": "scientist"}
+            body["choices"] = ch
+            label = f"{fld}: {cr or 'scientist decides'}"
+        body["change"] = {"kind": kind, "label": label}
+        return self.start(user, body)
+
+    def next_season(self, user: dict, run_id: int) -> dict:
+        """The next season on the same farm, starting from the salt this season left in the soil."""
+        r = self.accounts.run(user["id"], run_id)
+        if not r or not r["result"]:
+            raise ValueError("finish the season first")
+        soil_file = Path(r["run_dir"]) / "soil_end.json"
+        if not soil_file.exists():
+            raise ValueError("this season's end soil wasn't saved")
+        st = json.loads(r["settings"] or "{}")
+        return self.start(user, {"agent": r["agent"], "choices": st.get("choices") or [], "scenario": "baseline",
+                                 "farm": {"seed": st.get("seed", 7)}, "soil": json.loads(soil_file.read_text()),
+                                 "parent_run": run_id, "change": {"kind": "next_season", "label": "next season on the same soil"},
+                                 "human": st.get("human", False)})
 
     def _finish(self, user: dict, run_id: int, sess: Session):
         """Score the season from its ledger and apply it to the player's progress (once per scenario)."""
@@ -165,6 +249,11 @@ class App:
                 "error": s.error if s else None, "has_api_key": bool(os.environ.get("MODEL_API_KEY")),
                 "user": {"name": user["name"], "email": user["email"]},
                 "choices": s.lab.choices_summary() if s else None}
+
+
+def SC_clamp_seed(v):
+    from .scenarios import clamp
+    return clamp("seed", v)
 
 
 def make_handler(app: App):
@@ -285,6 +374,16 @@ def make_handler(app: App):
                 if sid not in SEASON_IDS:
                     return self._json({"error": "unknown season"}, 400)
                 return self._json(crop_guide(sid))
+            if path == "/api/scenarios":
+                from . import scenarios as SC
+                return self._json({"scenarios": SC.public(), "editor": {k: list(v) for k, v in SC.EDITOR_RANGES.items()},
+                                   "start_dates": ["1 Oct"], "note": "The season always starts on 1 October; the simulator's calendar is fixed."})
+            if path.startswith("/api/shared/"):      # a public snapshot someone chose to share
+                r = app.accounts.shared_run(path.rsplit("/", 1)[-1])
+                if not r or not (Path(r["run_dir"]) / "events.jsonl").exists():
+                    return self._json({"error": "not found"}, 404)
+                from .replay import build
+                return self._json(build(r["run_dir"], note="A shared WorldLab season, replayed read-only from its log."))
             if path == "/api/capabilities":       # what this server can do right now, no account needed
                 return self._json({"service": "ok", "schema": 2, "accounts": True,
                                    "agents": {"scripted": True, "scripted-rl": True,
@@ -293,7 +392,8 @@ def make_handler(app: App):
                                    "perception": "meta" if os.environ.get("MODEL_API_KEY") else "simulated",
                                    "budget_mode": "hard", "run_capacity": app.max_runs,
                                    "runs_active": app.active_runs(),
-                                   "busy": app.active_runs() >= app.max_runs})
+                                   "busy": app.active_runs() >= app.max_runs,
+                                   "features": ["scenarios", "farm_editor", "human_mode", "branch", "next_season", "share"]})
             if path == "/api/me":
                 user = self._user()
                 return self._json({"user": user}, 200 if user else 401)
@@ -384,12 +484,35 @@ def make_handler(app: App):
             slot = app.slot(user["id"])
             if path == "/api/start":
                 try:
-                    return self._json(app.start(user, b))
+                    # soil, parent and change labels are set only by the branch and next-season routes
+                    return self._json(app.start(user, {k: v for k, v in b.items() if k not in ("soil", "parent_run", "change")}))
                 except RuntimeError as e:
                     return self._json({"ok": False, "error": str(e)}, 429)
                 except (ValueError, TypeError) as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
             s = slot.session
+            if path == "/api/decide":
+                if not s:
+                    return self._json({"ok": False, "error": "No season is running."}, 400)
+                r = s.lab.answer_decision(str(b.get("request", "")), str(b.get("choice", "")))
+                return self._json(r, 200 if r["ok"] else 400)
+            if path.startswith("/api/runs/") and path.rsplit("/", 1)[-1] in ("branch", "next", "share"):
+                try:
+                    rid = int(path.split("/")[3])
+                except ValueError:
+                    return self._json({"ok": False, "error": "bad run id"}, 400)
+                act = path.rsplit("/", 1)[-1]
+                try:
+                    if act == "share":
+                        tok = app.accounts.share_run(user["id"], rid)
+                        if not tok:
+                            return self._json({"ok": False, "error": "Only a finished season of yours can be shared."}, 400)
+                        return self._json({"ok": True, "token": tok})
+                    return self._json(app.branch(user, rid, b.get("change") or {}) if act == "branch" else app.next_season(user, rid))
+                except RuntimeError as e:
+                    return self._json({"ok": False, "error": str(e)}, 429)
+                except (ValueError, TypeError, KeyError) as e:
+                    return self._json({"ok": False, "error": str(e)}, 400)
             if path == "/api/perturb":
                 if not s or s.lab.phase != "season":
                     return self._json({"ok": False, "error": "You can change the farm once the season has started."}, 400)

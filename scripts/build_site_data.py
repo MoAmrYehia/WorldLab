@@ -26,7 +26,9 @@ assumptions = {"irrigation_water_ec_ds_m": EC_GROUNDWATER, "desal_water_ec_ds_m"
                "management": "Previews use published crop values (no local calibration), sowing mid-window, irrigation at 90% of crop demand, "
                              "groundwater only (no desalinated blend), the crop's recommended nitrogen and mulch. The scientist's plan can change all of these.",
                "yield_basis": "fresh weight, t/ha, median of 10 simulated weather years (10th to 90th percentile in brackets)"}
-out = {"seasons": SZ.SEASONS, "summer": SZ.SUMMER, "crops": list(rows.values()), "guides": guides,
+from worldlab import scenarios as SCN
+out = {"scenarios": SCN.public(), "editor": {k: list(v) for k, v in SCN.EDITOR_RANGES.items()},
+       "seasons": SZ.SEASONS, "summer": SZ.SUMMER, "crops": list(rows.values()), "guides": guides,
        "fields": fields, "assumptions": assumptions}
 p = Path(__file__).resolve().parent.parent / "worldlab" / "site" / "seasons.json"
 p.write_text(json.dumps(out, indent=1))

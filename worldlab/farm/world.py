@@ -40,8 +40,10 @@ EC_GROUNDWATER = 4.5
 
 
 class Farm:
-    def __init__(self, seed: int = 7, randomize_traits: bool = True):
+    def __init__(self, seed: int = 7, randomize_traits: bool = True, fields: list[dict] | None = None):
         self.seed = seed
+        # this farm's fields: the standard six, or a variant (scenario soil, or soil carried over from last season)
+        self.fields = [dict(f, layers=list(f["layers"]), ece=list(f["ece"])) for f in (fields or FIELDS)]
         r = np.random.default_rng(seed)
         self.rng = np.random.default_rng(seed + 1000)
         # true local-variety traits (hidden)
@@ -104,7 +106,7 @@ class Farm:
             self.deliver = np.ones((len(FIELDS), D))
             self.pest = np.zeros((len(FIELDS), D))
             self.ecgw = np.full((len(FIELDS), D), self.ecgw_base)
-            self.sim = Sim(crop_arrays(crops, traits), mg, soil_arrays(FIELDS), self.year_wx,
+            self.sim = Sim(crop_arrays(crops, traits), mg, soil_arrays(self.fields), self.year_wx,
                            np.zeros(len(FIELDS), int), self.ecgw, eff=self.eff,
                            deliver=self.deliver, pest=self.pest, record=True)
             self.day = 0
@@ -127,15 +129,24 @@ class Farm:
                     "harvested": self.sim.done.copy(), "harvest_day": self.sim.harvest_day.copy()}
 
     def forecast(self, days: int = 7) -> dict:
-        """Short forecast: the coming days with forecast error growing with lead time."""
+        """Short forecast: the coming days with forecast error growing with lead time. The error is drawn
+        from a generator fixed by (farm, issue day), so everyone who asks on a day sees the same forecast."""
         d0 = self.day
         d1 = min(d0 + days, WX.SEASON_DAYS)
         lead = np.arange(1, d1 - d0 + 1)
-        err = self.rng.normal(0, 1, len(lead)) * 0.6 * np.sqrt(lead)
+        err = np.random.default_rng([self.seed, d0, 77]).normal(0, 1, len(lead)) * 0.6 * np.sqrt(lead)
         return {"days": list(range(d0, d1)),
                 "tmax": (self.year_wx["tmax"][0, d0:d1] + err).round(1).tolist(),
                 "et0": (self.year_wx["et0"][0, d0:d1] * (1 + 0.04 * err)).round(2).tolist(),
                 "rain": self.year_wx["rain"][0, d0:d1].round(1).tolist()}
+
+    def soil_state(self) -> list[dict]:
+        """True end-of-season soil per field (salt and water by layer), for carrying over to the next season."""
+        with self.lock:
+            if self.sim is None:
+                return [dict(f) for f in self.fields]
+            ece = self.sim.ece_layers()
+            return [{**f, "ece": [round(float(v), 2) for v in ece[i]]} for i, f in enumerate(self.fields)]
 
     def drone(self, f: int) -> dict:
         with self.lock:

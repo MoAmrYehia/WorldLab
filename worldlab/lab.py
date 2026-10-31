@@ -68,7 +68,7 @@ class Bus:
     def reset(self):
         self._t0 = time.time()
         self.snapshot = {k: [] for k in self.LISTS}
-        self.snapshot.update({"scene": {}, "plan": None, "status": {}, "beliefs": None, "fields": None, "rl": None, "mission": None, "award": None})
+        self.snapshot.update({"scene": {}, "drone": [], "forecasts": [], "plan": None, "status": {}, "beliefs": None, "fields": None, "rl": None, "mission": None, "award": None})
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=5000)
@@ -106,6 +106,8 @@ class Bus:
             s["drone"] = (s.get("drone") or [])[-11:] + [payload]
         elif kind in ("plan", "status", "fields", "rl", "mission", "award"):
             s[kind] = payload
+        elif kind == "forecast":
+            s["forecasts"] = (s.get("forecasts") or [])[-40:] + [payload]
         msg = {"kind": kind, "data": payload}
         with self._lock:
             if self._rec:
@@ -130,6 +132,10 @@ class Lab:
     def __init__(self, farm: Farm, limits: Limits | None = None, run_dir: str | Path | None = None,
                  perception=None, bus: Bus | None = None, speed: float = 0.0):
         self.farm = farm
+        self.human = False                        # human decision mode: pause at selected decisions
+        self._decision = None
+        self._decision_n = 0
+        self.fields = farm.fields                 # this farm's soils (standard, scenario or carried over)
         self.limits = limits or Limits()
         self.bus = bus or Bus()
         self.perception = perception
@@ -168,7 +174,7 @@ class Lab:
         self.policy_trace: list[dict] = []
         self.crop_choices: list[dict | None] = [None] * NF   # the farmer's picks per field
         self._log("run_start", {"limits": asdict(self.limits), "fields": [
-            {k: f[k] for k in ("id", "name", "layers", "ece", "soil_n")} for f in FIELDS],
+            {k: f[k] for k in ("id", "name", "layers", "ece", "soil_n")} for f in self.fields],
             "goal": "maximise people fed (scarcest of calories, protein, vitamin A) in a bad year (P10), "
                     f"within {self.limits.water_quota_m3:.0f} m3 groundwater and {self.limits.energy_kwh:.0f} kWh"})
         self._publish_beliefs()
@@ -194,6 +200,46 @@ class Lab:
         from .progression import evaluate
         self.bus.publish("mission", evaluate(self.ledger.entries, list(self.farm.events), self.result))
 
+    # ---------------------------------------------------------- human decision mode
+    def ask_human(self, key: str, question: str, options: list[dict], default: str, context: dict | None = None,
+                  timeout_s: float = 900.0) -> str:
+        """In human decision mode, pause and let the person choose among valid options; otherwise return the
+        default (the scientist's own choice). Every request and answer goes into the ledger."""
+        if not self.human:
+            return default
+        self._decision_n += 1
+        rid = f"D{self._decision_n}"
+        req = {"id": rid, "key": key, "question": question, "options": options, "default": default, "context": context or {},
+               "day": self.day}
+        self._decision = {"req": req, "event": threading.Event(), "answer": None}
+        self._log("decision_request", req)
+        self.bus.publish("decision_request", req)
+        t0 = time.time()
+        while not self._decision["event"].wait(0.5):
+            self._check_stop()
+            if time.time() - t0 > timeout_s:
+                break
+        ans = self._decision["answer"]
+        valid = {o["id"] for o in options}
+        by = "you" if ans in valid else "the scientist (no answer in time)"
+        choice = ans if ans in valid else default
+        self._decision = None
+        rec = {"request": rid, "key": key, "choice": choice, "by": by, "scientist_default": default,
+               "override": by == "you" and choice != default}
+        self._log("human_decision", rec)
+        self.bus.publish("decision_answer", rec)
+        return choice
+
+    def answer_decision(self, rid: str, choice: str) -> dict:
+        d = self._decision
+        if not d or d["req"]["id"] != rid:
+            return {"ok": False, "error": "That decision is no longer open."}
+        if choice not in {o["id"] for o in d["req"]["options"]}:
+            return {"ok": False, "error": "Choose one of the offered options."}
+        d["answer"] = choice
+        d["event"].set()
+        return {"ok": True}
+
     def agent_note(self, role: str, text: str, extra: dict | None = None):
         item = {"t": self.day, "role": role, "text": text, **(extra or {})}
         self.bus.publish("agent", item)
@@ -213,6 +259,7 @@ class Lab:
             "anomaly": self.anomaly, "done": self.done, "hypotheses": list(self.hyps.values()),
             "harvest": self.harvest, "result": self.result, "controller": self.controller,
             "budget_mode": "hard" if self.limits.hard_budget else "soft", "curtailed_m3": round(self.curtailed_m3),
+            "human_mode": self.human, "decision": self._decision["req"] if self._decision else None,
         })
 
     def _publish_beliefs(self):
@@ -406,7 +453,7 @@ class Lab:
         L = self.limits
         chosen = self._choice_specs()
         extra = {ch["crop"]: ch["sows"] for ch in chosen if ch and ch.get("crop")}
-        ev = evaluate(self.beliefs, S=24, seed=seed, extra_sows=extra)
+        ev = evaluate(self.beliefs, S=24, seed=seed, extra_sows=extra, fields=self.fields)
         allowed = allowed_options(ev, chosen) if any(chosen) else None
         plan = optimise(ev, L.water_quota_m3, L.energy_kwh, allowed=allowed)
         # what certainty would be worth: same weather years, traits fixed at their means
@@ -414,7 +461,7 @@ class Lab:
         for c in CROP_IDS:
             sure[c].mean = self.beliefs[c].mean.copy()
             sure[c].cov = np.eye(4) * 1e-10
-        ev2 = evaluate(sure, S=24, seed=seed, extra_sows=extra)
+        ev2 = evaluate(sure, S=24, seed=seed, extra_sows=extra, fields=self.fields)
         plan2 = optimise(ev2, L.water_quota_m3, L.energy_kwh, allowed=allowed_options(ev2, chosen) if allowed else None)
         free = optimise(ev, L.water_quota_m3, L.energy_kwh) if allowed else None
         if free and free["people_p10"] < plan["people_p10"]:
@@ -480,7 +527,7 @@ class Lab:
         self.wx_obs = {k: np.zeros((1, D)) for k in ("tmax", "tmin", "rh", "u2", "rs", "rain", "et0", "doy")}
         self.wx_obs["doy"][0] = WX.season_doys()
         self.theta_obs = np.full((NF, D, 3), np.nan)
-        self.ec_last = np.array([np.mean(f["ece"][:2]) for f in FIELDS])
+        self.ec_last = np.array([np.mean(f["ece"][:2]) for f in self.fields])
         self.cc_obs = {i: [] for i in range(NF)}
         self.cc_last = np.zeros(NF)
         self.harvested = np.zeros(NF, bool)
@@ -500,7 +547,7 @@ class Lab:
         return [{"id": FIELDS[i]["id"], "name": FIELDS[i]["name"], "crop": f["crop"],
                  "label": CROPS[f["crop"]]["label"] if f["crop"] else "Fallow", "sow": int(f["sow"]),
                  "irr": f["irr"], "desal": f["desal"], "nfert": f["nfert"],
-                 "layers": FIELDS[i]["layers"], "ece": FIELDS[i]["ece"]} for i, f in enumerate(self.run_plan)]
+                 "layers": self.fields[i]["layers"], "ece": self.fields[i]["ece"]} for i, f in enumerate(self.run_plan)]
 
     def _trait_samples(self, S: int, rng):
         crops, tr = [], {k: [] for k in TRAIT_IDS}
@@ -519,7 +566,7 @@ class Lab:
         mg = {k: np.repeat(np.array([float(f[k]) for f in self.run_plan]), S) for k in MG_KEYS}
         mg["irr"] = np.repeat(self.irr_hist, S, axis=0)
         mg["desal"] = np.repeat(self.desal_hist, S, axis=0)
-        self.ens = Sim(crop_arrays(crops, tr), mg, soil_arrays([f for f in FIELDS for _ in range(S)]), self.wx_obs,
+        self.ens = Sim(crop_arrays(crops, tr), mg, soil_arrays([f for f in self.fields for _ in range(S)]), self.wx_obs,
                        np.zeros(NF * S, int), np.repeat(self.ecgw_est, S, axis=0), eff=DRIP_EFF_NOMINAL,
                        deliver=np.repeat(self.deliver_est, S, axis=0), pest=np.repeat(self.pest_est, S, axis=0))
         for d in range(self.day):
@@ -596,7 +643,7 @@ class Lab:
         L = self.limits
         seed = 300 + self._ids["P"]
         mk = lambda E, s: RL.Envs(fp, rows, self.beliefs, E, seed=s, quota_m3=L.water_quota_m3, energy_kwh=L.energy_kwh,
-                                    hard_budget=L.hard_budget)
+                                    hard_budget=L.hard_budget, fields=self.fields)
         envs, val, test = mk(12, seed), mk(16, seed + 1), mk(40, seed + 2)
         self._log("rl_train_start", {"plan_id": plan_id, "iterations": iterations, "rationale": rationale,
                                      "method": "evolution strategies (32 antithetic pairs, Adam) inside the belief model"})
@@ -766,6 +813,9 @@ class Lab:
             rec["curtailed"] = round(curtail, 3)
         rec["energy_used_kwh"] = round(self.energy_used)
         self.bus.publish("day", rec)
+        if d % 7 == 0:                          # the weekly forecast, the same product the scientist can ask for
+            fc = self.farm.forecast(7)
+            self.bus.publish("forecast", {"issued_day": self.day, **fc})
         if drone_day and d % 12 == 7:          # every third survey flight, keep one camera frame for people to see
             surveyed = [i for i, fr in enumerate(rec["fields"]) if "cc_obs" in fr]
             if surveyed:
@@ -814,7 +864,20 @@ class Lab:
             for n in NUTRIENTS:
                 tot[n] += nut[n]
         pf = people_fed(tot)
+        vol = self.gross_hist * 10 * FIELD_HA                                  # m3 per field per day
+        sown = [i for i, f in enumerate(self.run_plan) if f["crop"]]
+        ec_end = {FIELDS[i]["id"]: round(float(self.ec_last[i]), 2) for i in range(NF)}
+        quantities = {"desal_m3": round(float((vol * self.desal_hist).sum())),
+                      "energy_pumping_kwh": round(float(vol.sum() * KWH_PUMP)),
+                      "energy_desal_kwh": round(float((vol * self.desal_hist).sum() * KWH_DESAL)),
+                      "nitrogen_kg": round(sum(float(self.run_plan[i]["nfert"]) * FIELD_HA for i in sown)),
+                      "area_sown_ha": round(len(sown) * FIELD_HA, 1),
+                      "trial_plots": self.plots_used, "field_tests": self.tests_used,
+                      "repairs": len(self.farm.repairs)}
+        soil = [{"field": FIELDS[i]["id"], "ece_top_start_dS_m": round(float(np.mean(self.fields[i]["ece"][:2])), 2),
+                 "ece_top_end_measured_dS_m": ec_end[FIELDS[i]["id"]]} for i in range(NF)]
         self.result = {"people_fed": round(pf["people"], 1), "limiting": pf["limiting"],
+                       "quantities": quantities, "soil": soil,
                        "by_nutrient": {n: round(pf[n], 1) for n in NUTRIENTS},
                        "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
                        "within_quota": self.water_used <= self.limits.water_quota_m3 * 1.001,
@@ -893,7 +956,7 @@ class Lab:
                 out["result"] = self.result
         else:
             out["fields"] = [{"field": f["id"], "name": f["name"], "soil": f["layers"], "ece_dS_m": f["ece"],
-                              "soil_n_kg_ha": f["soil_n"]} for f in FIELDS]
+                              "soil_n_kg_ha": f["soil_n"]} for f in self.fields]
             out["crops"] = [{"crop": c, "label": CROPS[c]["label"], "trial_plots": len(self.trial_data[c])} for c in CROP_IDS]
             if any(self.crop_choices):
                 out["farmer_choices"] = self.choices_summary()
@@ -1058,7 +1121,7 @@ class Lab:
                 ir[self.day:] = opts[o][0][i]
                 de[self.day:] = opts[o][1][i]
                 mg["irr"][sl], mg["desal"][sl] = ir, de
-                soils += [FIELDS[i]] * S
+                soils += [self.fields[i]] * S
                 widx[sl] = np.arange(S)
                 deliver[sl], pest[sl], ecgw[sl] = self.deliver_est[i], self.pest_est[i], self.ecgw_est[i]
                 j += S

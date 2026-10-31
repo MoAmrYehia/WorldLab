@@ -59,7 +59,7 @@ for f in ("app.js", "client.js", "scene.js"):
     versioned_js(root / "dashboard" / f, app_dir / f)
 for f in sorted((root / "dashboard" / "engine").glob("*.js")):
     versioned_js(f, app_dir / "engine" / f.name)
-for f in ("style.css", "replay.json"):
+for f in ("style.css", "replay.json", "experiments.json"):
     shutil.copy(root / "dashboard" / f, app_dir / f)
 if not app_only:
     sub = with_config("")

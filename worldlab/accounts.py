@@ -57,9 +57,12 @@ class Accounts:
                 result TEXT);
         """)
         cols = {r[1] for r in self.db.execute("PRAGMA table_info(runs)")}
-        if "award" not in cols:
-            self.db.execute("ALTER TABLE runs ADD COLUMN award TEXT")
-            self.db.commit()
+        for col in ("award", "settings", "share"):
+            if col not in cols:
+                self.db.execute(f"ALTER TABLE runs ADD COLUMN {col} TEXT")
+        if "parent" not in cols:
+            self.db.execute("ALTER TABLE runs ADD COLUMN parent INTEGER")
+        self.db.commit()
         self._fails: dict[str, list[float]] = {}
 
     # ------------------------------------------------------------------ users
@@ -127,10 +130,10 @@ class Accounts:
                 self.db.commit()
 
     # ------------------------------------------------------------------- runs
-    def add_run(self, user_id: int, run_dir: str, agent: str, choices) -> int:
+    def add_run(self, user_id: int, run_dir: str, agent: str, choices, settings: dict | None = None, parent: int | None = None) -> int:
         with self._lock:
-            cur = self.db.execute("INSERT INTO runs (user_id, run_dir, agent, choices, created) VALUES (?,?,?,?,?)",
-                                  (user_id, run_dir, agent, json.dumps(choices), time.time()))
+            cur = self.db.execute("INSERT INTO runs (user_id, run_dir, agent, choices, created, settings, parent) VALUES (?,?,?,?,?,?,?)",
+                                  (user_id, run_dir, agent, json.dumps(choices), time.time(), json.dumps(settings or {}, default=str), parent))
             self.db.commit()
         return cur.lastrowid
 
@@ -153,9 +156,29 @@ class Accounts:
 
     def runs(self, user_id: int, limit: int = 30) -> list[dict]:
         rows = self.db.execute("SELECT * FROM runs WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall()
-        return [{"id": r["id"], "agent": r["agent"], "created": r["created"],
-                 "choices": json.loads(r["choices"] or "null"), "result": json.loads(r["result"] or "null"),
-                 "award": json.loads(r["award"] or "null")} for r in rows]
+        out = []
+        for r in rows:
+            st = json.loads(r["settings"] or "{}")
+            out.append({"id": r["id"], "agent": r["agent"], "created": r["created"],
+                        "choices": json.loads(r["choices"] or "null"), "result": json.loads(r["result"] or "null"),
+                        "award": json.loads(r["award"] or "null"), "parent": r["parent"], "shared": bool(r["share"]),
+                        "settings": {k: st.get(k) for k in ("seed", "scenario", "salinity_scale", "human", "change", "limits")} | {"soil_carried_over": bool(st.get("soil"))}})
+        return out
+
+    def share_run(self, user_id: int, run_id: int) -> str | None:
+        """Make a public, read-only snapshot link for one finished run. Only the owner can do this."""
+        r = self.run(user_id, run_id)
+        if not r or not r["result"]:
+            return None
+        tok = r["share"] or secrets.token_urlsafe(12)
+        with self._lock:
+            self.db.execute("UPDATE runs SET share=? WHERE id=?", (tok, run_id))
+            self.db.commit()
+        return tok
+
+    def shared_run(self, token: str) -> dict | None:
+        r = self.db.execute("SELECT * FROM runs WHERE share=?", (token,)).fetchone()
+        return dict(r) if r else None
 
     def run(self, user_id: int, run_id: int) -> dict | None:
         r = self.db.execute("SELECT * FROM runs WHERE user_id=? AND id=?", (user_id, run_id)).fetchone()

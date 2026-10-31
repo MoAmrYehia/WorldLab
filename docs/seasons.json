@@ -1,4 +1,91 @@
 {
+ "scenarios": [
+  {
+   "id": "baseline",
+   "title": "Baseline season",
+   "difficulty": "Standard",
+   "about": "The standard farm and limits, no hidden faults. A good first season.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "drip_fault",
+   "title": "Drip fault",
+   "difficulty": "Standard",
+   "about": "A drip line clogs in early January. The water meter can't see it.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "pest_outbreak",
+   "title": "Pest outbreak",
+   "difficulty": "Standard",
+   "about": "Pests arrive in one field in mid January and eat the canopy.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "hot_flowering",
+   "title": "Hot flowering",
+   "difficulty": "Standard",
+   "about": "A heat wave arrives in early March, when many crops flower. It is in the forecast.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "water_scarcity",
+   "title": "Water scarcity",
+   "difficulty": "Hard",
+   "about": "The groundwater quota is cut by a quarter, to 45,000 m\u00b3.",
+   "limits": {
+    "water_quota_m3": 45000.0
+   },
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "saline_start",
+   "title": "Elevated salinity",
+   "difficulty": "Hard",
+   "about": "Every field starts the season with half as much salt again in its soil.",
+   "limits": {},
+   "salinity_scale": 1.5,
+   "hidden_events": 0
+  },
+  {
+   "id": "compound",
+   "title": "Compound events",
+   "difficulty": "Expert",
+   "about": "A clogged drip line, then saltier groundwater, then a heat wave, with a 10% smaller water quota.",
+   "limits": {
+    "water_quota_m3": 54000.0
+   },
+   "salinity_scale": 1.0,
+   "hidden_events": 3
+  }
+ ],
+ "editor": {
+  "seed": [
+   1,
+   999
+  ],
+  "water_quota_m3": [
+   30000.0,
+   90000.0
+  ],
+  "energy_kwh": [
+   40000.0,
+   150000.0
+  ],
+  "salinity_scale": [
+   0.5,
+   2.0
+  ]
+ },
  "seasons": [
   {
    "id": "autumn",

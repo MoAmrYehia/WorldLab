@@ -470,3 +470,146 @@ class HardBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class P2Tests(unittest.TestCase):
+    """Scenario library, farm editor, human decisions, branching, next season, sharing."""
+
+    def test_scenario_library_hides_the_schedule_and_editor_bounds(self):
+        from worldlab import scenarios as SC
+        pub = SC.public()
+        self.assertEqual({s["id"] for s in pub}, set(SC.BY_ID))
+        for s in pub:
+            self.assertNotIn("perturb", s)
+        self.assertEqual(SC.clamp("seed", 12), 12.0)
+        for name, bad in (("seed", 0), ("water_quota_m3", 10), ("salinity_scale", 9)):
+            with self.assertRaises(ValueError):
+                SC.clamp(name, bad)
+
+    def test_fields_override_changes_the_soil_and_forecasts_are_deterministic(self):
+        import copy
+        f = copy.deepcopy(FIELDS)
+        for x in f:
+            x["ece"] = [v * 1.5 for v in x["ece"]]
+        a, b = Farm(seed=7), Farm(seed=7, fields=f)
+        self.assertAlmostEqual(b.fields[0]["ece"][0], 1.5 * a.fields[0]["ece"][0])
+        self.assertEqual(FIELDS[0]["ece"][0], a.fields[0]["ece"][0])            # the standard farm is untouched
+        f1, f2 = Farm(seed=7).forecast(), Farm(seed=7).forecast()
+        self.assertEqual(json.dumps(f1, default=float), json.dumps(f2, default=float))
+
+    def test_human_decisions_are_validated_and_logged(self):
+        import threading
+        d = tempfile.mkdtemp()
+        lab = Lab(Farm(seed=7), run_dir=d, perception=SimPerception())
+        opts = [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}]
+        self.assertEqual(lab.ask_human("k", "Q?", opts, "a"), "a")           # mode off: the scientist's choice, no pause
+        lab.human = True
+        out = {}
+        t = threading.Thread(target=lambda: out.setdefault("c", lab.ask_human("k", "Q?", opts, "a")))
+        t.start()
+        for _ in range(100):
+            if lab._decision:
+                break
+            __import__("time").sleep(0.02)
+        self.assertFalse(lab.answer_decision("D9", "b")["ok"])                # wrong request
+        self.assertFalse(lab.answer_decision("D1", "zzz")["ok"])              # not an offered option
+        self.assertTrue(lab.answer_decision("D1", "b")["ok"])
+        t.join(5)
+        self.assertEqual(out["c"], "b")
+        rec = [e for e in lab.ledger.entries if e["kind"] == "human_decision"][-1]["data"]
+        self.assertEqual((rec["by"], rec["override"], rec["scientist_default"]), ("you", True, "a"))
+        self.assertEqual(lab.ask_human("k", "Q?", opts, "a", timeout_s=0.1), "a")   # no answer: default, logged as such
+        rec = [e for e in lab.ledger.entries if e["kind"] == "human_decision"][-1]["data"]
+        self.assertIn("no answer", rec["by"])
+        ok, _ = verify(Path(d) / "ledger.jsonl")
+        self.assertTrue(ok)
+
+    def test_recorded_experiments_are_paired_and_shipped(self):
+        root = Path(__file__).resolve().parents[1] / "worldlab" / "dashboard"
+        x = json.loads((root / "experiments.json").read_text())
+        base = x["baseline"]
+        kinds = [e["change"]["kind"] for e in x["experiments"]]
+        self.assertEqual(kinds, ["controller", "fault", "adapt", "next_season"])
+        self.assertIn("same", x["note"])
+        for e in x["experiments"]:
+            self.assertTrue(e["within_limits"])
+        nxt = x["experiments"][-1]
+        for a, b in zip(base["soil"], nxt["soil"]):       # season 2 starts where season 1 ended (true vs measured: close)
+            self.assertLess(abs(a["ece_top_end_measured_dS_m"] - b["ece_top_start_dS_m"]), 0.6)
+        rep = json.loads((root / "replay.json").read_text())
+        self.assertTrue(any(m["kind"] == "forecast" for m in rep["messages"]))
+        self.assertIn("quantities", [m for m in rep["messages"] if m["kind"] == "status"][-1]["data"]["result"])
+
+    def test_branch_next_season_and_share_over_http(self):
+        import threading
+        import urllib.error
+        import urllib.request
+        import http.cookiejar
+        from http.server import ThreadingHTTPServer
+        from worldlab.server import App, make_handler
+        from worldlab.session import Settings
+        app = App(Settings(agent="scripted", speed=0, perception="sim"), tempfile.mkdtemp())
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(app))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+        def call(path, body=None):
+            req = urllib.request.Request(base + path, None if body is None else json.dumps(body).encode(), {"Content-Type": "application/json"})
+            try:
+                with op.open(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        def wait():
+            app.slot(1).session.thread.join(timeout=600)
+            return call("/api/runs")[1]["runs"]
+        try:
+            with urllib.request.urlopen(base + "/api/scenarios") as r:
+                self.assertTrue(all("perturb" not in s for s in json.loads(r.read())["scenarios"]))
+            self.assertEqual(call("/api/auth/signup", {"name": "Mo", "email": "mo@example.com", "password": "longenough1"})[0], 200)
+            st, d = call("/api/start", {"agent": "scripted", "scenario": "nope"})
+            self.assertEqual(st, 400)
+            st, d = call("/api/start", {"agent": "scripted", "farm": {"water_quota_m3": 5}})
+            self.assertEqual(st, 400)
+            # a client can't plant its own soil or claim a parent run
+            st, d = call("/api/start", {"agent": "scripted", "speed": 60, "scenario": "saline_start", "farm": {"seed": 11},
+                                        "soil": [[99, 99, 99]] * 6, "parent_run": 42})
+            self.assertEqual(st, 200, d)
+            s = app.slot(1).session.settings
+            self.assertEqual((s.soil, s.parent_run, s.seed, s.salinity_scale), (None, None, 11, 1.5))
+            r1 = wait()[0]
+            self.assertEqual(r1["settings"]["scenario"], "saline_start")
+            # share: only the owner can, the snapshot is public and read-only
+            st, d = call(f"/api/runs/{r1['id']}/share", {})
+            self.assertEqual(st, 200, d)
+            with urllib.request.urlopen(f"{base}/api/shared/{d['token']}") as r:
+                self.assertTrue(json.loads(r.read())["messages"])
+            with self.assertRaises(urllib.error.HTTPError):
+                urllib.request.urlopen(f"{base}/api/shared/not-a-token")
+            # branch: one change, same everything else, linked to the parent (checked at start, then stopped)
+            def started():
+                sess = app.slot(1).session
+                st_ = sess.settings
+                sess.stop(); sess.thread.join(timeout=60)
+                return st_
+            st, d = call(f"/api/runs/{r1['id']}/branch", {"change": {"kind": "seed", "value": 12}})
+            self.assertEqual(st, 200, d)
+            s2 = started()
+            self.assertEqual((s2.parent_run, s2.seed, s2.scenario, s2.salinity_scale), (r1["id"], 12, "saline_start", 1.5))
+            self.assertEqual(s2.change["kind"], "seed")
+            self.assertEqual(call("/api/runs")[1]["runs"][0]["parent"], r1["id"])
+            msgs = call(f"/api/runs/{r1['id']}/replay")[1]["messages"]   # the next season doesn't leak into this log
+            self.assertFalse([m for m in msgs[1:] if m["kind"] == "reset"])
+            self.assertTrue(msgs[-1]["kind"] != "reset" and any(m["kind"] == "status" and m["data"].get("result") for m in msgs))
+            self.assertEqual(call(f"/api/runs/{r1['id']}/branch", {"change": {"kind": "weather"}})[0], 400)
+            # next season on the soil the first one left
+            st, d = call(f"/api/runs/{r1['id']}/next", {})
+            self.assertEqual(st, 200, d)
+            s3 = started()
+            end = json.loads((Path(app.accounts.run(1, r1["id"])["run_dir"]) / "soil_end.json").read_text())
+            self.assertEqual(s3.soil, end)
+            self.assertEqual(s3.parent_run, r1["id"])
+        finally:
+            httpd.shutdown()
