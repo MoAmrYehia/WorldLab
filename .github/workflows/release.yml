@@ -1,0 +1,187 @@
+# One release pipeline for both surfaces. Each push to main is tested once, the static site is built from that exact
+# commit, and then the website (GitHub Pages) and the server (Hugging Face Space) are deployed from the same build.
+#
+# - Only the newest commit is released: a newer push cancels an older run (concurrency), and each deploy step checks
+#   that main still points at this commit before publishing, so an older build can never replace a newer one.
+# - The commit is stamped into the site (build.json, shown in the app's View settings) and into the server
+#   (worldlab/release.json, returned by /api/ready), so anyone can see which release is live.
+# - The server deploy is REQUIRED by default: if the HF_TOKEN secret is missing the job fails, instead of reporting a
+#   green run that deployed nothing. To publish the website only (an explicit showcase release), set the repository
+#   variable SERVER_DEPLOY to "skip"; the run summary then says the server was deliberately not deployed.
+#
+# Secrets: HF_TOKEN (Hugging Face write token), optional MODEL_API_KEY (copied into the Space for Muse Spark).
+# Variables: HF_SPACE (default <hf user>/worldlab), WORLDLAB_SERVER (override the server address), SERVER_DEPLOY.
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: release-main
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python tests
+        run: |
+          pip install --quiet -r requirements.txt pytest
+          python -m pytest -q tests/
+      - name: Build the static site from this commit
+        run: |
+          python scripts/build_site_data.py
+          python scripts/build_artifact.py docs
+          test -s docs/index.html && test -s docs/app/index.html && test -s docs/app/replay.json
+          test -s docs/app/evidence/worldlab-evidence.zip
+          python scripts/verify_evidence.py docs/app/evidence
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Browser checks on the built site
+        timeout-minutes: 15
+        run: |
+          npm install --no-save --silent playwright@1.48.2
+          npx playwright install --with-deps chromium
+          (python -m http.server -d docs 8811 >/dev/null 2>&1 &)
+          sleep 2
+          node tests/browser/smoke.js http://127.0.0.1:8811
+      - name: Stamp the release
+        run: |
+          now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          printf '{"sha": "%s", "built_at": "%s", "source": "release workflow"}\n' "$GITHUB_SHA" "$now" > release.json
+          cp release.json docs/build.json
+          cp release.json worldlab/release.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            docs/
+            worldlab/
+            scripts/
+            Dockerfile
+            requirements.txt
+            LICENSE
+            deploy/
+          retention-days: 7
+
+  website:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: rel
+      - name: Still the newest commit?
+        id: latest
+        run: |
+          head=$(git ls-remote "https://github.com/${{ github.repository }}.git" refs/heads/main | cut -f1)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved to ${head::7}; that commit's release will publish. Skipping ${GITHUB_SHA::7}."
+            echo "newest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "newest=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Prepare and publish to gh-pages
+        if: steps.latest.outputs.newest == 'true'
+        env:
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          WORLDLAB_SERVER: ${{ vars.WORLDLAB_SERVER }}
+        run: |
+          mkdir site && cp -r rel/docs/. site/ && rm -rf site/bench site/DEMO.md && touch site/.nojekyll
+          server="$WORLDLAB_SERVER"
+          if [ -z "$server" ] && [ -n "$HF_SPACE" ]; then
+            server="https://$(echo "$HF_SPACE" | tr '[:upper:]' '[:lower:]' | sed 's#/#-#; s#[_.]#-#g').hf.space"
+          fi
+          if [ -n "$server" ]; then
+            sed -i "s#var SERVER = \".*\";#var SERVER = \"${server}\";#" site/config.js
+          fi
+          grep -m1 "var SERVER" site/config.js
+          cd site
+          git init -q -b gh-pages
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "GitHub Actions"
+          git add -A
+          git commit -qm "Publish ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+          echo "## Website published: ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"
+
+  server:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: rel
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Deploy to the Hugging Face Space
+        id: upload
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          SERVER_DEPLOY: ${{ vars.SERVER_DEPLOY }}
+        run: |
+          if [ "$SERVER_DEPLOY" = "skip" ]; then
+            echo "## Server deliberately not deployed (SERVER_DEPLOY=skip): showcase release, website only" >> "$GITHUB_STEP_SUMMARY"
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::Server deploy is required but the HF_TOKEN repository secret is missing. Add a Hugging Face write token (Settings > Secrets and variables > Actions), or set the variable SERVER_DEPLOY=skip for a website-only release."
+            echo "## Server NOT deployed: HF_TOKEN missing" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          head=$(git ls-remote "https://github.com/${{ github.repository }}.git" refs/heads/main | cut -f1)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved to ${head::7}; skipping the server deploy of ${GITHUB_SHA::7}."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$MODEL_API_KEY" ]; then
+            echo "::warning::MODEL_API_KEY is not set as a repository secret; unless the Space already has it, live seasons will offer only the scripted scientist."
+          fi
+          pip install --quiet "huggingface_hub>=0.25,<1"
+          mkdir stage
+          cp -r rel/worldlab rel/Dockerfile rel/requirements.txt rel/LICENSE stage/
+          cp rel/deploy/huggingface/README.md stage/README.md
+          find stage -name '__pycache__' -prune -exec rm -rf {} +
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ.get("HF_SPACE") or f"{api.whoami()['name']}/worldlab"
+          api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+          if os.environ.get("MODEL_API_KEY"):
+              api.add_space_secret(space, "MODEL_API_KEY", os.environ["MODEL_API_KEY"])
+              print("Space secret MODEL_API_KEY set from the repository secret")
+          api.upload_folder(folder_path="stage", repo_id=space, repo_type="space",
+                            commit_message=f"Deploy {os.environ['GITHUB_SHA'][:7]} from GitHub",
+                            delete_patterns=["worldlab/**"])
+          host = space.lower().replace("/", "-").replace("_", "-").replace(".", "-")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"## Server deployed: {os.environ['GITHUB_SHA'][:7]}\n\nhttps://huggingface.co/spaces/{space} · https://{host}.hf.space\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"deployed=true\nserver=https://{host}.hf.space\n")
+          PY
+      - name: Live check (release, guest, progress, stream and reconnect, cancel, one bounded Muse Spark start)
+        if: steps.upload.outputs.deployed == 'true'
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+        run: |
+          extra=""
+          if [ -n "$MODEL_API_KEY" ]; then extra="--spark"; fi
+          python rel/scripts/check_live.py "${{ steps.upload.outputs.server }}" --site https://moamryehia.github.io --release "$GITHUB_SHA" --wait 900 $extra
