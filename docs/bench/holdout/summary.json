@@ -22,7 +22,7 @@
    "calm_when_nothing_was_wrong": "2/2",
    "trait_error_common_mean": 0.606,
    "wall_seconds_median": 445.25,
-   "cost_usd_list_price_mean": 0.1,
+   "cost_usd_list_price_mean": 0.084,
    "scientist_calls_mean": null,
    "perception_attempts_mean": 54.0
   },
@@ -48,7 +48,7 @@
    "calm_when_nothing_was_wrong": "2/2",
    "trait_error_common_mean": 0.543,
    "wall_seconds_median": 812.5,
-   "cost_usd_list_price_mean": 1.2,
+   "cost_usd_list_price_mean": 1.248,
    "scientist_calls_mean": 38.9,
    "perception_attempts_mean": 53.2,
    "vs_reference": {

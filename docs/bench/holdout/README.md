@@ -51,7 +51,7 @@ Eight unfamiliar cases, generated once and committed **before any run**, so noth
 | Wrong findings or actions | 3 | 1 |
 | Stayed calm when nothing was wrong (control, heat wave) | 2/2 | 2/2 |
 | Unidentifiable cause escalated to a person, no false cause | yes | yes |
-| Cost per season at list price | $1.20 | $0.10 (perception only) |
+| Cost per season at list price | $1.25 | $0.08 (perception only) |
 
 **Matched difference, people fed:** Muse Spark minus scripted is **−8.7** (95% interval −31.8 to +11.2, from resampling the eight farms). Spark was ahead on 3 of 8 farms.
 
