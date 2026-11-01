@@ -363,7 +363,11 @@ class ProgressionTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in ev["chapters"]], ["discover", "strategize", "survive", "recover", "harvest"])
         self.assertTrue(ev["complete"])
         ids = {a["id"] for a in ev["achievements"]}
-        self.assertTrue({"first_sprout", "scientific_detective", "resilience_architect", "harvest_guardian"} <= ids)
+        self.assertTrue({"first_sprout", "scientific_detective"} <= ids)
+        people = self.lab.result["people_fed"]
+        self.assertEqual("harvest_guardian" in ids, people >= 450)                  # earned only from the harvest itself
+        plan_p10 = ev["metrics"]["plan_people_p10"]
+        self.assertEqual("resilience_architect" in ids, people >= plan_p10)
         fault = ev["metrics"]["faults"][0]
         self.assertTrue(fault["detected"] and fault["diagnosed"] and fault["recovered"])
         for a in ev["achievements"]:
