@@ -14,6 +14,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
   const page = async (w, h) => {
     const p = await b.newPage({ viewport: { width: w, height: h } });
     p.on("pageerror", (e) => errors.push(`${w}px: ${e.message}`));
+    p.on("console", (m) => { if (/Content Security Policy/i.test(m.text())) errors.push(`${w}px CSP: ${m.text().slice(0, 160)}`); });
     await p.addInitScript(() => { try { localStorage.setItem("wl-toured", "true"); } catch (e) {} });
     return p;
   };
@@ -93,6 +94,61 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
     check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${w}px: no horizontal page scroll`);
     await p.close();
   }
+  // judge walkthrough (P1.3): seven steps at each width, no overlap with the open view, keyboard reachable, evidence links work
+  for (const [w, h] of [[1440, 900], [1100, 760], [390, 844]]) {
+    p = await page(w, h);
+    await p.goto(`${base}/app/?demo`, { waitUntil: "load" });
+    await p.waitForFunction(() => document.getElementById("provChip").textContent.length > 5);
+    check(await p.evaluate(() => /Muse Spark · SAM 3\.1 \+ Muse Spark/.test(document.getElementById("provChip").textContent) && /^Recorded/.test(document.getElementById("runState").textContent)),
+      `${w}px: first frame says recorded, Muse Spark and Meta perception (no "Simulated" flash)`);
+    await p.click("#walkBtn");
+    const titles = [];
+    for (let i = 0; i < 7; i++) {
+      await p.waitForTimeout(250);
+      const r = await p.evaluate(() => {
+        const wk = document.getElementById("walk").getBoundingClientRect(), dr = document.getElementById("drawer");
+        const d = dr.hidden ? null : dr.getBoundingClientRect();
+        return { t: document.getElementById("walkTitle").textContent, focus: document.activeElement.id, open: !!d,
+          overlap: !!d && !(wk.right <= d.left + 1 || wk.left >= d.right - 1 || wk.bottom <= d.top + 1 || wk.top >= d.bottom - 1),
+          next: (() => { const b = document.getElementById("walkNext").getBoundingClientRect(); return b.bottom <= innerHeight && b.top >= 0; })(),
+          bad: /NaN|undefined/.test(document.getElementById("walk").textContent) };
+      });
+      titles.push(r.t);
+      check(r.open && !r.overlap && r.next && !r.bad && r.focus === "walkTitle", `${w}px walkthrough step ${i + 1} "${r.t}": view open, no overlap, controls visible, focus on the step`);
+      if (i < 6) { await p.focus("#walkNext"); await p.keyboard.press("Enter"); }
+    }
+    check(titles.join("|") === "The prediction|A surprising observation|Competing explanations|A discriminating test|A bounded action|The outcome|The comparison", `${w}px: walkthrough covers prediction to comparison`);
+    await p.click("#walkBack"); await p.waitForTimeout(200);
+    await p.locator("#walk [data-entry]").first().click(); await p.waitForTimeout(250);
+    check(await p.evaluate(() => location.hash === "#agent/ledger" && /^#\d+$/.test(document.getElementById("ledgerQ").value) && document.querySelectorAll("#drawerBody tbody tr").length === 1),
+      `${w}px: an evidence link opens that ledger entry`);
+    check(await p.isVisible("#walk"), `${w}px: the walkthrough stays available while you look at the evidence`);
+    await p.close();
+  }
+  // spoiler-free by default: the scheduled clog stays hidden until the scientist identifies it; explained mode shows it at once
+  for (const explained of [false, true]) {
+    p = await page(1440, 900);
+    await p.addInitScript((x) => { try { localStorage.setItem("wl-explained", JSON.stringify(x)); } catch (e) {} }, explained);
+    await p.goto(`${base}/app/?demo`, { waitUntil: "load" });
+    await p.waitForFunction(() => document.getElementById("provChip").textContent.length > 5);
+    const seen = [];
+    for (let v = 0; v <= 1000; v += 10) {
+      await p.$eval("#dateScrub", (s, v) => { s.value = v; s.dispatchEvent(new Event("input")); }, v);
+      const c = await p.evaluate(() => window.__wlCheck());
+      if (c.hidden && !seen.length) seen.push(["scheduled", c.day, c.shown]);
+      if (c.shown && seen.length < 2) seen.push(["shown", c.day]);
+    }
+    const early = seen[0] && seen[0][2] > 0;
+    check(explained ? early : !early && seen[1] && seen[1][1] >= 116, `${explained ? "explained" : "spoiler-free"} replay: hidden change ${explained ? "shown when it happens" : `hidden until the repair (shown from day ${seen[1] && seen[1][1]})`}`);
+    await p.close();
+  }
+  // offline evidence (P1.4): the bundle linked from the ledger downloads
+  p = await page(1280, 800);
+  await p.goto(`${base}/app/?demo#agent/ledger`, { waitUntil: "load" }); await p.waitForTimeout(1500);
+  const href = await p.$eval('#drawerBody a[href$="worldlab-evidence.zip"]', (a) => a.href).catch(() => null);
+  const resp = href && await p.request.get(href);
+  check(resp && resp.ok() && (await resp.body()).length > 5000, "the audit ledger links a downloadable evidence bundle");
+  await p.close();
   check(!errors.length, `no script errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
   await b.close();
   if (fail.length) { console.log(`\n${fail.length} check(s) failed`); process.exit(1); }

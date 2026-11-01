@@ -16,7 +16,8 @@ import threading
 import time
 from pathlib import Path
 
-SESSION_DAYS = 14
+SESSION_DAYS = 7                      # same-origin cookie sessions
+BEARER_SESSION_S = 24 * 3600          # sessions whose token is handed to another origin (the GitHub Pages site)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1, "dklen": 32}
 

@@ -10,8 +10,11 @@ export const PAGES = {
 };
 const KEY = "worldlab_token";
 
-export function token() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
-export function setToken(t) { try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked */ } }
+// The token lives in sessionStorage: it is gone when the tab closes, and the server gives cross-origin logins a
+// 24-hour session. (Earlier builds kept it in localStorage; that copy is removed.)
+try { localStorage.removeItem(KEY); } catch (e) { /* storage blocked */ }
+export function token() { try { return sessionStorage.getItem(KEY); } catch (e) { return null; } }
+export function setToken(t) { try { if (t) sessionStorage.setItem(KEY, t); else sessionStorage.removeItem(KEY); } catch (e) { /* storage blocked */ } }
 
 export function api(path, { method = "GET", body, headers = {}, timeout, ...rest } = {}) {
   const h = { ...headers };

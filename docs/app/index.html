@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-3qPOd8osY8FUpkcYYGKrbrYJPo0fIrYJnmI1f60FVxg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://moamryehia-worldlab.hf.space https://*.hf.space https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://moamryehia-worldlab.hf.space https://*.hf.space">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Farm simulator | WorldLab: Green Frontier</title>
 <meta name="description" content="Watch a recorded desert farming season in 3D: an AI scientist experiments, detects a clogged drip line, finds the cause and recovers. No account needed.">
@@ -27,8 +28,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=3481ce85d1">
-<script src="../config.js?v=3481ce85d1"></script>
+<link rel="stylesheet" href="style.css?v=161ae7d94d">
+<script src="../config.js?v=161ae7d94d"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -91,6 +92,7 @@
     <span class="tp-date" id="tpDate">Before sowing</span>
     <button class="ghost sm" id="jumpIncident" type="button">Incident</button>
     <button class="ghost sm" id="jumpHarvest" type="button">Harvest</button>
+    <button class="ghost sm" id="walkBtn" type="button" hidden>Walkthrough</button>
   </div>
   <div class="tp-ctrl" id="liveControls" hidden>
     <span class="tp-date" id="tpDateLive"></span>
@@ -102,6 +104,8 @@
   <button class="primary sm" id="reportBtn" type="button" hidden>Harvest report</button>
   <span class="tp-metrics" id="tpMetrics"></span>
 </div>
+
+<section class="panel walk" id="walk" role="region" aria-label="Judge walkthrough" aria-live="polite" hidden></section>
 
 <div class="incident" id="incident" role="alert" hidden>
   <span class="dot" aria-hidden="true"></span><b>Incident detected</b><span id="incidentText"></span>
@@ -122,6 +126,7 @@
       <a class="ghost" id="demoCta" href="signup">Start your own farm</a>
     </div>
     <p class="note" id="modeNote"></p>
+    <p class="note spoiler" id="spoilerNote" hidden></p>
   </div>
 </aside>
 
@@ -260,6 +265,8 @@
   <label class="check"><input type="checkbox" id="labelsChk" checked> Field labels</label>
   <label class="check"><input type="checkbox" id="followChk" checked> Camera follows events</label>
   <label class="ov-mobile">Overlay <select id="ovSel"><option value="">Realistic</option><option value="health">Canopy vs model</option><option value="moisture">Soil moisture</option><option value="salinity">Salinity</option><option value="water">Irrigation</option></select></label>
+  <label class="check"><input type="checkbox" id="explainedChk"> Explained replay: show hidden changes as they happen</label>
+  <p class="note">Off (spoiler-free): a scheduled hidden change appears only once the scientist identifies it or the season ends.</p>
   <button class="ghost sm" id="tourBtn" type="button">Replay the guided tour</button>
   <p class="note">Keys: 1–6 fields, O overview, D drone, R reset, V overlay, I close-up, Space play or pause, [ and ] previous and next event. Mouse: drag to orbit, scroll to zoom, right-drag to pan. Touch: drag, pinch, two-finger pan.</p>
 </div>
@@ -325,6 +332,6 @@
 <div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
 <div class="tip" id="tip" hidden role="tooltip"></div>
 
-<script type="module" src="app.js?v=3481ce85d1"></script>
+<script type="module" src="app.js?v=161ae7d94d"></script>
 </body>
 </html>
