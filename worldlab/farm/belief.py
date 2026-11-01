@@ -89,8 +89,32 @@ def _residuals(sim, K, T, obs: list[dict]):
 
 
 def calibrate(belief: CropBelief, prior: tuple[np.ndarray, np.ndarray], trials: list[dict],
-              obs: list[dict], wxs: list[dict], iters: int = 12) -> dict:
-    """Damped Gauss-Newton MAP fit of the four traits to all trials of this crop."""
+              obs: list[dict], wxs: list[dict], iters: int = 12, starts: list[np.ndarray] | None = None) -> dict:
+    """MAP fit of the four traits to all trials of this crop: damped Gauss-Newton from several starting points
+    (the belief's current mean, the prior mean and any given starts), keeping the fit with the lowest total cost.
+    A single start can stall in a poor local optimum: on farm 204 (benchmark v2) one start put sweet potato's salt
+    shift at +0.26 dS/m with a cost 13 times higher than near the truth (-1.42), and the plan then trusted it."""
+    cands = [belief.mean.copy(), prior[0].copy()] + [np.asarray(x, float).copy() for x in (starts or [])]
+    uniq = []
+    for c in cands:
+        if not any(np.allclose(c, u) for u in uniq):
+            uniq.append(c)
+    best = None
+    for c in uniq:
+        b = CropBelief(belief.crop)
+        b.mean, b.cov = c, prior[1].copy()
+        r = _calibrate_once(b, prior, trials, obs, wxs, iters)
+        if best is None or r["cost"] < best[1]["cost"]:
+            best = (b, r)
+    b, r = best
+    belief.mean, belief.cov, belief.n_plots, belief.rmse_cc, belief.yield_err = b.mean, b.cov, b.n_plots, b.rmse_cc, b.yield_err
+    r["starts"] = len(uniq)
+    return r
+
+
+def _calibrate_once(belief: CropBelief, prior: tuple[np.ndarray, np.ndarray], trials: list[dict],
+                    obs: list[dict], wxs: list[dict], iters: int = 12) -> dict:
+    """Damped Gauss-Newton MAP fit from the belief's current mean."""
     mu0, cov0 = prior
     L = np.linalg.cholesky(np.linalg.inv(cov0))
     h = np.array([0.02, 0.03, 0.25, 0.2])
@@ -135,7 +159,8 @@ def calibrate(belief: CropBelief, prior: tuple[np.ndarray, np.ndarray], trials: 
     yerr = [float(sim.fresh_yield()[i] / max(o["yield_t_ha"], 0.05) - 1) for i, o in enumerate(obs)]
     belief.rmse_cc = round(float(np.mean(errs)), 4)
     belief.yield_err = round(100 * float(np.mean(np.abs(yerr))), 1)
-    return {"crop": belief.crop, "chi2": round(chi2, 2), "cc_rmse": belief.rmse_cc, "yield_err_pct": belief.yield_err}
+    return {"crop": belief.crop, "chi2": round(chi2, 2), "cc_rmse": belief.rmse_cc, "yield_err_pct": belief.yield_err,
+            "cost": round(cost, 3)}
 
 
 def trial_information(belief: CropBelief, trial: dict, wx_typ: dict, reference: dict | None = None) -> dict:

@@ -23,7 +23,7 @@ from .farm.drone_render import IW as IMG_W, IH as IMG_H
 from .farm import weather as WX
 from .farm.belief import CropBelief, calibrate, trial_information, typical_year, predict_trials
 from .farm.crops import CROPS, CROP_IDS, NUTRIENTS, NEEDS, TRAITS, TRAIT_IDS, nutrients_per_ha, people_fed
-from .farm.optimize import evaluate, optimise, allowed_options, MG_KEYS
+from .farm.optimize import evaluate, optimise, allowed_options, nutrient_risk, MG_KEYS
 from .farm import seasons as SEASONS
 from .farm.sim import Sim, crop_arrays, soil_arrays, DRIP_EFF_NOMINAL, LEACH_FRACTION, PRE_IRRIGATION_MM, KWH_PUMP, KWH_DESAL, cap_to_budget
 from .farm.world import Farm, FIELDS, FIELD_HA, EC_GROUNDWATER
@@ -165,6 +165,12 @@ class Lab:
         self.day = 0
         self.anomaly: dict | None = None
         self.anomalies: list[dict] = []
+        # repeated alarms: how many alarms each (field, signal) raised since the last action that addressed that field;
+        # at ESCALATE_AFTER the scientist must make an explicit escalation decision before the season can advance
+        self.alarm_streak: dict[tuple[str, str], int] = {}
+        self.escalation_needed: dict | None = None
+        self.escalation_pending: dict | None = None     # an escalation that still needs its action (a test, a water change)
+        self.muted: set[tuple[str, str]] = set()        # accepted losses: their alarms are logged but no longer stop the season
         self.done = False
         self.stop_flag = threading.Event()
         self._ids = {"H": 0, "C": 0, "P": 0, "R": 0}
@@ -443,12 +449,29 @@ class Lab:
             b = self.beliefs[c]
             before = b.to_json()
             data = self.trial_data[c]
+            prev_mean, prev_sd = b.mean.copy(), np.sqrt(np.diag(b.cov)).copy()
+            rng = np.random.default_rng(len(data) * 7919 + CROP_IDS.index(c))
+            draws = [rng.multivariate_normal(self.priors[c][0], self.priors[c][1]) for _ in range(2)]
             b.mean, b.cov = self.priors[c][0].copy(), self.priors[c][1].copy()
-            fit = calibrate(b, self.priors[c], [d[0] for d in data], [d[1] for d in data], [d[2] for d in data])
+            fit = calibrate(b, self.priors[c], [d[0] for d in data], [d[1] for d in data], [d[2] for d in data],
+                            starts=[prev_mean] + draws)
+            # a refit that contradicts the previous posterior by more than 3 sd: keep the doubt instead of trusting
+            # either answer (the posterior is widened to cover the jump), and say so
+            jump = np.abs(b.mean - prev_mean) / np.maximum(prev_sd, 1e-6)
+            unstable = [k for i, k in enumerate(TRAIT_IDS) if len(data) > 1 and prev_sd[i] < 0.9 * np.sqrt(self.priors[c][1][i, i]) and jump[i] > 3]
+            for k in unstable:
+                i = TRAIT_IDS.index(k)
+                b.cov[i, i] = max(b.cov[i, i], float(b.mean[i] - prev_mean[i]) ** 2)
             after = b.to_json()
-            table.append({"crop": c, "plots": len(data), "cc_rmse": fit["cc_rmse"], "yield_err_pct": fit["yield_err_pct"],
-                          "traits": {k: {"mean": after["traits"][k]["mean"], "sd": after["traits"][k]["sd"],
-                                         "sd_before": before["traits"][k]["sd"]} for k in TRAIT_IDS}})
+            row = {"crop": c, "plots": len(data), "cc_rmse": fit["cc_rmse"], "yield_err_pct": fit["yield_err_pct"],
+                   "fit_starts": fit.get("starts"),
+                   "traits": {k: {"mean": after["traits"][k]["mean"], "sd": after["traits"][k]["sd"],
+                                  "sd_before": before["traits"][k]["sd"]} for k in TRAIT_IDS}}
+            if unstable:
+                row["unstable_traits"] = unstable
+                row["note"] = (f"the refit moved {', '.join(unstable)} by more than 3 sd from the previous estimate; the uncertainty "
+                               "was widened to cover both, so plans treat it as uncertain. A plot that exposes the trait would settle it.")
+            table.append(row)
         self._log("model_update", {"rationale": rationale, "crops": table})
         self._publish_beliefs()
         return {"updated": table, "note": "traits: wp and cgc are multipliers (1 = published value), heat and salt are "
@@ -495,26 +518,57 @@ class Lab:
         if untested:
             rec["note"] = (f"the plan relies on crops never trialled on this farm: {', '.join(untested)}; their predictions "
                            "rest on published values only. Consider trialling them before committing.")
+        # nutrient risk before anything is sown: what hangs on one field, and a backup that spreads it
+        risk = nutrient_risk(ev, plan, self.fields, self.beliefs)
+        rec["nutrient_risk"] = risk
+        backup = None
+        if risk.get("level") == "high":
+            alt = optimise(ev, L.water_quota_m3, L.energy_kwh, allowed=allowed, robust=0.5)
+            alt_risk = nutrient_risk(ev, alt, self.fields, self.beliefs)
+            if alt_risk["if_worst_field_fails_p10"] > risk["if_worst_field_fails_p10"] + 1:
+                bid = self._id("P")
+                backup = {"plan_id": bid, **{k: v for k, v in alt.items() if k != "fed_samples"}, "nutrient_risk": alt_risk,
+                          "backup_for": pid, "rationale": "backup allocation that spreads the concentrated nutrient",
+                          "people_p10_if_traits_known": None, "cost_of_uncertainty_people": None, "untested_crops":
+                          sorted({f["crop"] for f in alt["fields"] if f.get("crop") and not self.trial_data[f["crop"]]})}
+                self.plans[bid] = backup
+                risk["backup_plan_id"] = bid
+                risk["backup"] = {"people_p10": alt["people_p10"], "if_worst_field_fails_p10": alt_risk["if_worst_field_fails_p10"],
+                                  "fields": [{"field": f["field"], "crop": f["crop"]} for f in alt["fields"]]}
+            risk["required"] = ("start_season will ask you to choose: start the backup plan, or start this plan with "
+                                "accept_nutrient_risk giving the evidence that the concentrated field's management is feasible")
         self.plans[pid] = rec
         self.season_plan = rec
         if self.phase == "trials":
             self.phase = "planning"
         self.bus.publish("plan", {**rec, "day": self.day, "fed_samples": plan["fed_samples"]})
         self._log("plan", rec)
+        if backup:
+            self._log("plan", backup)
         self._status()
         return rec
 
     # ============================================================ season
-    def start_season(self, plan_id: str, rationale: str, controller: str = "rule") -> dict:
+    def start_season(self, plan_id: str, rationale: str, controller: str = "rule", accept_nutrient_risk: str | None = None) -> dict:
         p = self.plans.get(plan_id)
         if not p:
             return {"refused": f"unknown plan {plan_id}"}
+        risk = p.get("nutrient_risk") or {}
+        if risk.get("level") == "high" and not (accept_nutrient_risk or "").strip() and self.phase not in ("season", "harvested"):
+            return {"refused": "this plan hangs a nutrient on one field: " + risk.get("explanation", ""),
+                    "nutrient_risk": risk,
+                    "options": ([f"start the backup plan {risk['backup_plan_id']}"] if risk.get("backup_plan_id") else []) +
+                               ["start this plan with accept_nutrient_risk: the evidence that the concentrated field's crop and "
+                                "management will work (trial results, salt margin, water and energy to spare)"]}
         if self.phase in ("season", "harvested"):
             return {"refused": "already started"}
         if controller not in ("rule", "rl_policy"):
             return {"refused": "controller must be rule or rl_policy"}
         if controller == "rl_policy" and not (self.policy and self.policy["plan_id"] == plan_id):
             return {"refused": f"no irrigation policy trained for {plan_id}; call train_irrigation_policy first"}
+        if risk.get("level") == "high":
+            self._log("risk_decision", {"plan_id": plan_id, "accepted_with": (accept_nutrient_risk or "").strip() or None,
+                                        "if_worst_field_fails_p10": risk.get("if_worst_field_fails_p10"), "worst_field": risk.get("worst_field")})
         self.controller = controller
         self.run_plan_id = plan_id
         fields = []
@@ -701,6 +755,7 @@ class Lab:
             if self.phase == "season" and self.policy["plan_id"] != self.run_plan_id:
                 return {"refused": "the trained policy belongs to a different plan"}
         self.controller = controller
+        self._addressed("all")
         self._log("controller", {"controller": controller, "day": self.day, "rationale": rationale})
         self._status()
         return {"controller": controller, "from_day": self.day}
@@ -712,6 +767,21 @@ class Lab:
         if self.anomaly:
             return {"refused": "an anomaly is open: investigate, then update_model with what you found, or "
                                "dismiss_anomaly if it was noise", "anomaly": self.anomaly}
+        if self.escalation_needed:
+            e = self.escalation_needed
+            return {"refused": f"{e['field']} has raised {e['alarms']} {e['signal']} alarms without a fix. Dismissing and advancing "
+                               "again is not a resolution: call escalate with a decision (more_evidence, revise_controller, "
+                               "reallocate_water, human_review or accept_loss) and say whether the cause is a physical fault, a "
+                               "model limitation or unknown.", "escalation_required": e}
+        if self.escalation_pending:
+            p = self.escalation_pending
+            if p["need"] == "evidence" and any(x["kind"] in ("field_test", "look") and x["data"].get("field") == p["field"]
+                                               for x in self.ledger.entries[p["since"]:]):
+                self.escalation_pending = None
+            else:
+                return {"refused": f"the escalation for {p['field']} still needs its action: "
+                                   + ("a field test or drone look on that field" if p["need"] == "evidence" else "a change to its water"),
+                        "escalation_pending": p}
         days = int(max(1, min(days, self.limits.max_advance_days)))
         self._log("advance", {"days": days, "from_day": self.day, "rationale": rationale})
         stop_reason = "days elapsed"
@@ -838,11 +908,64 @@ class Lab:
                                                  "day": d, "kind": "survey", "canopy_cover_measured": fr["cc_obs"],
                                                  "canopy_cover_predicted": fr["cc_pred"],
                                                  "image": f"data:{self.farm.image_mime};base64," + base64.b64encode(img).decode()})
+        if alarm and (alarm["field"], alarm["signal"]) in self.muted:
+            self._log("alarm_muted", {**alarm, "note": "this field and signal were accepted as a loss; logged, not stopped"})
+            alarm = None
         if alarm:
+            key = (alarm["field"], alarm["signal"])
+            self.alarm_streak[key] = self.alarm_streak.get(key, 0) + 1
+            alarm["repeat"] = self.alarm_streak[key]
             self.anomaly = alarm
             self.anomalies.append(alarm)
             self._log("anomaly", alarm)
+            if self.alarm_streak[key] >= self.ESCALATE_AFTER:
+                self.escalation_needed = {"field": alarm["field"], "signal": alarm["signal"], "alarms": self.alarm_streak[key]}
         return alarm
+
+    ESCALATE_AFTER = 3
+    ESCALATIONS = ("more_evidence", "revise_controller", "reallocate_water", "human_review", "accept_loss")
+
+    def _addressed(self, field: str | None):
+        """An action addressed this field (or every field): its alarm streaks start again."""
+        for k in list(self.alarm_streak):
+            if field in (None, "all") or k[0] == field:
+                self.alarm_streak.pop(k, None)
+        p = self.escalation_pending
+        if p and (field in (None, "all") or p["field"] == field) and p["need"] == "water":
+            self.escalation_pending = None
+
+    def escalate(self, field: str, decision: str, cause: str, rationale: str) -> dict:
+        """The explicit decision required after repeated unresolved alarms on one field."""
+        i = self._fi(field)
+        if i is None or decision not in self.ESCALATIONS or cause not in ("physical_fault", "model_limitation", "unknown"):
+            return {"error": f"field F1-F6, decision one of {self.ESCALATIONS}, cause physical_fault, model_limitation or unknown"}
+        fid = FIELDS[i]["id"]
+        need = self.escalation_needed
+        sig = need["signal"] if need and need["field"] == fid else None
+        rec = {"field": fid, "decision": decision, "cause": cause, "rationale": rationale, "day": self.day,
+               "after_alarms": need["alarms"] if need and need["field"] == fid else None}
+        if decision == "more_evidence":
+            self.escalation_pending = {"field": fid, "need": "evidence", "since": len(self.ledger.entries)}
+            rec["next"] = "run a field test or a drone look on this field before advancing"
+        elif decision == "reallocate_water":
+            self.escalation_pending = {"field": fid, "need": "water"}
+            rec["next"] = "change this field's water (adjust_field) or rebalance_water before advancing"
+        elif decision == "revise_controller":
+            rec["next"] = "set_irrigation_controller or adjust this field's irrigation"
+            self.escalation_pending = {"field": fid, "need": "water"}
+        elif decision == "human_review":
+            self.request_review(fid, f"Repeated alarms on {fid} ({sig or 'several signals'}) that the scientist could not resolve.", rationale)
+        elif decision == "accept_loss":
+            if sig:
+                self.muted.add((fid, sig))
+            rec["note"] = ("the loss is accepted and stated; further alarms on this field and signal are logged without stopping "
+                           "the season")
+        if need and need["field"] == fid:
+            self.escalation_needed = None
+            self.alarm_streak.pop((fid, need["signal"]), None)
+        self._log("escalation", rec)
+        self._status()
+        return {"ok": True, **rec}
 
     def _cusum(self, i, sig, resid, sd, effect, k, h, d):
         z = resid / sd if abs(resid) >= effect else 0.0
@@ -1098,6 +1221,7 @@ class Lab:
                 self.anomaly = None
             self._reset_monitor()
         self._build_ensemble()
+        self._addressed(FIELDS[i]["id"])
         self._log("adjust", {"rationale": rationale, **out})
         return out
 
@@ -1131,6 +1255,7 @@ class Lab:
         self.anomaly = None
         self._build_ensemble()
         self._reset_monitor()
+        self._addressed(fid)
         self._log("model_update", {"rationale": rationale, "finding": finding, "field": fid,
                                    "value": value, "since_day": since, "resolved_anomaly": resolved})
         self._status()
@@ -1147,6 +1272,7 @@ class Lab:
         continues; the request and its evidence are in the ledger for whoever reviews the run."""
         i = self._fi(field) if field not in (None, "all") else None
         fid = FIELDS[i]["id"] if i is not None else "all"
+        self._addressed(fid)
         self._log("review_requested", {"field": fid, "question": question, "evidence": evidence, "day": self.day,
                                        "open_anomaly": self.anomaly})
         return {"ok": True, "note": "logged for human review (an agronomist or a lab test outside this toolset); the season continues"}
@@ -1297,6 +1423,7 @@ class Lab:
         out = {"fields": changes, "people_p10_before": round(float(np.percentile(before, 10)), 1),
                "people_p10_after": round(float(np.percentile(after, 10)), 1), "water_left_m3": round(quota_left),
                "future_water_p90_m3": round(float(np.percentile(sum(w[g, choice[g]] for g in range(NF)), 90)))}
+        self._addressed("all")
         self._log("rebalance", {"rationale": rationale, **out})
         self.project()
         return out
