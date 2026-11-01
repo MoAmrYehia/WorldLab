@@ -84,7 +84,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       // planner: preview mode is declared before planning, and a draft survives a reload
       await p.click("#tryPlanBtn"); await p.waitForTimeout(500);
       check(await p.isVisible("#previewBanner"), "planner declares preview mode up front");
-      check(await p.evaluate(() => document.querySelectorAll("#scenarioSel option").length === 7 && /Baseline/.test(document.getElementById("plFarmSum").textContent)), "planner offers the scenario library and farm editor");
+      check(await p.evaluate(() => document.querySelectorAll("#scenarioSel option").length === 8 && /Baseline/.test(document.getElementById("plFarmSum").textContent)), "planner offers the scenario library and farm editor");
       await p.selectOption('#fieldRows select[data-i="5"]', "c:maize"); await p.waitForTimeout(200);
       check(await p.evaluate(() => /yield only/.test(document.getElementById("fieldRows").textContent)), "poor crop choice is explained (maize on F6)");
       await p.reload({ waitUntil: "load" }); await p.waitForTimeout(1500);
