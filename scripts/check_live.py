@@ -97,9 +97,10 @@ def main():
     while True:
         try:
             st, d, _ = req(base, "/api/ready")
-            if st == 200 and d.get("ready"):
+            got = str((d.get("release") or {}).get("sha") or "")
+            if st == 200 and d.get("ready") and (not a.release or got.startswith(a.release[:7])):
                 break
-            last = f"HTTP {st}"
+            last = f"HTTP {st}, release {got[:7] or 'unknown'}"     # a host that builds from git may still be on the previous commit
         except Exception as e:
             last = e
         if time.time() - t0 > a.wait:

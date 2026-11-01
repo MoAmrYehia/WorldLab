@@ -1,0 +1,19 @@
+# Render Blueprint: the WorldLab server as a free Docker web service, built from main.
+# In Render: New > Blueprint > pick this repository. Then set MODEL_API_KEY in the service's Environment tab.
+# Free instances sleep after about 15 minutes without traffic and take about a minute to wake; the website waits for it.
+services:
+  - type: web
+    name: worldlab
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: MODEL_API_KEY
+        sync: false
+      - key: WORLDLAB_ALLOWED_ORIGINS
+        value: https://moamryehia.github.io
+      - key: WORLDLAB_MAX_RUNS            # a free instance is small: one season at a time
+        value: "1"

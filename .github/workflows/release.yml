@@ -5,9 +5,13 @@
 #   that main still points at this commit before publishing, so an older build can never replace a newer one.
 # - The commit is stamped into the site (build.json, shown in the app's View settings) and into the server
 #   (worldlab/release.json, returned by /api/ready), so anyone can see which release is live.
-# - The server deploy is REQUIRED by default: if the HF_TOKEN secret is missing the job fails, instead of reporting a
-#   green run that deployed nothing. To publish the website only (an explicit showcase release), set the repository
-#   variable SERVER_DEPLOY to "skip"; the run summary then says the server was deliberately not deployed.
+# - Where the server runs is explicit, set by the repository variable SERVER_DEPLOY:
+#     huggingface (default)  upload to a Hugging Face Docker Space (needs the HF_TOKEN secret; free accounts can no
+#                            longer host Docker Spaces, so this needs Hugging Face PRO)
+#     render                 Render builds and deploys main itself (render.yaml); this workflow waits until the server
+#                            at WORLDLAB_SERVER reports this commit, then runs the live check
+#     skip                   website only, said explicitly in the run summary
+#   A required deploy that can't happen fails the job, instead of reporting a green run that deployed nothing.
 #
 # Secrets: HF_TOKEN (Hugging Face write token), optional MODEL_API_KEY (copied into the Space for Muse Spark).
 # Variables: HF_SPACE (default <hf user>/worldlab), WORLDLAB_SERVER (override the server address), SERVER_DEPLOY.
@@ -134,10 +138,20 @@ jobs:
           HF_SPACE: ${{ vars.HF_SPACE }}
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
           SERVER_DEPLOY: ${{ vars.SERVER_DEPLOY }}
+          WORLDLAB_SERVER: ${{ vars.WORLDLAB_SERVER }}
         run: |
           if [ "$SERVER_DEPLOY" = "skip" ]; then
             echo "## Server deliberately not deployed (SERVER_DEPLOY=skip): showcase release, website only" >> "$GITHUB_STEP_SUMMARY"
             echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$SERVER_DEPLOY" = "render" ]; then
+            if [ -z "$WORLDLAB_SERVER" ]; then
+              echo "::error::SERVER_DEPLOY=render needs the repository variable WORLDLAB_SERVER (the Render service address, e.g. https://worldlab-xxxx.onrender.com)."
+              exit 1
+            fi
+            echo "## Server: Render deploys main itself; waiting for ${WORLDLAB_SERVER} to report ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"
+            printf 'deployed=true\nserver=%s\n' "${WORLDLAB_SERVER%/}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -z "$HF_TOKEN" ]; then
@@ -184,4 +198,4 @@ jobs:
         run: |
           extra=""
           if [ -n "$MODEL_API_KEY" ]; then extra="--spark"; fi
-          python rel/scripts/check_live.py "${{ steps.upload.outputs.server }}" --site https://moamryehia.github.io --release "$GITHUB_SHA" --wait 900 $extra
+          python rel/scripts/check_live.py "${{ steps.upload.outputs.server }}" --site https://moamryehia.github.io --release "$GITHUB_SHA" --wait 1500 $extra
