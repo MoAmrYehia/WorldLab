@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=ade89bcd05";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=f3621d8e7e";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -391,6 +391,9 @@ function streamItem(e) {
     case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.recalibrate_sensor ? `recalibrates the soil-moisture sensor${d.recalibrate_sensor.offset_found_m3m3 ? ` (it was off by ${d.recalibrate_sensor.offset_found_m3m3 > 0 ? "+" : ""}${d.recalibrate_sensor.offset_found_m3m3} m³/m³)` : ""}` : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
     case "rebalance": return ["decide", `Re-plans water: ${d.people_p10_before} → ${d.people_p10_after} people in a bad year`, ""];
     case "anomaly_dismissed": return ["decide", "Dismisses the alarm", why(d.rationale)];
+    case "risk_decision": return ["decide", d.accepted_with ? `Accepts the nutrient risk of plan ${d.plan_id}` : `Starts the backup plan ${d.plan_id}${d.backup_for ? ` instead of ${d.backup_for}` : ""}`, why(d.accepted_with ? `If ${d.worst_field} failed: ${fmt(d.if_worst_field_fails_p10)} people. Evidence: ${d.accepted_with}` : "Spreads the concentrated nutrient over more fields")];
+    case "escalation": return ["alarm", `Escalates ${d.field}: ${String(d.decision).replace(/_/g, " ")}`, why(`Cause: ${String(d.cause).replace(/_/g, " ")}. ${d.rationale}`)];
+    case "alarm_muted": return null;
     case "review_requested": return ["alarm", `Asks a person to review ${d.field === "all" ? "the farm" : d.field}: cause not established`, why(`${d.question} Evidence: ${d.evidence}`)];
     case "decision_request": return ["decide", `Asks you: ${esc(d.question)}`, why(`The scientist would choose: ${(d.options.find((o) => o.id === d.default) || {}).label || d.default}`)];
     case "human_decision": return ["decide", `${d.by === "you" ? "You chose" : "No answer; the scientist's choice used"}: ${esc(d.choice.replace(/_/g, " "))}`, why(d.override ? "This overrides the scientist's own choice and is recorded as yours." : "")];
@@ -934,7 +937,19 @@ function planHtml() {
   const cmp = p.scientist_choice ? (p.scientist_choice.people_p10 > p.people_p10 ? ` With a free choice of crops the scientist would feed ${fmt(p.scientist_choice.people_p10)}.` : " The scientist found no crop mix that does better than your picks.") : "";
   return `<p style="margin:0 0 10px">Plan ${p.plan_id} feeds <b>${fmt(p.people_p10)}</b> people in a bad year (10th percentile) and ${fmt(p.people_p50)} in a typical one. Not knowing the varieties exactly costs ${fmt(p.cost_of_uncertainty_people)} people.${cmp}</p>
     <table><thead><tr><th>Field</th><th>Crop</th><th>Sowing</th><th class="n">Irrigation</th><th class="n">Desalinated</th><th class="n">Nitrogen</th><th class="n">Yield, t/ha: bad, typical, good year</th></tr></thead><tbody>${p.fields.map((f, i) => f.crop ? `<tr><td>${f.field} ${NAMES[i]}</td><td>${crop(f.crop)}${f.farmer_choice ? ' <span class="pill rl">your pick, locked</span>' : ""}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="n">${Math.round(f.mgmt.irr * 100)}% of demand</td><td class="n">${Math.round(f.mgmt.desal * 100)}%</td><td class="n">${fmt(f.mgmt.nfert)} kg/ha</td><td class="n">${f.yield_t_ha_p10_p50_p90.map(yfmt).join(", ")}</td></tr>` : `<tr><td>${f.field} ${NAMES[i]}</td><td colspan="6" style="color:var(--ink-3)">Left fallow</td></tr>`).join("")}</tbody></table>
+    ${riskHtml(p)}
     <p class="note">The irrigation policy then adjusts the daily schedule if one is deployed (see Research). ${open}</p>`;
+}
+function riskHtml(p) {
+  const r = p.nutrient_risk;
+  if (!r || !r.level || r.level === "none") return "";
+  const dec = S.events.filter((e) => e.kind === "risk_decision").pop();
+  const lbl = { high: "High: one field carries a nutrient", watch: "Watch: a nutrient is concentrated", low: "Low" }[r.level] || r.level;
+  const conc = (r.concentrated || []).map((c) => `${c.field} ${crop(c.crop)} carries ${Math.round(c.share * 100)}% of the ${({ kcal: "calories", protein_g: "protein", vitA_ug: "vitamin A" })[c.nutrient] || c.nutrient}${c.topsoil_ece_dS_m != null ? `; topsoil salinity ${fmt(c.topsoil_ece_dS_m, 1)} dS/m against a believed salt threshold of ${fmt(c.believed_salt_threshold_dS_m, 2)} dS/m (2 sd: ${c.threshold_2sd_range.map((x) => fmt(x, 2)).join(" to ")}), ${Math.round(c.desal_blend * 100)}% desalinated water` : ""}`).join(". ");
+  return `<h3 style="margin:14px 0 4px">Nutrient risk before sowing: ${esc(lbl)}</h3>
+    <p style="margin:0">${esc(r.explanation || "")} ${conc ? esc(conc) + "." : ""}</p>
+    ${r.backup ? `<p class="note">Backup plan ${esc(r.backup_plan_id)}: ${fmt(r.backup.people_p10)} people in a bad year, ${fmt(r.backup.if_worst_field_fails_p10)} if its worst field fails (${r.backup.fields.filter((f) => f.crop).map((f) => `${f.field} ${crop(f.crop)}`).join(", ")}).</p>` : ""}
+    ${dec ? `<p class="note">Decision: ${dec.data.accepted_with ? `plan ${esc(dec.data.plan_id)} started with the risk accepted. Evidence given: ${esc(dec.data.accepted_with)}` : `the backup plan ${esc(dec.data.plan_id)} was started`}.</p>` : ""}`;
 }
 function versionsHtml() {
   const vs = S.events.filter((e) => e.kind === "plan" || e.kind === "rebalance" || e.kind === "farmer_choices");
@@ -1873,8 +1888,8 @@ function walkSteps() {
         return r ? `The harvest feeds <b>${fmt(r.people_fed, 1)} people</b> (modelled person-years; the farm goal is 500), using ${fmt(r.water_used_m3)} m³ of water and ${fmt(r.energy_used_kwh)} kWh, ${r.within_quota && r.within_energy ? "within both limits" : "outside a limit"}. ${F && F.recovery && F.recovery.ok ? `Physical recovery in ${esc(A.field)} was observed on ${dayLabel(F.recovery.day)}, ${F.recovery.lag} days after the repair, from measurements alone.` : ""} The complete raw ledger of this run is in the <a href="evidence/worldlab-evidence.zip" download>evidence bundle</a>, with a verifier that runs offline.` : "The season has no harvest record."; },
       evidence: () => [evLink(res, "Season result")] },
     { title: "The comparison", view: ["results", "compare"], at: null,
-      body: () => `Compare lists each experiment with what was held fixed and what changed. On the same farm and weather, the hidden clog costs the scripted scientist 6.9 people fed (492.0 without it, 485.1 with it), and investigating alarms is worth 7.6 (464.9 against 457.3 when alarms are ignored). Across five farms and five scenarios (benchmark v2, every run kept), Muse Spark diagnosed 14 of 15 hidden faults with no wrong calls, but fed 30 fewer people than the scripted protocol on average (441.1 against 471.3; 95% interval −59 to −2): its crop plans are weaker. On eight frozen, unfamiliar farms both scientists diagnosed 5 of 7 faults and handed a cause no test could establish to a person.`,
-      evidence: () => [`<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/v2" target="_blank" rel="noopener">Benchmark v2</a>`, `<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/holdout" target="_blank" rel="noopener">Frozen holdout</a>`] },
+      body: () => `Compare lists each experiment with what was held fixed and what changed. On the same farm and weather, the hidden clog costs the scripted scientist 6.9 people fed (492.0 without it, 485.1 with it), and investigating alarms is worth 7.6 (464.9 against 457.3 when alarms are ignored). Across five farms and five scenarios (benchmark v2, every run kept), Muse Spark diagnosed 14 of 15 hidden faults with no wrong calls, but fed 30 fewer people than the scripted protocol on average (441.1 against 471.3; 95% interval −59 to −2): its crop plans are weaker. On eight frozen, unfamiliar farms both scientists diagnosed 4 of the 6 identifiable faults and handed a cause no test could establish to a person; on a second frozen set Spark again fed fewer people (−15.3, interval −34 to +6). This is a testbed that shows what the model decides and why, not evidence that it farms better.`,
+      evidence: () => [`<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/v2" target="_blank" rel="noopener">Benchmark v2</a>`, `<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/holdout" target="_blank" rel="noopener">Frozen holdout</a>`, `<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/holdout_v2" target="_blank" rel="noopener">Holdout v2</a>`] },
   ];
   return steps;
 }
@@ -1910,6 +1925,14 @@ function renderWalk(focus = false) {
 addEventListener("resize", () => { if (WK.i >= 0) document.body.style.setProperty("--walk-h", `${$("walk").offsetHeight}px`); });
 // read-only hook for the browser checks (tests/browser): what is hidden, what is shown, where the replay is
 window.__wlCheck = () => ({ hidden: S.perturbations.length, shown: shownPerts().length, day: curDay(), explained, walk: WK.i });
+// which release is this? the site's build.json (written by the release workflow) and the server's /api/ready
+async function showBuild() {
+  const short = (x) => (x ? String(x).slice(0, 7) : null);
+  let site = null, server = null;
+  try { const r = await fetch(new URL(PAGES.home + "build.json", location.href), { cache: "no-store" }); if (r.ok) site = (await r.json()).sha; } catch (e) { /* local copy */ }
+  try { const r = await api("api/ready", { timeout: 5000 }); if (r.ok) server = ((await r.json()).release || {}).sha; } catch (e) { /* no server */ }
+  $("buildLabel").textContent = `Build: website ${short(site) || "local copy"} · server ${server ? short(server) : serverUp ? "unknown" : "not connected"}${site && server && short(site) !== short(server) ? " (different releases)" : ""}`;
+}
 function endWalk() { WK.i = -1; $("walk").hidden = true; document.body.classList.remove("walking"); store.del("wl-walk"); $("walkBtn").focus(); }
 function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", "ledger"); }
 
@@ -1917,7 +1940,7 @@ function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", 
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=ade89bcd05");
+    const mod = await import("./scene.js?v=f3621d8e7e");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
@@ -1998,6 +2021,7 @@ function wireUi() {
   $("followChk").checked = store.get("wl-follow", true);
   $("followChk").onchange = () => { store.set("wl-follow", $("followChk").checked); if (scene && scene.setFollow) scene.setFollow($("followChk").checked); };
   $("tourBtn").onclick = () => { pop(null); startTour(); };
+  showBuild();
   $("explainedChk").checked = explained;
   $("explainedChk").onchange = () => setExplained($("explainedChk").checked);
   $("retry3d").onclick = () => location.reload();

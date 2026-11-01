@@ -1,0 +1,106 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h603-salinity",
+ "label": "salinity",
+ "seed": 603,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "salinity",
+   "day": 98,
+   "severity": 9.1
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "salinity",
+   "field": "all",
+   "day": 98,
+   "severity": 9.1
+  }
+ ],
+ "source_commit": "b4144b84acda46e41b7ca439704a03a30727f309",
+ "source_dirty": false,
+ "prompt_sha256": "9279ff8b81a5057d3e66bbd828f1201d9562ec3553849a92d1f1a8f6d990ec67",
+ "tool_schema_sha256": "937a462707724654863eb2364b6fd3732699b08df0cb165ba49aa85cebda49f6",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 372.5,
+ "finished_at": "2026-11-01T11:25:52Z",
+ "result": {
+  "people_fed": 525.5,
+  "water_m3": 58639,
+  "energy_kwh": 87713,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "scorer_version": "2.1",
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 98,
+    "severity": 9.1,
+    "first_evidence_day": 104,
+    "correct_claim_day": 105,
+    "correct_guess": false,
+    "intervention_day": 105,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": 105,
+    "days_to_diagnosis": 7
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 1,
+  "follow_up_censored": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "premature_claims": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.566,
+ "trait_error_planted": 0.307,
+ "planted": [
+  "maize",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 13,
+ "tests": 1,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": 2,
+  "perception_calls": 2
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "523b1d7b24bb0d4a137f30cbc7aef9efb9366c9833cef0ddf59d793044b8fbeb",
+   "entries": 97,
+   "head": "65e77b380cc2af08ac98c1321c6382964bda48061cb9bd0f474c11a992fce496"
+  }
+ },
+ "condition": "scripted-rl/meta (new code)"
+}

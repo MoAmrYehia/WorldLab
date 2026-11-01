@@ -1,0 +1,138 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h606-compound",
+ "label": "compound",
+ "seed": 606,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 116,
+   "pick": 25,
+   "severity": 0.49
+  },
+  {
+   "kind": "pest",
+   "day": 150,
+   "pick": 26,
+   "severity": 0.04
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F1",
+   "day": 116,
+   "severity": 0.49
+  },
+  {
+   "kind": "pest",
+   "field": "F3",
+   "day": 150,
+   "severity": 0.04
+  }
+ ],
+ "source_commit": "b4144b84acda46e41b7ca439704a03a30727f309",
+ "source_dirty": false,
+ "prompt_sha256": "9279ff8b81a5057d3e66bbd828f1201d9562ec3553849a92d1f1a8f6d990ec67",
+ "tool_schema_sha256": "937a462707724654863eb2364b6fd3732699b08df0cb165ba49aa85cebda49f6",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 546.9,
+ "finished_at": "2026-11-01T11:19:05Z",
+ "result": {
+  "people_fed": 471.2,
+  "water_m3": 56533,
+  "energy_kwh": 78389,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "scorer_version": "2.1",
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F1",
+    "onset": 116,
+    "severity": 0.49,
+    "first_evidence_day": null,
+    "correct_claim_day": null,
+    "correct_guess": false,
+    "intervention_day": null,
+    "justified_intervention": false,
+    "no_realarm_30d": null,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": null,
+    "days_to_diagnosis": null
+   },
+   {
+    "kind": "pest",
+    "field": "F3",
+    "onset": 150,
+    "severity": 0.04,
+    "first_evidence_day": 163,
+    "correct_claim_day": 164,
+    "correct_guess": false,
+    "intervention_day": 164,
+    "justified_intervention": true,
+    "no_realarm_30d": null,
+    "follow_up_censored": true,
+    "correct_diagnosis_day": 164,
+    "days_to_diagnosis": 14
+   }
+  ],
+  "faults": 2,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 1,
+  "follow_up_censored": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "premature_claims": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.538,
+ "trait_error_planted": 0.152,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 16,
+ "tests": 1,
+ "looks": 3,
+ "usage": {
+  "scientist_calls": 33,
+  "scientist_attempts": 33,
+  "scientist_tokens": {
+   "prompt_tokens": 692255,
+   "completion_tokens": 7851
+  },
+  "perception_attempts": 54,
+  "perception_calls": 54
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "f4b845e60865a08fad33087ae00012b0da82c26e4f5e8dbce6e64dac08d69a99",
+   "entries": 130,
+   "head": "f10ec86f1e3996b4b3a0dfdc64333cd4b7c4df4e592c0712699d674aed9a71e4"
+  }
+ },
+ "condition": "spark/meta (new code)"
+}

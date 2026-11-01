@@ -1,0 +1,135 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h606-compound",
+ "label": "compound",
+ "seed": 606,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 116,
+   "pick": 25,
+   "severity": 0.49
+  },
+  {
+   "kind": "pest",
+   "day": 150,
+   "pick": 26,
+   "severity": 0.04
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F1",
+   "day": 116,
+   "severity": 0.49
+  },
+  {
+   "kind": "pest",
+   "field": "F4",
+   "day": 150,
+   "severity": 0.04
+  }
+ ],
+ "source_commit": "b4144b84acda46e41b7ca439704a03a30727f309",
+ "source_dirty": false,
+ "prompt_sha256": "9279ff8b81a5057d3e66bbd828f1201d9562ec3553849a92d1f1a8f6d990ec67",
+ "tool_schema_sha256": "937a462707724654863eb2364b6fd3732699b08df0cb165ba49aa85cebda49f6",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 304.3,
+ "finished_at": "2026-11-01T11:29:43Z",
+ "result": {
+  "people_fed": 486.7,
+  "water_m3": 58992,
+  "energy_kwh": 81192,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "scorer_version": "2.1",
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F1",
+    "onset": 116,
+    "severity": 0.49,
+    "first_evidence_day": 157,
+    "correct_claim_day": 158,
+    "correct_guess": false,
+    "intervention_day": 158,
+    "justified_intervention": true,
+    "no_realarm_30d": null,
+    "follow_up_censored": true,
+    "correct_diagnosis_day": 158,
+    "days_to_diagnosis": 42
+   },
+   {
+    "kind": "pest",
+    "field": "F4",
+    "onset": 150,
+    "severity": 0.04,
+    "first_evidence_day": 167,
+    "correct_claim_day": 168,
+    "correct_guess": false,
+    "intervention_day": 168,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": 168,
+    "days_to_diagnosis": 18
+   }
+  ],
+  "faults": 2,
+  "faults_with_evidence": 2,
+  "faults_diagnosed": 2,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 2,
+  "follow_up_censored": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "premature_claims": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 3,
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.576,
+ "trait_error_planted": 0.246,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 3,
+ "looks": 2,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": 36,
+  "perception_calls": 36
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "c8407749c6ada4c9f5cfa50ab99bd22180b1143f264ec6d532a8d0586e43d735",
+   "entries": 123,
+   "head": "89dba603aa2a5862146caa4b414809768654e27a27a786aca05ec090bc022af7"
+  }
+ },
+ "condition": "scripted-rl/meta (new code)"
+}

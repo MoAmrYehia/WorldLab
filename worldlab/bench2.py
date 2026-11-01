@@ -182,9 +182,9 @@ def _cost(m: dict) -> float | None:
 def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) -> dict:
     """Per condition (agent/perception): attempts, completions, outcomes over completed runs, event-level scores,
     errors, cost; matched differences against a reference condition with a farm-seed cluster bootstrap."""
-    conds = sorted({f"{m['agent']}/{m['perception']}" for m in rows})
+    conds = sorted({(m.get("condition") or f"{m['agent']}/{m['perception']}") for m in rows})
     out = {"conditions": {}, "reference": reference, "prices": PRICES}
-    by = {c: [m for m in rows if f"{m['agent']}/{m['perception']}" == c] for c in conds}
+    by = {c: [m for m in rows if (m.get("condition") or f"{m['agent']}/{m['perception']}") == c] for c in conds}
     mean = lambda v: round(float(np.mean(v)), 1) if v else None
     for c, ms in by.items():
         done = [m for m in ms if m.get("status") == "completed"]

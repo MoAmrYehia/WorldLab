@@ -1,59 +1,65 @@
-# Submission: criteria, evidence and the owner's checklist
+# Submission: status, evidence and the owner's checklist
 
-Status key:
-- **verified:** checked in this repository or on the public site.
-- **partial:** done, with a stated gap.
-- **owner:** needs the owner's action or confirmation; it can't be done from the repository.
+Each item is placed in exactly one column, by the strongest check it has actually passed:
 
-## Judging criteria → evidence
+- **Implemented:** in the source.
+- **Locally tested:** passed the unit tests (90) or the browser checks, run against a local build.
+- **Deployed and tested:** checked on the public site or the hosted server.
+- **Owner confirmation required:** only the owner can do it or confirm it.
+
+## Release and live demo
+
+| Item | Implemented | Locally tested | Deployed and tested | Owner confirmation required |
+|---|---|---|---|---|
+| Static site, judge walkthrough, limitations card, evidence download, CSP | | | ✓ Public site: the walkthrough ran with 3D on a real GPU, no CSP errors, and the evidence bundle downloaded and verified | |
+| One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | ✓ Workflow written; YAML validated | Not yet run on GitHub | |
+| Release SHA in `/api/ready` and in View settings | | ✓ Against a local server | Server not deployed | |
+| Live check: release, CORS, real progress, reconnect, cancellation, bounded Spark start | | ✓ Against local servers, with and without a model key; the Spark start made a real model call | Server not deployed | |
+| Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | | ✓ Add the `HF_TOKEN` and `MODEL_API_KEY` secrets, run the release, then `check_live.py --spark` and once `--full-spark` |
+
+## Evidence and evaluation
+
+| Item | Implemented | Locally tested | Deployed and tested | Owner confirmation required |
+|---|---|---|---|---|
+| Benchmark v2: 105 runs, scorer 2.1, ledgers, provenance note | | ✓ All ledgers checked against their manifest hashes and rescored | The summaries are published in the repo | |
+| Holdout v1 (8 farms) and holdout v2 (8 farms, pre-registered criteria, old vs new code) | | ✓ 16 + 24 runs, all completed | Published in the repo | |
+| Scorer 2.1: evidence first, premature claims, censored follow-up, signal attribution, escalation | | ✓ `ScorerV21Tests`, `BenchScoreTests`, the review's four probes | | |
+| Planning-loss fix: multi-start calibration, nutrient-risk gate and backup, escalation | | ✓ `PlanningLossTests` (regression from the archived farm-204 run); development rerun 26.4 → 407.8 | No measured improvement on holdout v2 (no catastrophic season either way) | |
+| Measured benefit from Muse Spark | | ✓ Tested by holdout v2 criterion C2: **no measured benefit** (−15.3, 95% interval −34.0 to +5.6; 4/6 against 5/6 diagnosed; 0 wrong calls each) | | |
+| Offline evidence bundle for the recorded season | | ✓ Tamper, omission, reorder and truncation tests | ✓ Downloaded from the public site; verifies | |
+| Real data: NASA POWER 2024–25 weather, pinned by hash; ET0 against FAO-56 example 18 (−3%) | | ✓ `RealWeatherTests` | | |
+| Practitioner review | | | | ✓ None yet; the model card says so |
+
+## Judging criteria → where to look
 
 The weights below come from the hackathon page as read during the build. Confirm them in the portal.
 
-| Criterion | Evidence | Status |
-|---|---|---|
-| **Impact (30%)**: a real problem for a real user | **Problem and user:** README *For reviewers* and [`model-card.md`](model-card.md). The user is an agronomy or irrigation research team; the decision is crops and irrigation under a hard water and energy budget, then diagnosing what went wrong. | verified |
-| | **One real input:** NASA POWER 2024–25 Al Ain weather (*Real 2024–25 weather* scenario). The file is pinned by SHA-256 and traceable from the `session` ledger entry. | verified |
-| | **Validation:** none in the field. ET0 matches FAO-56 example 18 within 3%. No practitioner review yet. | partial |
-| **Use of Meta AI (25%)** | **Muse Spark as the scientist** via tool calling (`worldlab/agent.py`). Benchmark v2: 25 Spark seasons, 14/15 faults diagnosed, 0 wrong calls ([`bench/v2`](bench/v2/)). | verified |
-| | **SAM 3.1 and Spark vision on drone photos** (`worldlab/perception.py`), with typed outcomes (valid / partial / unavailable / malformed). | verified |
-| | **Perception ablation:** no observed diagnosis gain from the image models on the tested clog and pest cases (one run per case and condition). Reported as found. | verified |
-| | **Muse Glimmer:** adapter only, not run, and labelled that way. | verified (as not demonstrated) |
-| **Demo (25%)** | **Recorded season with a seven-step judge walkthrough** (`app/?demo&walkthrough`): spoiler-free by default, evidence links on every step, no overlaps at desktop, laptop and phone widths (`tests/browser/smoke.js`). | verified |
-| | **Live season for guests, including the *Unknown challenge*:** the code and tests are in place. **The hosted server is not deployed** because the `HF_TOKEN` secret is missing. | partial, owner |
-| | **Video:** script in [`DEMO.md`](DEMO.md). It has to be recorded. | owner |
-| **Technical depth (20%)** | **Event-level scoring:** every run is kept with its ledger and manifest, compared on matched farm seeds with bootstrap intervals ([`bench/v2`](bench/v2/), 105 runs). | verified |
-| | **Frozen holdout:** committed before any run; 8 unfamiliar cases, including a faulty sensor and an unidentifiable cause ([`bench/holdout`](bench/holdout/)). | verified |
-| | **Offline evidence bundle:** a verifier that detects edits, omissions, reordering and truncation (`EvidenceBundleTests`). | verified |
-| | **Honest run states:** failed, timeout, cancelled and degraded runs are labelled, with no rewards for incomplete runs (`RunStatusTests`). Budgets and atomic admission are enforced (`LiveAccessTests`). | verified |
-| **Honesty of claims** | No benchmark win is claimed: Spark −30.3 people fed against the scripted protocol (95% interval −59.3 to −1.9). The detection delay is stated (20 days in the recorded season). Drone photos are labelled synthetic, and "people fed" is defined as an index. | verified |
+| Criterion | Where to look |
+|---|---|
+| **Impact (30%)** | README *For reviewers*; [`model-card.md`](model-card.md) covers the user, what is real, the limits and the next pilot. |
+| **Use of Meta AI (25%)** | Muse Spark chooses every step through tool calls; SAM 3.1 and Spark vision read the drone photos. See [`bench/v2`](bench/v2/) and [`bench/holdout_v2`](bench/holdout_v2/). The image models showed no diagnosis gain on the tested clog and pest cases. Spark showed no measured benefit over the scripted protocol on holdout v2. Muse Glimmer: adapter only, not run. |
+| **Demo (25%)** | The recorded walkthrough is public. The live part depends on the server deploy (owner). Script: [`DEMO.md`](DEMO.md). |
+| **Technical depth (20%)** | Event-level scoring with a versioned scorer; frozen holdouts with criteria written before the runs; a before/after comparison against the old code; offline-verifiable ledgers; honest run states; budgets and atomic admission. |
 
-## The brief's tasks
+**What we don't claim:**
+- that Muse Spark farms better (v2: −30.3; holdout v2: −15.3);
+- that the planning fix is proven on held-out farms (one development case);
+- that the image models help diagnosis in the tested cases;
+- that any part is field-validated.
 
-| Task | Status | Where |
-|---|---|---|
-| P0.1 Live backend readiness and states | **partial, owner.** Readiness, guest sessions, atomic admission, budgets and `scripts/check_live.py` are built and tested. The deploy is blocked by the missing `HF_TOKEN`. | `worldlab/server.py`, `.github/workflows/huggingface.yml` |
-| P0.2 Honest run status | verified | `RunStatusTests` |
-| P0.3 Benchmark scoring and fair comparison | verified | `worldlab/benchscore.py`, `BenchScoreTests`, `docs/bench/v2/` |
-| P0.4 Honest Compare | verified | Results › Compare, `experiments.json` schema 2 |
-| P0.5 Typed perception and honest recovery | verified | `PerceptionStatusTests`, Incidents panel |
-| P1.1 Frozen holdout | verified (one run per case; repeats are future work) | `docs/bench/holdout/` |
-| P1.2 Real-data path and limitations | partial: real weather and the model card are done; no practitioner review yet | `worldlab/farm/observed.py`, `docs/model-card.md`, Results › What is real |
-| P1.3 Judge walkthrough | verified at desktop, laptop and phone widths in headless Chromium without WebGL. **3D not yet checked on a real GPU.** | `app.js` walkthrough, `tests/browser/smoke.js` |
-| P1.4 Offline evidence | verified | `worldlab/dashboard/evidence/`, `scripts/verify_evidence.py` |
-| P1.5 Budgets and admission safety | verified | `LiveAccessTests`, `worldlab/csp.py` |
-| P1.6 Submission package | partial: the repository side is done; the portal is the owner's | this file |
+## Owner's checklist
 
-## Owner's checklist (from the portal: confirm each item there)
+Confirm every required field in the signed-in portal; this list is not a substitute for it.
 
-Do not rely on this list alone. Open the signed-in portal and check every required field.
-
-- [ ] **Live server:** create a Hugging Face write token and add it as the GitHub Actions secret `HF_TOKEN` (optionally also `MODEL_API_KEY`). Push or re-run *Deploy server to Hugging Face*, then check `https://moamryehia-worldlab.hf.space/api/ready`.
-- [ ] **History:** keep `main` as it is. Its history supports the build timeline and the holdout's freeze-before-run provenance. Rewriting it (for example to `main-clean`) is a separate decision, not a submission step.
-- [ ] **Video:** record from [`DEMO.md`](DEMO.md). Confirm the **actual length limit** in the portal; the 3-minute figure is not verified from participant instructions.
-- [ ] **Portal fields:** project name, description, repository link, demo link and video link; any required screenshots.
-- [ ] **Theme and track:** *Push the Frontier* is the theme; the **track** (Indie Developer or Startup) is a separate choice in the portal. Confirm both there.
-- [ ] **Owner-only declarations:** eligibility and affiliation, team members, rights to the submitted work, and the final terms. These are the owner's to read and accept.
-- [ ] **Social post:** if required, post it from your own account.
-- [ ] **Submission is done only when the portal shows a confirmation or receipt.** Pushing the repository is not submission.
-- [ ] **After 4 November:** rotate the Meta Model API key used during the build.
-- [ ] **Optional but valuable:** ask one agronomist or irrigation researcher to try the walkthrough. Record their actual feedback in `model-card.md`, or leave the "no review yet" line.
+- [ ] **Live server:** add `HF_TOKEN` (a Hugging Face write token) and `MODEL_API_KEY` as GitHub Actions secrets.
+  - Run the *Release* workflow. It now fails if the token is missing, unless you set the variable `SERVER_DEPLOY=skip`.
+  - Check that `/api/ready` reports the release SHA.
+  - Run `python scripts/check_live.py https://moamryehia-worldlab.hf.space --release <sha> --spark`, then once with `--full-spark`.
+  - Record the result and the model cost.
+- [ ] **History:** keep `main` as it is. Its history supports the build timeline and the holdouts' freeze-before-run provenance. Rewriting it is a separate decision, not a submission step.
+- [ ] **Video:** record it from [`DEMO.md`](DEMO.md) after the release is stable. Confirm the **actual length limit** in the portal.
+- [ ] **Theme and track:** *Push the Frontier* is the theme; the **track** (Indie Developer or Startup) is a separate portal choice.
+- [ ] **Owner-only declarations:** eligibility and affiliation, team, rights, final terms.
+- [ ] **Submission is done only when the portal shows a receipt.**
+- [ ] **After 4 November:** rotate the Meta Model API key.
+- [ ] **Optional:** one practitioner review, recorded in `model-card.md` as received.
