@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-3qPOd8osY8FUpkcYYGKrbrYJPo0fIrYJnmI1f60FVxg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://worldlab-4b9q.onrender.com https://*.hf.space https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://worldlab-4b9q.onrender.com https://*.hf.space">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Farm simulator | WorldLab: Green Frontier</title>
+<meta name="description" content="Watch a recorded desert farming season in 3D: an AI scientist experiments, detects a clogged drip line, finds the cause and recovers. No account needed.">
+<link rel="icon" href="../favicon.ico" sizes="32x32">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
+<meta name="theme-color" content="#0b1210">
+<link rel="canonical" href="https://moamryehia.github.io/WorldLab/app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="WorldLab: Green Frontier">
+<meta property="og:title" content="Farm simulator | WorldLab: Green Frontier">
+<meta property="og:description" content="Watch a recorded desert farming season in 3D: an AI scientist experiments, detects a clogged drip line, finds the cause and recovers. No account needed.">
+<meta property="og:url" content="https://moamryehia.github.io/WorldLab/app/">
+<meta property="og:image" content="https://moamryehia.github.io/WorldLab/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="WorldLab: Green Frontier. Grow the future. Outsmart the desert. A 3D desert farm with crop fields.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Farm simulator | WorldLab: Green Frontier">
+<meta name="twitter:description" content="Watch a recorded desert farming season in 3D: an AI scientist experiments, detects a clogged drip line, finds the cause and recovers. No account needed.">
+<meta name="twitter:image" content="https://moamryehia.github.io/WorldLab/og-image.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=f3621d8e7e">
+<script src="../config.js?v=f3621d8e7e"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage" aria-label="3D farm. Drag to orbit, scroll to zoom, click a field to inspect it."></div>
+<div id="map2d" class="map2d" hidden aria-label="Field map (2D)"></div>
+<div id="noGL" class="nogl" hidden>
+  <b>2D field map</b>
+  <span id="noGLWhy">The 3D view needs WebGL and access to cdn.jsdelivr.net.</span>
+  <button class="ghost sm" id="retry3d" type="button">Try 3D again</button>
+</div>
+<nav class="bottom-nav" id="bottomNav" aria-label="Sections">
+  <button type="button" data-view="farm" aria-current="page">Farm</button>
+  <button type="button" data-view="plan">Plan</button>
+  <button type="button" data-view="research">Research</button>
+  <button type="button" data-view="incidents">Incidents</button>
+  <button type="button" data-view="agent">Agent</button>
+  <button type="button" data-view="results">Results</button>
+</nav>
+
+<header class="topbar">
+  <a class="brand home-link" href="./">
+    <img class="brand-mark" src="../favicon.svg" alt="" width="30" height="30">
+    <span class="wordmark">WorldLab</span><span class="sub">Green Frontier</span>
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" data-view="farm" aria-current="page">Farm</button>
+    <button type="button" data-view="plan">Plan</button>
+    <button type="button" data-view="research">Research</button>
+    <button type="button" data-view="incidents">Incidents</button>
+    <button type="button" data-view="agent">Agent</button>
+    <button type="button" data-view="results">Results</button>
+  </nav>
+  <div class="tb-right">
+    <span class="modechip" id="modeChip">Recorded season</span>
+    <button class="xp" id="xpPill" type="button" title="Level and experience"><span id="xpLevel">LVL 1</span><span class="xp-bar"><i id="xpBar"></i></span><span id="xpText">0 XP</span></button>
+    <button class="iconbtn" id="settingsBtn" type="button" aria-label="View settings" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7.4-2.5.1-1-.1-1 2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6-.1 1 .1 1-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="iconbtn avatar" id="profileBtn" type="button" aria-label="Account" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 20c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- run header and transport: always visible -->
+<div class="transport" id="transport" role="region" aria-label="Run controls">
+  <span class="run-state" id="runState" aria-live="polite">Loading</span>
+  <span class="prov-chip" id="provChip" title="Who decides, what reads the drone images, what controls irrigation"></span>
+  <div class="tp-ctrl" id="replayControls" hidden>
+    <button class="tp-btn" id="prevEvt" type="button" aria-label="Previous event" title="Previous event">&#8249;</button>
+    <button class="primary sm" id="playBtn" type="button">Play</button>
+    <button class="tp-btn" id="nextEvt" type="button" aria-label="Next event" title="Next event">&#8250;</button>
+    <select id="rate" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    <input id="dateScrub" type="range" min="0" max="1000" value="0" aria-label="Season date" aria-valuetext="Before sowing">
+    <span class="tp-date" id="tpDate">Before sowing</span>
+    <button class="ghost sm" id="jumpIncident" type="button">Incident</button>
+    <button class="ghost sm" id="jumpHarvest" type="button">Harvest</button>
+    <button class="ghost sm" id="walkBtn" type="button" hidden>Walkthrough</button>
+  </div>
+  <div class="tp-ctrl" id="liveControls" hidden>
+    <span class="tp-date" id="tpDateLive"></span>
+    <label class="speed">Days per second <input id="speed" type="range" min="1" max="30" value="12"></label>
+    <button class="ghost sm" id="stopBtn" type="button" hidden>Stop</button>
+    <button class="ghost sm" id="handoverBtn" type="button" hidden title="Continue this season with the scripted protocol; the result is labelled as mixed">Continue with scripted protocol</button>
+    <button class="primary sm" id="planBtn" type="button">Plan a new season</button>
+  </div>
+  <button class="primary sm" id="reportBtn" type="button" hidden>Harvest report</button>
+  <span class="tp-metrics" id="tpMetrics"></span>
+</div>
+
+<section class="panel walk" id="walk" role="region" aria-label="Judge walkthrough" aria-live="polite" hidden></section>
+
+<div class="incident" id="incident" role="alert" hidden>
+  <span class="dot" aria-hidden="true"></span><b>Incident detected</b><span id="incidentText"></span>
+  <button class="ghost sm" id="incidentFocus" type="button">Show me</button>
+</div>
+
+<!-- left: missions and season controls -->
+<aside class="panel left" id="missionPanel" aria-label="Missions">
+  <div class="ph"><h2>Missions</h2><button class="collapse" type="button" aria-label="Collapse missions" data-collapse="missionPanel">–</button></div>
+  <div class="pbody">
+    <p class="eyebrow" id="seasonEyebrow">Season</p>
+    <h1 class="headline" id="headline">Build a better harvest.</h1>
+    <p class="lede" id="lede">Choose crops for the season, then watch the AI scientist experiment, plan, run the farm and recover from what goes wrong.</p>
+    <ol class="chapters" id="chapters"></ol>
+    <p class="outcome" id="outcome" hidden></p>
+    <div class="controls" id="demoControls" hidden>
+      <button class="ghost" id="tryPlanBtn" type="button">Open the planner (preview)</button>
+      <a class="ghost" id="demoCta" href="signup">Start your own farm</a>
+    </div>
+    <p class="note" id="modeNote"></p>
+    <p class="note spoiler" id="spoilerNote" hidden></p>
+  </div>
+</aside>
+
+<!-- right: outcome, resources, the scientist -->
+<aside class="panel right" id="impactPanel" aria-label="Impact">
+  <div class="ph"><h2>Impact</h2><button class="collapse" type="button" aria-label="Collapse impact" data-collapse="impactPanel">–</button></div>
+  <div class="pbody">
+    <div class="lives">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5M10.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5"/></svg>
+      <div><span class="eyebrow" id="livesLabel">People fed</span><b id="livesN">–</b><span class="lives-sub" id="livesSub">modelled person-years</span></div>
+    </div>
+    <dl class="stages" id="stages" aria-label="Planned, projected and realised"></dl>
+    <div class="nutrients" id="nutrients" aria-label="Coverage by nutrient"></div>
+    <p class="limit" id="limitNote"></p>
+    <ul class="metrics">
+      <li><span>Groundwater</span><b id="waterTxt">–</b><i class="bar water"><i id="waterBar"></i><i class="fc" id="waterFc"></i></i><small id="waterSub"></small></li>
+      <li><span>Energy</span><b id="energyTxt">–</b><i class="bar energy"><i id="energyBar"></i><i class="fc" id="energyFc"></i></i><small id="energySub"></small></li>
+      <li class="row"><span>Irrigation control</span><span class="pill" id="ctrlPill">Fixed rule</span></li>
+    </ul>
+    <p class="budget-note" id="budgetNote"></p>
+    <div class="scientist">
+      <div class="sc-head"><span class="sc-avatar" aria-hidden="true"></span><div><b>AI scientist</b><span id="agentName"></span></div><span class="live" id="scLive">Idle</span></div>
+      <p class="sc-quote" id="scQuote">Waiting for the season to start.</p>
+      <button class="ghost sm" id="reasoningBtn" type="button">Decision record</button>
+    </div>
+  </div>
+</aside>
+
+<!-- bottom dock: field analytics, timeline, activity -->
+<section class="panel dock" id="dock" aria-label="Season details">
+  <div class="dock-tabs" role="tablist" aria-label="Season details">
+    <button role="tab" data-dt="fields" class="on" id="dt-fields" aria-selected="true" aria-controls="dp-fields">Field analytics</button>
+    <button role="tab" data-dt="timeline" id="dt-timeline" aria-selected="false" aria-controls="dp-timeline" tabindex="-1">Season timeline</button>
+    <button role="tab" data-dt="activity" id="dt-activity" aria-selected="false" aria-controls="dp-activity" tabindex="-1">Recent activity</button>
+    <button role="tab" data-dt="weather" id="dt-weather" aria-selected="false" aria-controls="dp-weather" tabindex="-1">Weather</button>
+    <button role="tab" data-dt="drone" id="droneTab" aria-selected="false" aria-controls="dp-drone" tabindex="-1">Drone feed <i class="rec-dot" id="droneDot" hidden></i></button>
+    <button class="collapse" type="button" aria-label="Collapse details" data-collapse="dock">–</button>
+  </div>
+  <div class="dock-body">
+    <div class="dt-pane" data-pane="fields" id="dp-fields" role="tabpanel" aria-labelledby="dt-fields">
+      <div class="metric-tabs" id="metricTabs">
+        <button data-m="health" class="on">Canopy vs model</button><button data-m="moisture">Soil moisture</button><button data-m="salinity">Salinity</button><button data-m="water">Irrigation</button>
+      </div>
+      <div class="gauges" id="gauges"></div>
+    </div>
+    <div class="dt-pane" data-pane="timeline" id="dp-timeline" role="tabpanel" aria-labelledby="dt-timeline" hidden>
+      <div class="timeline" id="timeline"><div class="tl-track"><i class="tl-fill" id="tlFill"></i></div><div class="tl-months" id="tlMonths"></div></div>
+    </div>
+    <div class="dt-pane" data-pane="activity" id="dp-activity" role="tabpanel" aria-labelledby="dt-activity" hidden><ol class="activity" id="activity"></ol></div>
+    <div class="dt-pane" data-pane="weather" id="dp-weather" role="tabpanel" aria-labelledby="dt-weather" hidden>
+      <div class="wx">
+        <div class="wx-charts">
+          <figure class="chart"><figcaption id="wxCapT">Air temperature, °C: daily maximum and minimum</figcaption><svg id="wxT" viewBox="0 0 300 70" preserveAspectRatio="none"></svg></figure>
+          <figure class="chart"><figcaption>Reference evapotranspiration ET₀, mm/day, and rain, mm</figcaption><svg id="wxE" viewBox="0 0 300 60" preserveAspectRatio="none"></svg></figure>
+          <div class="legend"><span class="lg meas">Observed</span><span class="lg fc">Forecast (dashed)</span><span class="lg heat">Crop heat limits at flowering</span></div>
+        </div>
+        <div class="wx-side" id="wxSide"></div>
+      </div>
+    </div>
+    <div class="dt-pane" data-pane="drone" id="dp-drone" role="tabpanel" aria-labelledby="droneTab" hidden>
+      <div class="drone-feed">
+        <figure class="df-view">
+          <div class="df-frame"><canvas id="droneLive" aria-label="Live 3D view from the drone's camera"></canvas>
+            <span class="df-hud tl" id="dfLiveTag"><i class="live"></i>3D camera</span><span class="df-hud br" id="dfLiveTxt">On patrol</span></div>
+          <figcaption id="dfLiveCap">The drone's camera in the 3D farm</figcaption>
+        </figure>
+        <figure class="df-view">
+          <div class="df-frame"><img id="dfImg" alt="" hidden><p class="df-empty" id="dfEmpty">Frames appear here as the drone surveys the fields.</p>
+            <span class="df-hud tl" id="dfTag">Captured frame</span><span class="df-hud br" id="dfMeta"></span></div>
+          <figcaption id="dfCap">Survey frames from the farm simulator: what the scientist's canopy measurements come from</figcaption>
+        </figure>
+        <ol class="df-strip" id="dfStrip" aria-label="Recent drone frames"></ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- field inspector -->
+<aside class="panel inspector" id="inspector" hidden aria-label="Field inspector">
+  <div class="ph"><img class="fi-pic" id="fiPic" alt="" hidden><h2 id="fiTitle">Field</h2><button class="collapse" type="button" id="fiClose" aria-label="Close inspector">×</button></div>
+  <div class="pbody">
+    <p class="fi-sub" id="fiSub"></p>
+    <div class="fi-cams"><button class="ghost sm" id="fiFocus" type="button">Focus</button><button class="ghost sm" id="fiClose2" type="button">Close-up</button><button class="ghost sm" id="fiDrone" type="button">Drone view</button></div>
+    <div class="legend"><span class="lg model">Model, 90% prediction band</span><span class="lg meas">Measured</span><button class="ghost sm" id="fiCsv" type="button">Download data (CSV)</button></div>
+    <p class="note">The band is where the scientist's model expected 90% of measurements to fall on each day, as forecast then: a later model update (dotted blue line) changes the band only from that day on, so the forecasts that failed stay visible. Charts are keyboard-accessible: focus one and use the arrow keys.</p>
+    <figure class="chart"><figcaption id="capSw">Soil moisture, top 50 cm (m³/m³)</figcaption><svg id="chSw" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption id="capCc">Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart"><figcaption id="capEc">Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
+    <figure class="chart short"><figcaption>Irrigation applied (mm per day, gross at the meter), darker share desalinated</figcaption><svg id="chIrr" viewBox="0 0 300 40" preserveAspectRatio="none"></svg></figure>
+    <figure class="drone" id="droneFig" hidden>
+      <div class="drone-view"><img id="droneImg" alt="Drone photo of the field"><img id="droneExp" alt="The view the scientist's model expected" hidden><svg id="droneBoxes" aria-hidden="true" hidden></svg></div>
+      <div class="seg drone-tg" role="group" aria-label="Drone view"><button type="button" class="on" data-dv="obs" aria-pressed="true">Drone photo</button><button type="button" data-dv="exp" aria-pressed="false">Model expected</button><button type="button" data-dv="sam" aria-pressed="false">SAM 3.1</button></div>
+      <figcaption id="droneCap"></figcaption>
+    </figure>
+    <div class="perturb" id="perturb" hidden>
+      <h3>Scenario tool (operator)</h3>
+      <p>Make a hidden change to the simulated farm. The scientist is not told; see whether its model notices. The true cause is revealed after the season.</p>
+      <p class="pgrp">This field</p>
+      <div class="pbtns"><button data-kind="clog" type="button">Clog the drip line</button><button data-kind="pest" type="button">Release pests</button></div>
+      <p class="pgrp">Whole farm</p>
+      <div class="pbtns"><button data-kind="salinity" type="button">Saltier groundwater</button><button data-kind="heatwave" type="button">Heat wave</button></div>
+    </div>
+  </div>
+</aside>
+
+<!-- investigation (shown during an incident) -->
+<aside class="panel investigation" id="investigation" hidden aria-label="Investigation">
+  <div class="ph"><h2 class="alarm-t">Investigation</h2><button class="collapse" type="button" id="invClose" aria-label="Hide investigation">×</button></div>
+  <div class="pbody" id="invBody"></div>
+</aside>
+
+<!-- view controls over the 3D world -->
+<div class="viewbar" id="viewbar" role="toolbar" aria-label="View">
+  <div class="vb-group" role="group" aria-label="Camera">
+    <button type="button" data-cam="overview" title="Aerial overview (O)">Overview</button>
+    <button type="button" data-cam="drone" title="Follow the drone (D)">Drone</button>
+    <button type="button" data-cam="home" title="Reset the camera (R)">Reset</button>
+  </div>
+  <div class="vb-group" role="group" aria-label="Scientific overlay">
+    <button type="button" data-ov="" class="on" title="Realistic view (V cycles)">Realistic</button>
+    <button type="button" data-ov="health">Canopy</button>
+    <button type="button" data-ov="moisture">Moisture</button>
+    <button type="button" data-ov="salinity">Salinity</button>
+    <button type="button" data-ov="water">Water</button>
+  </div>
+</div>
+<div class="panel legendbox" id="ovLegend" hidden></div>
+
+<!-- popovers -->
+<div class="panel popover" id="settings" hidden>
+  <h3>View settings</h3>
+  <label>Quality <select id="qualitySel"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+  <p class="fps" id="fpsTxt">Measuring frame rate…</p>
+  <label>Time of day <select id="timeSel"><option value="golden">Golden hour</option><option value="morning">Morning</option><option value="noon">Noon</option><option value="night">Night</option></select></label>
+  <p class="note">Time of day only changes the view. It does not change the simulated weather or crop growth.</p>
+  <label class="check"><input type="checkbox" id="labelsChk" checked> Field labels</label>
+  <label class="check"><input type="checkbox" id="followChk" checked> Camera follows events</label>
+  <label class="ov-mobile">Overlay <select id="ovSel"><option value="">Realistic</option><option value="health">Canopy vs model</option><option value="moisture">Soil moisture</option><option value="salinity">Salinity</option><option value="water">Irrigation</option></select></label>
+  <label class="check"><input type="checkbox" id="explainedChk"> Explained replay: show hidden changes as they happen</label>
+  <p class="note">Off (spoiler-free): a scheduled hidden change appears only once the scientist identifies it or the season ends.</p>
+  <button class="ghost sm" id="tourBtn" type="button">Replay the guided tour</button>
+  <p class="note" id="buildLabel">Build: checking…</p>
+  <p class="note">Keys: 1–6 fields, O overview, D drone, R reset, V overlay, I close-up, Space play or pause, [ and ] previous and next event. Mouse: drag to orbit, scroll to zoom, right-drag to pan. Touch: drag, pinch, two-finger pan.</p>
+</div>
+<div class="panel popover" id="profile" hidden>
+  <p id="profileName">Not signed in</p>
+  <button class="ghost sm" id="historyBtn" type="button">Your seasons</button>
+  <button class="ghost sm" id="badgesBtn" type="button">Achievements</button>
+  <button class="ghost sm" id="logoutBtn" type="button">Log out</button>
+  <a class="ghost sm" id="loginLink" href="login">Log in</a>
+</div>
+
+<!-- large drawers -->
+<section class="panel drawer" id="drawer" hidden role="dialog" aria-modal="false" aria-labelledby="drawerTitle">
+  <div class="ph"><h2 id="drawerTitle" tabindex="-1"></h2><div class="drawer-tabs" id="drawerTabs"></div><button class="collapse" id="drawerClose" type="button" aria-label="Close">×</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</section>
+
+<!-- season planner -->
+<div class="planner" id="planner" hidden role="dialog" aria-modal="true" aria-labelledby="plannerTitle" tabindex="-1">
+  <aside class="panel pl-left">
+    <p class="eyebrow">Season planner</p>
+    <h2 id="plannerTitle">Plan your season</h2>
+    <p class="preview-banner" id="previewBanner" hidden></p>
+    <p class="note pl-how">Pick a sowing season and a crop card, then sow it on fields here or in the map. Fields you leave open are planned by the scientist.</p>
+    <div class="seasons" id="seasonTabs" role="tablist" aria-label="Sowing season"></div>
+    <p class="note" id="seasonAbout"></p>
+    <details class="pl-farm" id="plFarm">
+      <summary>Farm and scenario <span id="plFarmSum"></span></summary>
+      <label>Scenario <select id="scenarioSel"></select></label>
+      <p class="note" id="scenarioAbout"></p>
+      <div class="pl-grid">
+        <label>Farm seed <input id="edSeed" type="number" min="1" max="999" step="1" value="7"></label>
+        <label>Water quota, m³ <input id="edQuota" type="number" min="30000" max="90000" step="1000" value="60000"></label>
+        <label>Energy budget, kWh <input id="edEnergy" type="number" min="40000" max="150000" step="1000" value="90000"></label>
+        <label title="Starting soil salinity relative to the standard farm">Soil salinity, × <input id="edSalt" type="number" min="0.5" max="2" step="0.1" value="1"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="humanChk"> Human decision mode: you choose the first test at each alarm and approve repairs</label>
+      <p class="note">The season always starts on 1 October. The seed sets the hidden crop traits, drip systems and weather year; the same seed and choices give a paired comparison.</p>
+    </details>
+    <div class="pl-tools"><button class="ghost sm" id="plUndo" type="button" disabled>Undo</button><button class="ghost sm" id="plClear" type="button">Leave all to the scientist</button></div>
+    <ol class="pl-fields" id="fieldRows"></ol>
+    <div class="pl-summary" id="plSummary" aria-live="polite"></div>
+    <label class="pl-agent">Scientist
+      <select id="agentSel"><option value="scripted-rl">Scripted scientist with RL</option><option value="scripted">Scripted scientist</option><option value="spark">Muse Spark</option><option value="glimmer">Muse Glimmer</option></select>
+    </label>
+    <p class="err" id="plErr" role="alert" hidden></p>
+    <div class="pl-actions"><button class="ghost" id="plannerClose" type="button">Cancel</button><button class="primary" id="startBtn" type="button">Start the season</button></div>
+  </aside>
+  <section class="panel pl-crops">
+    <div class="pl-ch"><h3>Choose your crops</h3><p class="note" id="plHint"></p></div>
+    <div class="crop-strip" id="cropCards"></div>
+  </section>
+</div>
+
+<section class="panel decision" id="decision" hidden role="dialog" aria-modal="false" aria-labelledby="decTitle">
+  <p class="eyebrow">Your decision</p>
+  <h2 id="decTitle"></h2>
+  <div class="dec-opts" id="decOpts"></div>
+  <p class="note" id="decNote">The season is paused until you choose. If no one answers within 15 minutes, the scientist's own choice is used and logged as such.</p>
+</section>
+<div class="drone-layer" id="droneLayer" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
+<div class="tip" id="tip" hidden role="tooltip"></div>
+
+<script type="module" src="app.js?v=f3621d8e7e"></script>
+</body>
+</html>
