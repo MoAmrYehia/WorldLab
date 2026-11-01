@@ -1,0 +1,99 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h405-sensor_bias",
+ "label": "sensor_bias",
+ "seed": 405,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "sensor_bias",
+   "day": 88,
+   "pick": 63,
+   "severity": -0.078
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "sensor_bias",
+   "field": "F4",
+   "day": 88
+  }
+ ],
+ "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+ "source_dirty": false,
+ "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+ "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 817.8,
+ "finished_at": "2026-11-01T08:06:58Z",
+ "result": {
+  "people_fed": 585.8,
+  "water_m3": 59865,
+  "energy_kwh": 90000,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "sensor_bias",
+    "field": "F4",
+    "onset": 88,
+    "first_evidence_day": 90,
+    "correct_diagnosis_day": 91,
+    "intervention_day": 91,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 3
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.488,
+ "trait_error_planted": 0.294,
+ "planted": [
+  "maize",
+  "potato",
+  "sweet_potato"
+ ],
+ "controller": "rl_policy",
+ "plots": 16,
+ "tests": 2,
+ "looks": 3,
+ "usage": {
+  "scientist_calls": 40,
+  "scientist_attempts": 40,
+  "scientist_tokens": {
+   "prompt_tokens": 945937,
+   "completion_tokens": 10838
+  },
+  "perception_attempts": 54,
+  "perception_calls": 54
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "67ded33563622d35dc9a460116574faf1993c556b01a62ed3ba5cbf026cdb98a",
+   "entries": 146,
+   "head": "53b34cb9fa5db960ad675bd47773c248b3ac8aae90482ea43478be6065584a9a"
+  }
+ }
+}

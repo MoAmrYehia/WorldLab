@@ -1,0 +1,90 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s204-pest",
+ "label": "pest",
+ "seed": 204,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "pest",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "pest",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 364.3,
+ "finished_at": "2026-11-01T08:46:00Z",
+ "result": {
+  "people_fed": 398.2,
+  "water_m3": 60000,
+  "energy_kwh": 85816,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "pest",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 103,
+    "correct_diagnosis_day": 104,
+    "intervention_day": 104,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 14
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.642,
+ "trait_error_planted": 0.378,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 1,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "9ecf7b1c4a0927d50d3809846379f0d799b98e1bc310a8d6c759440189cf6f87",
+   "entries": 87,
+   "head": "6a6f09fdaedf23990034805aa9c7b0fdb0e48543c2f1caa56fdee1b8777fd2fc"
+  }
+ }
+}

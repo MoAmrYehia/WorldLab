@@ -1,0 +1,90 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s200-pest",
+ "label": "pest",
+ "seed": 200,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "pest",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "pest",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 405.5,
+ "finished_at": "2026-11-01T08:41:18Z",
+ "result": {
+  "people_fed": 356.7,
+  "water_m3": 53582,
+  "energy_kwh": 73225,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "pest",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 103,
+    "correct_diagnosis_day": 104,
+    "intervention_day": 104,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 14
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.716,
+ "trait_error_planted": 0.6,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 1,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "c13b83f80826a4179a481923c24cbb8927fb1670018ecbc7f0fb7733ebe2c80d",
+   "entries": 86,
+   "head": "ad0900a08ef96e71f4afd19490d33e44f88e11ada9d97275244e974797e06cba"
+  }
+ }
+}

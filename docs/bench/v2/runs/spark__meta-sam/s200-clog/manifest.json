@@ -1,0 +1,95 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s200-clog",
+ "label": "clog",
+ "seed": 200,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta-sam",
+ "perception_models": [
+  "sam-3.1"
+ ],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 427.9,
+ "finished_at": "2026-11-01T09:07:33Z",
+ "result": {
+  "people_fed": 364.3,
+  "water_m3": 55624,
+  "energy_kwh": 79346,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 115,
+    "correct_diagnosis_day": 116,
+    "intervention_day": 116,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 26
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.626,
+ "trait_error_planted": 0.439,
+ "planted": [
+  "maize",
+  "millet",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 16,
+ "tests": 2,
+ "looks": 3,
+ "usage": {
+  "scientist_calls": 39,
+  "scientist_attempts": 39,
+  "scientist_tokens": {
+   "prompt_tokens": 884005,
+   "completion_tokens": 11823
+  },
+  "perception_attempts": 35,
+  "perception_calls": 35
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "45c7c0d3ffe0088988bc2964ef3266136eba7e5795f8a45bd9e1f958e1b66134",
+   "entries": 146,
+   "head": "010272819ba061934eaa315f10d256600c80e4cb9d4b1a0462897774531b3119"
+  }
+ }
+}

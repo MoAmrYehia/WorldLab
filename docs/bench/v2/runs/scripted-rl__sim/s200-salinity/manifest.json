@@ -1,0 +1,90 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s200-salinity",
+ "label": "salinity",
+ "seed": 200,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "salinity",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "salinity",
+   "field": "all",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 364.4,
+ "finished_at": "2026-11-01T08:46:19Z",
+ "result": {
+  "people_fed": 296.8,
+  "water_m3": 48889,
+  "energy_kwh": 82988,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 90,
+    "first_evidence_day": 100,
+    "correct_diagnosis_day": 101,
+    "intervention_day": 101,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 11
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 1,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 3,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.716,
+ "trait_error_planted": 0.6,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 10,
+ "tests": 3,
+ "looks": 2,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "f3c4756145a6e53cef5e7ca3eea5bb5eaa195a8f3302a684d6b31179b289b681",
+   "entries": 105,
+   "head": "23d27f5a4dadb186bee36c4af9d35af8fb54e391b934937753f4893df148ac32"
+  }
+ }
+}

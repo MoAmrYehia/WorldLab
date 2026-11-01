@@ -1,0 +1,71 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h407-none",
+ "label": "none",
+ "seed": 407,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [],
+ "applied_events": [],
+ "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+ "source_dirty": false,
+ "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+ "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 418.0,
+ "finished_at": "2026-11-01T08:22:58Z",
+ "result": {
+  "people_fed": 540.6,
+  "water_m3": 60000,
+  "energy_kwh": 89843,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [],
+  "faults": 0,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "faults_justified_intervention": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 0,
+  "appropriate_non_intervention": true,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.483,
+ "trait_error_planted": 0.454,
+ "planted": [
+  "maize",
+  "potato",
+  "sweet_potato"
+ ],
+ "controller": "rl_policy",
+ "plots": 13,
+ "tests": 0,
+ "looks": 0,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": 0,
+  "perception_calls": 0
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "e942c969cd334e509fed387679df156530a36d75605c44899cb3fff0bbc1243b",
+   "entries": 72,
+   "head": "64c8f3f03920b14217e03bde5abcd36320b5997c70678d1ee87212f8de88bb4f"
+  }
+ }
+}

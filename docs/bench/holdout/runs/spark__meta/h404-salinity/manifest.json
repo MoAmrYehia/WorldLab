@@ -1,0 +1,99 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h404-salinity",
+ "label": "salinity",
+ "seed": 404,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "salinity",
+   "day": 78,
+   "severity": 8.5
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "salinity",
+   "field": "all",
+   "day": 78
+  }
+ ],
+ "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+ "source_dirty": false,
+ "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+ "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 872.2,
+ "finished_at": "2026-11-01T07:55:58Z",
+ "result": {
+  "people_fed": 358.2,
+  "water_m3": 54634,
+  "energy_kwh": 89072,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 78,
+    "first_evidence_day": 79,
+    "correct_diagnosis_day": 97,
+    "intervention_day": 97,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 19
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 1,
+  "wrong_findings": 2,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 5,
+  "tests": 6,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": null,
+  "reviews_requested": 1
+ },
+ "trait_error_common": 0.442,
+ "trait_error_planted": 0.218,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 16,
+ "tests": 6,
+ "looks": 3,
+ "usage": {
+  "scientist_calls": 57,
+  "scientist_attempts": 57,
+  "scientist_tokens": {
+   "prompt_tokens": 1520940,
+   "completion_tokens": 13441
+  },
+  "perception_attempts": 54,
+  "perception_calls": 54
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "599e6ddd4075e6ed4fb2af018e3433fb1d7bc67498135b8a422fe7468fca49bc",
+   "entries": 230,
+   "head": "35f4449dab233121a5518fd49b9f8e9c9bf04d407e8470e0146b5bb5be987c58"
+  }
+ }
+}

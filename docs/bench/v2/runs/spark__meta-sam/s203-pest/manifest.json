@@ -1,0 +1,94 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s203-pest",
+ "label": "pest",
+ "seed": 203,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta-sam",
+ "perception_models": [
+  "sam-3.1"
+ ],
+ "hidden_events": [
+  {
+   "kind": "pest",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "pest",
+   "field": "F4",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 392.6,
+ "finished_at": "2026-11-01T09:19:55Z",
+ "result": {
+  "people_fed": 389.0,
+  "water_m3": 54896,
+  "energy_kwh": 90000,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "pest",
+    "field": "F4",
+    "onset": 90,
+    "first_evidence_day": 103,
+    "correct_diagnosis_day": 104,
+    "intervention_day": 104,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 14
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.78,
+ "trait_error_planted": 0.34,
+ "planted": [
+  "maize",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 16,
+ "tests": 2,
+ "looks": 2,
+ "usage": {
+  "scientist_calls": 42,
+  "scientist_attempts": 42,
+  "scientist_tokens": {
+   "prompt_tokens": 926759,
+   "completion_tokens": 8331
+  },
+  "perception_attempts": 18,
+  "perception_calls": 18
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "af490d56f760815d5a7fd1e16e8619275d62d020ae4b5ea43c1cd8b61fddf5f9",
+   "entries": 153,
+   "head": "d1005c9e9a34f1680e6d3788812082318dc3a754ca93d803f65b18fba7dd4448"
+  }
+ }
+}

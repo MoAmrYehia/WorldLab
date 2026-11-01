@@ -1,0 +1,94 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s202-clog",
+ "label": "clog",
+ "seed": 202,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta-vision",
+ "perception_models": [
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F4",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 423.1,
+ "finished_at": "2026-11-01T09:23:30Z",
+ "result": {
+  "people_fed": 537.6,
+  "water_m3": 58723,
+  "energy_kwh": 87566,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F4",
+    "onset": 90,
+    "first_evidence_day": 106,
+    "correct_diagnosis_day": 107,
+    "intervention_day": 107,
+    "justified_intervention": true,
+    "no_realarm_30d": false,
+    "days_to_diagnosis": 17
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 3,
+  "tests": 5,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.582,
+ "trait_error_planted": 0.174,
+ "planted": [
+  "maize",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 16,
+ "tests": 5,
+ "looks": 4,
+ "usage": {
+  "scientist_calls": 44,
+  "scientist_attempts": 44,
+  "scientist_tokens": {
+   "prompt_tokens": 954097,
+   "completion_tokens": 9758
+  },
+  "perception_attempts": 4,
+  "perception_calls": 4
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "442eef53d96d787b8636921de866430fd31862cec57ca0bbe04b2fcb2a0aa6d9",
+   "entries": 158,
+   "head": "9acb981801cac8019b54613760e8b9c04e3d0fdb312f6498b7c7e19e993edaf0"
+  }
+ }
+}

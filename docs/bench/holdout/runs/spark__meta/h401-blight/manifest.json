@@ -1,0 +1,102 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h401-blight",
+ "label": "blight",
+ "seed": 401,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "blight",
+   "day": 110,
+   "pick": 42,
+   "severity": 0.014
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "blight",
+   "field": "F3",
+   "day": 110
+  }
+ ],
+ "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+ "source_dirty": false,
+ "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+ "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 843.9,
+ "finished_at": "2026-11-01T07:55:30Z",
+ "result": {
+  "people_fed": 529.5,
+  "water_m3": 58063,
+  "energy_kwh": 85229,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "blight",
+    "field": "F3",
+    "onset": 110,
+    "first_evidence_day": 139,
+    "correct_diagnosis_day": 140,
+    "intervention_day": 140,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 30
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 4,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": [
+   true
+  ],
+  "reviews_requested": 1
+ },
+ "trait_error_common": 0.409,
+ "trait_error_planted": 0.276,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 16,
+ "tests": 4,
+ "looks": 5,
+ "usage": {
+  "scientist_calls": 48,
+  "scientist_attempts": 48,
+  "scientist_tokens": {
+   "prompt_tokens": 1198559,
+   "completion_tokens": 9443
+  },
+  "perception_attempts": 74,
+  "perception_calls": 74
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "482df8d1426c245ed552d59f39041d72ca6b4e99e3bf0ca69620c73bef2b15cf",
+   "entries": 182,
+   "head": "4504641d68998b489927d9619006c0f98c5cb2551d1463be454aee8f72f3d00f"
+  }
+ }
+}

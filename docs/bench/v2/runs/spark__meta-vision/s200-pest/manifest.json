@@ -1,0 +1,95 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s200-pest",
+ "label": "pest",
+ "seed": 200,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta-vision",
+ "perception_models": [
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "pest",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "pest",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 439.0,
+ "finished_at": "2026-11-01T09:28:45Z",
+ "result": {
+  "people_fed": 350.6,
+  "water_m3": 55011,
+  "energy_kwh": 82151,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "pest",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 99,
+    "correct_diagnosis_day": 100,
+    "intervention_day": 100,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 10
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.636,
+ "trait_error_planted": 0.401,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 16,
+ "tests": 1,
+ "looks": 3,
+ "usage": {
+  "scientist_calls": 38,
+  "scientist_attempts": 38,
+  "scientist_tokens": {
+   "prompt_tokens": 831051,
+   "completion_tokens": 9137
+  },
+  "perception_attempts": 3,
+  "perception_calls": 3
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "b90f92e4e276ca176b9e5cc70772ce5c6affa580d30a73d048cd45ebbc3495d6",
+   "entries": 141,
+   "head": "308d15777a04debe7703feb5dfe6a81101385514b0e6421ba7978cfdce8780f9"
+  }
+ }
+}

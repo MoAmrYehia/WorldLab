@@ -1,0 +1,76 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s201-heatwave",
+ "label": "heatwave",
+ "seed": 201,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "heatwave",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "heatwave",
+   "field": "all",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 318.9,
+ "finished_at": "2026-11-01T08:51:37Z",
+ "result": {
+  "people_fed": 679.4,
+  "water_m3": 60000,
+  "energy_kwh": 86620,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [],
+  "faults": 0,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "faults_justified_intervention": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 0,
+  "appropriate_non_intervention": true
+ },
+ "trait_error_common": 0.624,
+ "trait_error_planted": 0.126,
+ "planted": [
+  "maize",
+  "sweet_potato"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 0,
+ "looks": 0,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "ab644cc79f6f5ffa96cd4823241e69cf20bc825d87dad1931d49635da978ec24",
+   "entries": 59,
+   "head": "5271affd53642211685d4bf84a08cc9b4550827e2539daf3db388d907123af92"
+  }
+ }
+}

@@ -1,0 +1,90 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s200-clog",
+ "label": "clog",
+ "seed": 200,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 367.5,
+ "finished_at": "2026-11-01T08:34:56Z",
+ "result": {
+  "people_fed": 354.4,
+  "water_m3": 54078,
+  "energy_kwh": 75181,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 113,
+    "correct_diagnosis_day": 114,
+    "intervention_day": 114,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 24
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.716,
+ "trait_error_planted": 0.6,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 2,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "31bd1d8b0c53e67c3778ee7b8c6031c039965acfba9ce1d1cb1cc5ee1a68b71b",
+   "entries": 89,
+   "head": "d7a5c44bc6af7bb1ba3bbcf27468182398650073c1e986549c26bbb7b64fbacf"
+  }
+ }
+}
