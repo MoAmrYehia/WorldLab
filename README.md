@@ -29,7 +29,7 @@
 **Measured comparison (benchmark v2: 5 farms × 5 scenarios, every run kept, scored event by event; [details](docs/bench/v2/)).**
 - **Diagnosis:** Muse Spark diagnosed 14 of 15 hidden faults, with no wrong findings or actions. Median time to diagnosis was 14 days from onset.
 - **People fed (simulated index):** Muse Spark averaged 441.1, against 471.3 for the scripted protocol with its learned irrigation policy. The matched difference is −30.3 (95% interval −59.3 to −1.9); Spark was ahead in 9 of 25 pairs. **Muse Spark does not out-farm the hand-written protocol.** Its losses come from crop plans, including one farm where it fed 26 people because its only vitamin-A crop failed on the saltiest field.
-- **Frozen holdout ([details](docs/bench/holdout/)):** 8 unfamiliar farms, including a faulty sensor and a disease no test can identify. Both scientists diagnosed 5 of 7 faults, escalated the unidentifiable one to a person, and stayed calm when nothing was wrong. Spark made more wrong findings (3 against 1). Neither caught clogs on sandy fields: a detection limit of the monitor.
+- **Frozen holdout ([details](docs/bench/holdout/)):** 8 unfamiliar farms, including a faulty sensor and a disease no test can identify. Both scientists diagnosed 4 of the 6 identifiable faults, escalated the unidentifiable one to a person, and stayed calm when nothing was wrong. Spark made more wrong findings (3 against 1). Neither caught clogs on sandy fields: a detection limit of the monitor.
 
 **Limits.** Nothing is field-validated. Drone photos are renders of the simulator's state. Soils, crop traits and faults are simulated. The one real input is NASA POWER weather for Al Ain, 2024–25, available as a scenario. "People fed" is a nutrition index, not people actually fed. See the [model card](docs/model-card.md).
 
@@ -137,7 +137,7 @@ All are single farms and single weather years. Exact mid-season checkpoints aren
 
 **Hosting: GitHub Pages for the website, Hugging Face for the server.** `docs/` is a static copy of the whole site (landing page, log in, sign up, and the farm app in `docs/app/`). GitHub Pages serves it; accounts, crop planning and live seasons call the Python server, which runs on a Hugging Face Space. The address of that server is set in `docs/config.js`. If the server can't be reached, the Pages site still shows the landing page and a recorded season. See [Deploy](#deploy-github-pages--hugging-face) below.
 
-Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (agriculture, food security).
+Built for the Meta Global AI Developer Hackathon: theme **Push the Frontier** (agriculture, food security); the track (Indie Developer or Startup) is chosen in the portal.
 
 ---
 
@@ -402,7 +402,7 @@ The same 25 farm-scenarios, rerun with complete ledgers and manifests and scored
 
 **Matched difference (Spark minus scripted): −30.3 people fed**, 95% interval −59.3 to −1.9 (resampling farm seeds). Spark was ahead in 9 of 25 pairs.
 
-- **Diagnosis:** Muse Spark diagnoses as accurately as the protocol, a day sooner (median 14 days from onset against 15), with no wrong calls.
+- **Diagnosis:** Muse Spark diagnosed 14 of 15 faults against the protocol's 15 of 15, with a median of 14 days from onset against 15, and no wrong calls.
 - **Harvest:** the loss is in its crop plans. On one farm, its only vitamin-A crop failed on the saltiest field and the index fell to 26 people. That farm also produced 16 of its 18 unexplained alarms.
 - **Perception ablation:** removing SAM 3.1, Spark vision or both changed neither diagnosis nor harvest in the clog and pest cases.
 - **Scripted protocol and perception:** its results are identical with Meta perception and with the simulator's truth.
@@ -424,7 +424,7 @@ Details are in [`docs/bench/holdout/`](docs/bench/holdout/).
 
 | | Muse Spark | scripted protocol + RL |
 |---|---|---|
-| hidden faults diagnosed | 5/7 | 5/7 |
+| identifiable faults diagnosed (scorer 2.1) | 4/6 | 4/6 |
 | wrong findings or actions | 3 | 1 |
 | unidentifiable cause escalated to a person, nothing treated | yes | yes |
 | calm on the control and heat-wave farms | 2/2 | 2/2 |

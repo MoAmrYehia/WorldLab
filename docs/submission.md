@@ -16,7 +16,7 @@ The weights below come from the hackathon page as read during the build. Confirm
 | | **Validation:** none in the field. ET0 matches FAO-56 example 18 within 3%. No practitioner review yet. | partial |
 | **Use of Meta AI (25%)** | **Muse Spark as the scientist** via tool calling (`worldlab/agent.py`). Benchmark v2: 25 Spark seasons, 14/15 faults diagnosed, 0 wrong calls ([`bench/v2`](bench/v2/)). | verified |
 | | **SAM 3.1 and Spark vision on drone photos** (`worldlab/perception.py`), with typed outcomes (valid / partial / unavailable / malformed). | verified |
-| | **Perception ablation:** the image models did not change diagnosis or harvest on clog and pest cases. Reported as found. | verified |
+| | **Perception ablation:** no observed diagnosis gain from the image models on the tested clog and pest cases (one run per case and condition). Reported as found. | verified |
 | | **Muse Glimmer:** adapter only, not run, and labelled that way. | verified (as not demonstrated) |
 | **Demo (25%)** | **Recorded season with a seven-step judge walkthrough** (`app/?demo&walkthrough`): spoiler-free by default, evidence links on every step, no overlaps at desktop, laptop and phone widths (`tests/browser/smoke.js`). | verified |
 | | **Live season for guests, including the *Unknown challenge*:** the code and tests are in place. **The hosted server is not deployed** because the `HF_TOKEN` secret is missing. | partial, owner |
@@ -48,10 +48,10 @@ The weights below come from the hackathon page as read during the build. Confirm
 Do not rely on this list alone. Open the signed-in portal and check every required field.
 
 - [ ] **Live server:** create a Hugging Face write token and add it as the GitHub Actions secret `HF_TOKEN` (optionally also `MODEL_API_KEY`). Push or re-run *Deploy server to Hugging Face*, then check `https://moamryehia-worldlab.hf.space/api/ready`.
-- [ ] **Contributors:** make `main-clean` the history of `main`, either by force-pushing it or by switching the default branch on github.com.
+- [ ] **History:** keep `main` as it is. Its history supports the build timeline and the holdout's freeze-before-run provenance. Rewriting it (for example to `main-clean`) is a separate decision, not a submission step.
 - [ ] **Video:** record from [`DEMO.md`](DEMO.md). Confirm the **actual length limit** in the portal; the 3-minute figure is not verified from participant instructions.
 - [ ] **Portal fields:** project name, description, repository link, demo link and video link; any required screenshots.
-- [ ] **Track or theme:** choose it in the portal (the README says *Push the Frontier*; confirm it is an accepted track).
+- [ ] **Theme and track:** *Push the Frontier* is the theme; the **track** (Indie Developer or Startup) is a separate choice in the portal. Confirm both there.
 - [ ] **Owner-only declarations:** eligibility and affiliation, team members, rights to the submitted work, and the final terms. These are the owner's to read and accept.
 - [ ] **Social post:** if required, post it from your own account.
 - [ ] **Submission is done only when the portal shows a confirmation or receipt.** Pushing the repository is not submission.
