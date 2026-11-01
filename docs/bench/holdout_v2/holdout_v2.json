@@ -1,0 +1,141 @@
+{
+ "schema": "worldlab.holdout/1",
+ "frozen_at": "2026-11-01T10:52:54Z",
+ "generator_seed": 20261102,
+ "generated_from_commit": "424615232bcffab4a381eb6afe2709cbf39e46be",
+ "prompt_sha256": "9279ff8b81a5057d3e66bbd828f1201d9562ec3553849a92d1f1a8f6d990ec67",
+ "tool_schema_sha256": "937a462707724654863eb2364b6fd3732699b08df0cb165ba49aa85cebda49f6",
+ "rules": "- new farm seeds 401-408 (never used in development, the recorded season or benchmarks v1/v2), one per case\n  - one case per family: clean control, forecast heat wave, clog, pest outbreak, saltier groundwater, a compound fault\n    (clog then pests in another field), a biased soil-moisture sensor, and a root disease no available test can detect\n  - onset day drawn uniformly from 75-150 (heat wave 120-170); severity from the family's range; the affected field is\n    picked at random among the fields growing a crop on that day (scenarios.draw_challenge)\n  - each case is run once per scientist: Muse Spark (Meta perception) and the scripted protocol with RL (same\n    perception), with the same tool and test budgets; every run is kept, including failures",
+ "scientists": [
+  "spark/meta (new code)",
+  "spark/meta (old code 8c15a7e)",
+  "scripted-rl/meta (new code)"
+ ],
+ "cases_sha256": "bf86e4fd027a51a2053124676fb4b009ac6390c954d50fb5407f4805e5938a82",
+ "cases": [
+  {
+   "id": "h601-clog",
+   "seed": 601,
+   "label": "clog",
+   "specs": [
+    "clog@100:#98:0.63"
+   ],
+   "events": [
+    {
+     "kind": "clog",
+     "day": 100,
+     "pick": 98,
+     "severity": 0.63
+    }
+   ]
+  },
+  {
+   "id": "h602-sensor_bias",
+   "seed": 602,
+   "label": "sensor_bias",
+   "specs": [
+    "sensor_bias@141:#78:0.079"
+   ],
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "day": 141,
+     "pick": 78,
+     "severity": 0.079
+    }
+   ]
+  },
+  {
+   "id": "h603-salinity",
+   "seed": 603,
+   "label": "salinity",
+   "specs": [
+    "salinity@98::9.1"
+   ],
+   "events": [
+    {
+     "kind": "salinity",
+     "day": 98,
+     "severity": 9.1
+    }
+   ]
+  },
+  {
+   "id": "h604-none",
+   "seed": 604,
+   "label": "none",
+   "specs": [],
+   "events": []
+  },
+  {
+   "id": "h605-blight",
+   "seed": 605,
+   "label": "blight",
+   "specs": [
+    "blight@127:#72:0.026"
+   ],
+   "events": [
+    {
+     "kind": "blight",
+     "day": 127,
+     "pick": 72,
+     "severity": 0.026
+    }
+   ]
+  },
+  {
+   "id": "h606-compound",
+   "seed": 606,
+   "label": "compound",
+   "specs": [
+    "clog@116:#25:0.49",
+    "pest@150:#26:0.040"
+   ],
+   "events": [
+    {
+     "kind": "clog",
+     "day": 116,
+     "pick": 25,
+     "severity": 0.49
+    },
+    {
+     "kind": "pest",
+     "day": 150,
+     "pick": 26,
+     "severity": 0.04
+    }
+   ]
+  },
+  {
+   "id": "h607-pest",
+   "seed": 607,
+   "label": "pest",
+   "specs": [
+    "pest@82:#81:0.017"
+   ],
+   "events": [
+    {
+     "kind": "pest",
+     "day": 82,
+     "pick": 81,
+     "severity": 0.017
+    }
+   ]
+  },
+  {
+   "id": "h608-heatwave",
+   "seed": 608,
+   "label": "heatwave",
+   "specs": [
+    "heatwave@160"
+   ],
+   "events": [
+    {
+     "kind": "heatwave",
+     "day": 160
+    }
+   ]
+  }
+ ],
+ "criteria": "# Holdout v2: pre-registered criteria (written before any run)\n\nThis suite has eight new farms (seeds 601\u2013608), one hidden challenge each, drawn from the same families as holdout v1\nwith a new generator seed (20261102). It was frozen after the second-review fixes and before any run on these farms.\n\n## Conditions\n\nAll three conditions use Meta perception (SAM 3.1 and Muse Spark vision), the same tools, the same budgets and the same\nhard limits. Each runs once per farm.\n\n1. **Muse Spark, new code.** The release under test: multi-start calibration, the nutrient-risk report with a backup\n   plan, and escalation after repeated alarms.\n2. **Muse Spark, old code.** Commit `8c15a7e`, before those fixes, run from a separate checkout of that commit. Its\n   manifests name that commit.\n3. **Scripted protocol with RL, new code.** It has fixed rules for the nutrient-risk gate (take the backup if it keeps at\n   least 95% of the bad-year result, otherwise accept and record why) and for escalation (re-plan the water first, then\n   state the loss).\n\n## Criteria and decision rules\n\nEvery number is reported, whichever way it goes. Farms are counted separately from model repeats: here there are 8\nfarms and 1 repeat each.\n\n**C1. Does the planning fix remove catastrophic seasons?**\n\n- A season is catastrophic when people fed is below 50% of the scripted protocol's result on the same farm.\n- Report how many seasons are catastrophic for Spark-old and for Spark-new.\n- Report the matched difference in people fed, Spark-new minus Spark-old, with a 95% interval from resampling farms.\n- Claim the fix helped only if Spark-new has fewer catastrophic seasons, or the interval is entirely above zero.\n  Otherwise report \"no measured improvement\".\n\n**C2. Is there a measured benefit from Muse Spark over the scripted protocol?** Both run the new code.\n\nClaim an advantage only on one of these:\n\n- the people-fed interval (Spark minus scripted) is entirely above zero;\n- strictly fewer wrong findings or actions, with identifiable-fault diagnosis recall not lower;\n- strictly more identifiable faults diagnosed with evidence, with wrong findings or actions not higher.\n\nOtherwise report \"no measured benefit on this suite\". Name the comparator and the sample size with any claim.\n\n**C3. Risk and escalation decisions.**\n\n- For each run, report whether the nutrient-risk gate triggered.\n- Report whether the scientist took the backup or accepted the risk, and its stated evidence.\n- Report whether the accepted field later failed (yield below 20% of the field's planned P50).\n- Report every escalation, with its decision and stated cause.\n\n**Scoring:** scorer 2.1. Diagnosis needs evidence first; premature claims are wrong; follow-up shorter than 30 days is\ncensored; the unidentifiable case is an escalation.\n"
+}
