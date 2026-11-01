@@ -6,6 +6,8 @@
 const { chromium } = require("playwright");
 const base = (process.argv[2] || "http://127.0.0.1:8811").replace(/\/$/, "");
 const fail = [];
+// waits by polling page.evaluate: waitForFunction can need eval, which the pages' Content Security Policy forbids
+const waitFor = async (p, fn, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await p.evaluate(fn).catch(() => false)) return; await p.waitForTimeout(200); } throw new Error("timed out waiting"); };
 const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); };
 
 (async () => {
@@ -98,7 +100,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
   for (const [w, h] of [[1440, 900], [1100, 760], [390, 844]]) {
     p = await page(w, h);
     await p.goto(`${base}/app/?demo`, { waitUntil: "load" });
-    await p.waitForFunction(() => document.getElementById("provChip").textContent.length > 5);
+    await waitFor(p, () => document.getElementById("provChip").textContent.length > 5);
     check(await p.evaluate(() => /Muse Spark · SAM 3\.1 \+ Muse Spark/.test(document.getElementById("provChip").textContent) && /^Recorded/.test(document.getElementById("runState").textContent)),
       `${w}px: first frame says recorded, Muse Spark and Meta perception (no "Simulated" flash)`);
     await p.click("#walkBtn");
@@ -130,7 +132,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
     p = await page(1440, 900);
     await p.addInitScript((x) => { try { localStorage.setItem("wl-explained", JSON.stringify(x)); } catch (e) {} }, explained);
     await p.goto(`${base}/app/?demo`, { waitUntil: "load" });
-    await p.waitForFunction(() => document.getElementById("provChip").textContent.length > 5);
+    await waitFor(p, () => document.getElementById("provChip").textContent.length > 5);
     const seen = [];
     for (let v = 0; v <= 1000; v += 10) {
       await p.$eval("#dateScrub", (s, v) => { s.value = v; s.dispatchEvent(new Event("input")); }, v);
