@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=9ac5d4508e";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=ade89bcd05";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -1873,8 +1873,8 @@ function walkSteps() {
         return r ? `The harvest feeds <b>${fmt(r.people_fed, 1)} people</b> (modelled person-years; the farm goal is 500), using ${fmt(r.water_used_m3)} m³ of water and ${fmt(r.energy_used_kwh)} kWh, ${r.within_quota && r.within_energy ? "within both limits" : "outside a limit"}. ${F && F.recovery && F.recovery.ok ? `Physical recovery in ${esc(A.field)} was observed on ${dayLabel(F.recovery.day)}, ${F.recovery.lag} days after the repair, from measurements alone.` : ""} The complete raw ledger of this run is in the <a href="evidence/worldlab-evidence.zip" download>evidence bundle</a>, with a verifier that runs offline.` : "The season has no harvest record."; },
       evidence: () => [evLink(res, "Season result")] },
     { title: "The comparison", view: ["results", "compare"], at: null,
-      body: () => `Compare lists each experiment with what was held fixed and what changed. On the same farm and weather, the hidden clog costs the scripted scientist 6.9 people fed (492.0 without it, 485.1 with it), and investigating alarms is worth 7.6 (464.9 against 457.3 when alarms are ignored). Across five farms and five scenarios, Muse Spark averaged 455.9 people fed, below the scripted protocol with its learned policy (471.3) and above the fixed rule (421.6): it investigates well but does not yet out-farm the hand-written protocol.`,
-      evidence: () => [`<a href="https://github.com/moamryehia/WorldLab/tree/main/docs/bench" target="_blank" rel="noopener">Benchmark runs and summary</a>`] },
+      body: () => `Compare lists each experiment with what was held fixed and what changed. On the same farm and weather, the hidden clog costs the scripted scientist 6.9 people fed (492.0 without it, 485.1 with it), and investigating alarms is worth 7.6 (464.9 against 457.3 when alarms are ignored). Across five farms and five scenarios (benchmark v2, every run kept), Muse Spark diagnosed 14 of 15 hidden faults with no wrong calls, but fed 30 fewer people than the scripted protocol on average (441.1 against 471.3; 95% interval −59 to −2): its crop plans are weaker. On eight frozen, unfamiliar farms both scientists diagnosed 5 of 7 faults and handed a cause no test could establish to a person.`,
+      evidence: () => [`<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/v2" target="_blank" rel="noopener">Benchmark v2</a>`, `<a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/holdout" target="_blank" rel="noopener">Frozen holdout</a>`] },
   ];
   return steps;
 }
@@ -1917,7 +1917,7 @@ function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", 
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=9ac5d4508e");
+    const mod = await import("./scene.js?v=ade89bcd05");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
