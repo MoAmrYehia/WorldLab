@@ -117,11 +117,15 @@ class Session:
                 self.result = ScriptedScientist(self.lab, rl=True).run()
             else:
                 self.result = ScriptedScientist(self.lab).run()
+            if not self.lab.done:
+                self.lab.end_run("failed", "the scientist stopped before the season ended")
         except StopRequested:
             self.lab.agent_note("system", "stopped by operator")
+            self.lab.end_run("cancelled", "stopped by the operator")
         except Exception:
             self.error = traceback.format_exc()
             self.lab.agent_note("error", self.error)
+            self.lab.end_run("failed", "internal error: " + self.error.strip().splitlines()[-1][:200])
         finally:
             try:                                   # the true soil at the end, for a next season on the same farm
                 import json as _json
@@ -133,6 +137,33 @@ class Session:
                     self.on_finish(self)
                 except Exception:
                     pass
+
+    def handover(self) -> bool:
+        """Continue a failed or timed-out model-driven season with the scripted protocol, if the person asks."""
+        lab = self.lab
+        if self.alive() or lab.run_status not in ("failed", "timeout") or lab.phase != "season":
+            return False
+        reason = f"{lab.run_status}: {lab.run_end_reason}"
+
+        def go():
+            try:
+                ScriptedScientist(lab, rl=False).resume(reason)
+            except StopRequested:
+                lab.done = False
+                lab.end_run("cancelled", "stopped by the operator after the handover")
+            except Exception:
+                self.error = traceback.format_exc()
+                lab.done = False
+                lab.end_run("failed", "internal error after the handover")
+            finally:
+                if self.on_finish:
+                    try:
+                        self.on_finish(self)
+                    except Exception:
+                        pass
+        self.thread = threading.Thread(target=go, daemon=True, name="worldlab-handover")
+        self.thread.start()
+        return True
 
     def stop(self):
         self.lab.stop_flag.set()

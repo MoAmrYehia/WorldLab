@@ -721,3 +721,10 @@ input::placeholder { color: var(--ink-3); }
 .drone-tg { display: flex; gap: 4px; margin: 6px 0 2px; flex-wrap: wrap; }
 .drone-tg button { font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--edge-2); background: transparent; color: var(--ink-2); cursor: pointer; }
 .drone-tg button.on { background: rgba(61, 220, 132, 0.16); border-color: var(--emerald); color: var(--ink); }
+.run-state.stopped { color: var(--alarm); border-color: rgba(255, 106, 77, 0.6); }
+table.cfg { margin-top: 8px; font-size: 12.5px; }
+table.cfg td:first-child { color: var(--ink-3); }
+.pill.kind-single_factor { border-color: var(--emerald); color: var(--emerald); }
+.pill.kind-illustrative { border-color: var(--measured); color: var(--measured); }
+.pill.kind-system { border-color: var(--cyan); color: var(--cyan); }
+.note.prov { font-size: 11px; word-break: break-all; }

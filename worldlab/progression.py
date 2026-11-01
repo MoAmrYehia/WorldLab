@@ -199,8 +199,22 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
             xp.append((f"Recovered from the {f['label']}", XP["repaired"]))
     if people:
         xp.append((f"{people:.0f} people fed", int(people)))
+    # how the run ended: a stopped, failed or handed-over run is reported as such and earns nothing
+    ends = kinds("run_end")
+    run_status = (ends[-1]["data"].get("status") if ends else None) or ("completed" if result else "running")
+    if kinds("handover") and run_status == "completed":
+        run_status = "degraded"
+    if run_status in ("failed", "timeout", "cancelled"):
+        reason = ends[-1]["data"].get("reason") or run_status
+        outcome = f"Season stopped ({run_status}): {reason}. No harvest was recorded."
+        earned, xp = [], []
+    elif run_status == "degraded":
+        outcome = (outcome or "Season complete") + " Part of it was run by the scripted protocol after a handover, so it is a mixed result."
+        earned, xp = [], []
+    metrics["run_status"] = run_status
     return {"chapters": chapters, "current_chapter": current, "achievements": earned, "metrics": metrics,
-            "xp_items": [{"label": a, "xp": b} for a, b in xp], "complete": bool(result), "outcome": outcome,
+            "xp_items": [{"label": a, "xp": b} for a, b in xp], "complete": bool(result) and run_status == "completed", "outcome": outcome,
+            "run_status": run_status,
             "catalog": [{"id": k, "title": v[0], "about": v[1]} for k, v in ACHIEVEMENTS.items()]}
 
 

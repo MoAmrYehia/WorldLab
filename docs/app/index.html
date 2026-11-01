@@ -27,8 +27,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=3aa927c371">
-<script src="../config.js?v=3aa927c371"></script>
+<link rel="stylesheet" href="style.css?v=a38106126f">
+<script src="../config.js?v=a38106126f"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -96,6 +96,7 @@
     <span class="tp-date" id="tpDateLive"></span>
     <label class="speed">Days per second <input id="speed" type="range" min="1" max="30" value="12"></label>
     <button class="ghost sm" id="stopBtn" type="button" hidden>Stop</button>
+    <button class="ghost sm" id="handoverBtn" type="button" hidden title="Continue this season with the scripted protocol; the result is labelled as mixed">Continue with scripted protocol</button>
     <button class="primary sm" id="planBtn" type="button">Plan a new season</button>
   </div>
   <button class="primary sm" id="reportBtn" type="button" hidden>Harvest report</button>
@@ -205,7 +206,7 @@
     <p class="fi-sub" id="fiSub"></p>
     <div class="fi-cams"><button class="ghost sm" id="fiFocus" type="button">Focus</button><button class="ghost sm" id="fiClose2" type="button">Close-up</button><button class="ghost sm" id="fiDrone" type="button">Drone view</button></div>
     <div class="legend"><span class="lg model">Model, 90% prediction band</span><span class="lg meas">Measured</span><button class="ghost sm" id="fiCsv" type="button">Download data (CSV)</button></div>
-    <p class="note">The band is where the scientist's model expects 90% of measurements to fall. Charts are keyboard-accessible: focus one and use the arrow keys.</p>
+    <p class="note">The band is where the scientist's model expected 90% of measurements to fall on each day, as forecast then: a later model update (dotted blue line) changes the band only from that day on, so the forecasts that failed stay visible. Charts are keyboard-accessible: focus one and use the arrow keys.</p>
     <figure class="chart"><figcaption id="capSw">Soil moisture, top 50 cm (m³/m³)</figcaption><svg id="chSw" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
     <figure class="chart"><figcaption id="capCc">Canopy cover, from the drone</figcaption><svg id="chCc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
     <figure class="chart"><figcaption id="capEc">Soil salinity (dS/m)</figcaption><svg id="chEc" viewBox="0 0 300 80" preserveAspectRatio="none"></svg></figure>
@@ -324,6 +325,6 @@
 <div class="tour" id="tour" hidden role="dialog" aria-modal="true" aria-labelledby="tourTitle"><div class="tour-hole" id="tourHole"></div><div class="panel tour-card" id="tourCard"></div></div>
 <div class="tip" id="tip" hidden role="tooltip"></div>
 
-<script type="module" src="app.js?v=3aa927c371"></script>
+<script type="module" src="app.js?v=a38106126f"></script>
 </body>
 </html>

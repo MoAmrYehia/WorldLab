@@ -14,7 +14,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class MockServer:
-    def __init__(self):
+    def __init__(self, mode: str | None = None, after: int = 0):
+        """mode, from request number `after` on: "status:<code>" HTTP error, "malformed" (no choices), "silent"
+        (no tool calls), "badjson" (tool arguments that aren't JSON), "badargs" (out-of-range arguments)."""
+        self.mode, self.after = mode, after
         self.errors: list[str] = []
         self.requests: list[dict] = []
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
@@ -113,6 +116,34 @@ class MockServer:
                 srv.requests.append(body)
                 if self.headers.get("Authorization", "").startswith("Bearer ") is False:
                     srv.errors.append("missing bearer auth")
+                failing = srv.mode and len(srv.requests) > srv.after
+                if failing and srv.mode.startswith("status:"):
+                    code = int(srv.mode.split(":")[1])
+                    data = json.dumps({"error": {"message": f"mock {code}"}}).encode()
+                    self.send_response(code)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+                if failing and srv.mode == "malformed":
+                    out = {"id": "x", "object": "chat.completion"}
+                elif failing and srv.mode == "silent":
+                    out = {"choices": [{"index": 0, "message": {"role": "assistant", "content": "I think we are done."}, "finish_reason": "stop"}]}
+                elif failing and srv.mode in ("badjson", "badargs"):
+                    arg = "{days: sixty" if srv.mode == "badjson" else json.dumps({"days": 100000, "rationale": "x", "extra": 1})
+                    out = {"choices": [{"index": 0, "finish_reason": "tool_calls", "message": {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": f"call_{len(srv.requests)}", "type": "function", "function": {"name": "advance", "arguments": arg}}]}}]}
+                else:
+                    out = None
+                if out is not None:
+                    data = json.dumps(out).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 if self.path.endswith("/chat/completions"):
                     srv.validate(body)
                     nxt = srv.next_call(body)
