@@ -37,16 +37,17 @@ Eight unfamiliar cases, generated once and committed **before any run**, so noth
 
 ## Results
 
-`summary.md` has the full table; `cases.md` lists every run. Raw ledgers and manifests are in `runs/`.
+`summary.md` has the full table; `cases.md` lists every run. Raw ledgers and manifests are in `runs/`. Scored with scorer 2.1: the unidentifiable root disease counts as an escalation, not a diagnosis (under the first scorer both had 5/7 including it); each manifest keeps its original score as `score_v2_0`.
 
 | | Muse Spark | Scripted protocol + RL |
 |---|---|---|
 | Completed | 8/8 | 8/8 |
 | People fed, mean (simulated index) | 474.4 | 483.1 |
-| Hidden faults diagnosed | 5/7 | 5/7 |
-| Diagnosis precision (correct diagnoses ÷ all fault findings) | 5/8 | 5/6 |
-| Justified interventions | 5/7 | 5/7 |
-| Median days from onset to diagnosis | 15 | 15 |
+| Identifiable faults diagnosed, with evidence first | 4/6 | 4/6 |
+| Diagnosis precision (correct diagnoses ÷ all fault findings) | 4/7 | 4/5 |
+| Justified interventions | 4/6 | 4/6 |
+| Correct guesses without evidence | 0 | 0 |
+| Median days from onset to diagnosis | 13.5 | 13.5 |
 | Unexplained alarms | 2 | 7 |
 | Wrong findings or actions | 3 | 1 |
 | Stayed calm when nothing was wrong (control, heat wave) | 2/2 | 2/2 |

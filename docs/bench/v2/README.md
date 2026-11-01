@@ -73,7 +73,7 @@ The manifest records:
 
 ## What this shows
 
-- **Muse Spark diagnoses as accurately as the protocol and makes no wrong calls**, but it does not farm better. It found 14 of 15 hidden faults, made no wrong findings or actions, and stayed calm on every no-fault and heat-wave farm. Over the season it fed significantly fewer people (−30.3).
+- **Muse Spark diagnosed 14 of 15 hidden faults (the protocol 15 of 15) and made no wrong calls**, but it does not farm better. It made no wrong findings or actions, and stayed calm on every no-fault and heat-wave farm. Over the season it fed significantly fewer people (−30.3).
 - **The harvest gap comes from planning, not diagnosis.** The largest loss is farm 204 under the heat wave, where Spark fed 26.4 people:
   - Its plan put sweet potato, its only vitamin-A crop, on F6, the saltiest field (soil ECe about 7 dS/m against a crop threshold of 1.5).
   - The canopy alarm fired 15 times. Spark switched that field to fully desalinated water but never re-planned or replaced the crop.
@@ -81,7 +81,7 @@ The manifest records:
   - The farm grew enough energy for about 270 people. The "people fed" index takes the smallest of three nutrients, so a single failed crop can dominate it.
 - **More alarms that no fault explains:** 18 against 1. Sixteen of them are the repeated canopy alarms on farm 204's failing sweet potato field described above; the other two are single alarms on farms 203 and 204.
 - **The missed fault:** the clog on farm 201 raised no alarm under any of Spark's four perception conditions. Spark's plan watered that field at 110% of demand; the extra water hid the clog, and the maize still yielded 13.2 t/ha. The scripted plan watered at 90%, saw the alarm on day 109 and repaired the line. Generous irrigation hides clogs; the frozen holdout found the same thing on sandy fields.
-- **The perception models don't change these outcomes.** On the clog and pest cases, removing SAM 3.1, Spark vision or both left diagnosis (9/10), time to diagnosis (14 days) and harvest within run-to-run noise. Here the decisive evidence is the field test that separates the hypotheses. The drone photo shapes the hypotheses but does not decide them.
+- **No observed gain from the image models in these cases.** On the clog and pest cases (one run per case and condition), removing SAM 3.1, Spark vision or both left diagnosis (9/10), time to diagnosis (14 days) and harvest within run-to-run noise. Here the decisive evidence is the field test that separates the hypotheses. The drone photo shapes the hypotheses but does not decide them.
 - **The scripted protocol doesn't use perception at all:** its results are identical with Meta perception and with the simulator's truth. Its decisions follow from alarms and field tests only.
 - **Cost:** about $1.11 per Spark season at list price. That covers about 35 scientist calls and roughly 600,000 prompt tokens, mostly re-sent context, plus perception calls. The scripted protocol costs $0.02, only for perception during investigations.
 
