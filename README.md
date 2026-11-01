@@ -49,6 +49,15 @@ Every hypothesis, prediction, trial, test, decision and result is written to a h
 
 **The recorded season** (the demo on the website): Muse Spark (`muse-spark-1.3`, Meta Model API) is the scientist, and SAM 3.1 and Muse Spark vision read the drone photos; hard water and energy budget, farm 7. Before sowing it writes a hypothesis that the local varieties match the published values, plants 12 trial plots and refutes it: local sorghum collapses in the spring heat (1.08 t/ha against 6.44 predicted), so it drops sorghum, re-plans and trains an irrigation policy by reinforcement learning (322 parameters, 39,000 imagined seasons in 52 s; +13.7% people fed in a bad year on held-out imagined seasons), which it deploys. On 4 January a drip line in field F4 is silently clogged; the water meter can't see it and the scientist isn't told. On the measurement of 24 January the soil is drier than its model's 90% band. Muse Spark sends the drone: compared with the view its own model expects, the photo shows white salt crust between the rows (SAM 3.1 segments 13 patches). It writes two competing hypotheses, a clogged line or saltier groundwater, runs both tests (emitter flow 46% of design; groundwater 4.35 dS/m against an assumed 4.5), supports the first and refutes the second, repairs the line, teaches its model the delivered fraction since the onset, switches irrigation back to the rule (the policy was trained on a fault-free farm) and re-plans the water. The harvest feeds 506 people (modelled person-years, above the farm goal of 500), using 57,650 m³ of a 60,000 m³ groundwater quota and 87,888 kWh of a 90,000 kWh energy budget. The whole season took 34 Muse Spark calls and 54 perception calls, under a dollar of API credit.
 
+**Check the recorded season yourself, offline.** The replay omits some large entries, so its complete raw ledger is published separately as an evidence bundle: [`worldlab-evidence.zip`](https://moamryehia.github.io/WorldLab/app/evidence/worldlab-evidence.zip) (also in `worldlab/dashboard/evidence/`, and linked from Agent › Audit ledger). It holds the ledger (124 entries, gzipped), a manifest (source commit, prompt and tool-schema hashes, model IDs, farm seed and hidden event, perception mode, timestamps, completion status, token usage, file hashes and the final ledger hash `bebff05dda831edf…`) and a verifier that needs only Python's standard library:
+
+```bash
+unzip worldlab-evidence.zip && cd worldlab-evidence && python verify_evidence.py .
+# VERIFIED ok: 124 entries, chain intact, final hash bebff05dda831edf… matches the manifest
+```
+
+Editing, removing or reordering any entry, or cutting entries off the end, makes it fail (tests in `EvidenceBundleTests`). The hash chain proves the ledger wasn't changed after it was written; it does not by itself prove a model was called or that the agronomy is right.
+
 ![The drone analysis in the recorded season: the view F4's model expects, the drone photo with salt crust, and SAM 3.1's plant boxes on F6](docs/screens/drone.jpg)
 
 

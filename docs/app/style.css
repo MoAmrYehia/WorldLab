@@ -728,3 +728,49 @@ table.cfg td:first-child { color: var(--ink-3); }
 .pill.kind-illustrative { border-color: var(--measured); color: var(--measured); }
 .pill.kind-system { border-color: var(--cyan); color: var(--cyan); }
 .note.prov { font-size: 11px; word-break: break-all; }
+
+/* judge walkthrough: one panel replaces the missions column while it runs, so the active step never competes with
+   missions, the analytics dock or the incident banner; the open view sits beside it (desktop) or above it (narrow) */
+.walk { position: fixed; z-index: 12; left: 16px; top: calc(var(--off) + 18px); width: 360px; max-height: calc(100vh - var(--off) - 40px);
+  display: flex; flex-direction: column; padding: 14px 16px 12px; background: var(--panel-solid); }
+.walk[hidden] { display: none; }
+.walk .wk-scroll { overflow: auto; min-height: 0; flex: 1 1 auto; overscroll-behavior: contain; }
+.walk .wk-head { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 8px; align-items: center; }
+.walk .wk-n { grid-column: 1 / -1; font-size: 12px; color: var(--emerald-2); }
+.walk h3 { margin: 0; font: 600 17px/1.25 var(--display); color: var(--ink); }
+.walk h3:focus { outline: none; }
+.walk h3:focus-visible { outline: 2px solid var(--emerald); outline-offset: 3px; border-radius: 4px; }
+.walk .wk-body { font-size: 14px; line-height: 1.55; color: var(--ink); margin-top: 10px; }
+.walk .wk-body q { color: var(--ink-2); }
+.walk .wk-body ul { margin: 6px 0 0; padding-left: 18px; }
+.walk .wk-body li { margin: 4px 0; }
+.walk .wk-ev { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; line-height: 1.7; }
+.walk .wk-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.walk .wk-dots { display: flex; gap: 5px; margin-right: auto; }
+.walk .wk-dots i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--edge-2); }
+.walk .wk-dots i.done { background: var(--emerald-deep); border-color: var(--emerald-deep); }
+.walk .wk-dots i.on { background: var(--emerald); border-color: var(--emerald); }
+.walk.min .wk-head { grid-template-columns: 1fr auto auto; }
+button.linkish { background: none; border: 0; padding: 0; color: var(--emerald-2); text-decoration: underline; text-underline-offset: 2px; font: inherit; cursor: pointer; }
+button.linkish:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; border-radius: 3px; }
+.walk .wk-ev .linkish { margin-right: 10px; white-space: nowrap; }
+.walk a { color: var(--emerald-2); }
+body.walking .left, body.walking .dock, body.walking .incident { display: none !important; }
+body.walking .drawer { left: calc(392px + (100vw - 392px) / 2); width: min(980px, calc(100vw - 424px)); }
+.note.spoiler { border-left: 2px solid var(--edge-2); padding-left: 8px; }
+@media (max-width: 1199px) {
+  .walk { top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; max-height: 44vh; }
+  body.walking .drawer { left: 50%; width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - var(--off) - 52px - var(--walk-h, 0px)); }
+}
+@media (max-width: 1020px) {
+  .walk { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); }
+  body.walking .drawer { max-height: calc(100vh - var(--off) - 96px - var(--walk-h, 0px)); }
+}
+@media (max-width: 760px) {
+  .walk { left: 0; right: 0; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); border-radius: 0; max-height: 46vh; padding: 12px 14px 10px; }
+  body.walking .drawer { bottom: calc(52px + var(--walk-h, 0px) + env(safe-area-inset-bottom, 0px)); }
+  .walk .wk-foot button { min-height: 44px; }
+}
+
+/* the incident banner (about 40px) sits at the top of the stage: the 2D-map notice moves below it, never under it */
+body.alarm-on .nogl { top: calc(var(--off) + 52px); }

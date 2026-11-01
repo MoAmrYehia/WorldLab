@@ -954,3 +954,118 @@ class LiveAccessTests(unittest.TestCase):
         rid = d["run_id"]
         self.assertEqual(self.call(f"/api/runs/{rid}/replay", None, b)[0], 404)
         self.assertEqual(self.call(f"/api/runs/{rid}/share", {}, b)[0], 400)
+
+
+    def test_cancellation_releases_capacity(self):
+        a = self.call("/api/auth/guest", {})[1]["token"]
+        b = self.call("/api/auth/guest", {})[1]["token"]
+        self.assertEqual(self.call("/api/start", {"agent": "scripted", "speed": 1}, a)[0], 200)
+        self.assertEqual(self.call("/api/start", {"agent": "scripted", "speed": 1}, b)[0], 429)     # capacity 1 is taken
+        self.assertEqual(self.call("/api/stop", {}, a)[0], 200)
+        for sl in self.app.slots.values():
+            if sl.session and sl.session.thread:
+                sl.session.thread.join(60)
+        self.assertEqual(self.app.active_runs(), 0)
+        self.assertEqual(self.call("/api/start", {"agent": "scripted", "speed": 60}, b)[0], 200)    # the slot was released
+
+    def test_cross_origin_logins_get_short_sessions_and_pages_a_policy(self):
+        import urllib.request
+        from worldlab.accounts import BEARER_SESSION_S
+        import os
+        os.environ["WORLDLAB_ALLOWED_ORIGINS"] = "https://moamryehia.github.io"
+        self.addCleanup(os.environ.pop, "WORLDLAB_ALLOWED_ORIGINS", None)
+        self.call("/api/auth/signup", {"name": "x", "email": "x@example.com", "password": "longenough1"})
+        req = urllib.request.Request(self.base + "/api/auth/login", json.dumps({"email": "x@example.com", "password": "longenough1"}).encode(),
+                                     {"Content-Type": "application/json", "Origin": "https://moamryehia.github.io"})
+        with urllib.request.urlopen(req) as r:
+            d = json.loads(r.read())
+        self.assertEqual(d["expires_in_s"], BEARER_SESSION_S)
+        st, d = self.call("/api/auth/login", {"email": "x@example.com", "password": "longenough1"})
+        self.assertGreater(d["expires_in_s"], BEARER_SESSION_S)                                       # same-origin cookie session
+        with urllib.request.urlopen(self.base + "/demo") as r:
+            csp = r.headers.get("Content-Security-Policy", "")
+        self.assertIn("script-src 'self' https://cdn.jsdelivr.net 'sha256-", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("frame-ancestors 'self'", csp)
+
+
+class EvidenceBundleTests(unittest.TestCase):
+    """The recorded season's evidence verifies offline; edits, omissions and reordering fail (P1.4)."""
+
+    def bundle(self):
+        import shutil
+        src = Path(__file__).resolve().parents[1] / "worldlab" / "dashboard" / "evidence"
+        d = Path(tempfile.mkdtemp()) / "b"
+        shutil.copytree(src, d)
+        return d
+
+    def verify(self, d):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ve", Path(__file__).resolve().parents[1] / "scripts" / "verify_evidence.py")
+        ve = importlib.util.module_from_spec(spec); spec.loader.exec_module(ve)
+        return ve.verify(d)
+
+    def rewrite(self, d, fn, fix_manifest=True):
+        import gzip
+        import hashlib
+        lines = gzip.decompress((d / "ledger.jsonl.gz").read_bytes()).decode().splitlines()
+        new = fn(lines)
+        self.assertNotEqual(new, lines, "the tamper must change the ledger")
+        lines = new
+        raw = ("\n".join(lines) + "\n").encode()
+        gz = gzip.compress(raw, mtime=0)
+        (d / "ledger.jsonl.gz").write_bytes(gz)
+        if fix_manifest:                                   # an attacker who also rewrites the file hashes in the manifest
+            m = json.loads((d / "manifest.json").read_text())
+            m["artifacts"]["ledger.jsonl.gz"]["sha256_gz"] = hashlib.sha256(gz).hexdigest()
+            m["artifacts"]["ledger.jsonl.gz"]["sha256"] = hashlib.sha256(raw).hexdigest()
+            (d / "manifest.json").write_text(json.dumps(m))
+
+    def test_untouched_bundle_verifies(self):
+        ok, msg = self.verify(self.bundle())
+        self.assertTrue(ok, msg)
+
+    def test_edit_fails(self):
+        d = self.bundle()
+        self.rewrite(d, lambda ls: [ls[0]] + [ls[1].replace('"farm_seed":7', '"farm_seed":8', 1)] + ls[2:])
+        self.assertFalse(self.verify(d)[0])
+
+    def test_edit_without_fixing_the_manifest_fails(self):
+        d = self.bundle()
+        self.rewrite(d, lambda ls: ls[:-1] + [ls[-1].replace('"scientist_calls":34', '"scientist_calls":3', 1)], fix_manifest=False)
+        self.assertFalse(self.verify(d)[0])
+
+    def test_omission_and_reordering_fail(self):
+        d = self.bundle()
+        self.rewrite(d, lambda ls: ls[:10] + ls[11:])
+        self.assertFalse(self.verify(d)[0])
+        d = self.bundle()
+        self.rewrite(d, lambda ls: ls[:5] + [ls[6], ls[5]] + ls[7:])
+        self.assertFalse(self.verify(d)[0])
+        d = self.bundle()
+        self.rewrite(d, lambda ls: ls[:-3])                 # cut off the end: only the recorded final hash catches this
+        ok, msg = self.verify(d)
+        self.assertFalse(ok)
+        self.assertRegex(msg, "entries|final hash")
+
+    def test_manifest_has_provenance_and_no_secrets(self):
+        m = json.loads((self.bundle() / "manifest.json").read_text())
+        for k in ("source", "scientist", "perception", "farm", "timestamps", "status", "usage", "artifacts", "guarantee"):
+            self.assertIn(k, m)
+        self.assertEqual(m["scientist"]["model"], "muse-spark-1.3")
+        self.assertNotRegex(json.dumps(m), r"LLM_|Bearer |/home/|@gmail")
+
+
+class EvidenceServedTests(unittest.TestCase):
+    def test_server_serves_the_bundle(self):
+        from worldlab import server
+        for n in ("manifest.json", "ledger.jsonl.gz", "verify_evidence.py", "worldlab-evidence.zip"):
+            self.assertTrue(server.STATIC[f"evidence/{n}"].is_file(), n)
+        self.assertEqual(server.TYPES[".zip"], "application/zip")
+
+    def test_zip_holds_the_same_ledger(self):
+        import zipfile
+        d = Path(__file__).resolve().parents[1] / "worldlab" / "dashboard" / "evidence"
+        z = zipfile.ZipFile(d / "worldlab-evidence.zip")
+        self.assertEqual(z.read("worldlab-evidence/ledger.jsonl.gz"), (d / "ledger.jsonl.gz").read_bytes())
+        self.assertEqual(z.read("worldlab-evidence/manifest.json"), (d / "manifest.json").read_bytes())

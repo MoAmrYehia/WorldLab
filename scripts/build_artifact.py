@@ -8,6 +8,7 @@ import re, shutil, sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent / "worldlab"
+sys.path.insert(0, str(root.parent))
 out = Path(sys.argv[1])
 app_only = "--app-only" in sys.argv
 app_dir = out if app_only else out / "app"
@@ -24,12 +25,26 @@ for _f in sorted(list((root / "dashboard").rglob("*")) + list((root / "site").rg
 VERSION = _h.hexdigest()[:10]
 
 
+def _api() -> str:
+    """The WorldLab server the Pages site talks to (from config.js), for the page's connect-src."""
+    for c in (out / "config.js", root / "site" / "config.js"):
+        if c.is_file():
+            m = re.search(r'SERVER\s*=\s*"([^"]*)"', c.read_text())
+            if m:
+                return m.group(1)
+    return ""
+
+
 def page(src: Path, dst: Path, sub=None):
     html = src.read_text()
     if sub:
         html = sub(html)
     # cache-busting for static hosts: refer to this build's stylesheets and scripts
     html = re.sub(r'((?:href|src)=")((?:\.\./)?(?:site|style|app|hero|config)\.(?:css|js))"', rf'\1\2?v={VERSION}"', html)
+    if "--fragment" not in sys.argv:                       # static hosts can't send headers: the policy goes in the page
+        from worldlab.csp import add_meta
+        api = _api()
+        html = add_meta(html, " ".join(x for x in (api, "https://*.hf.space") if x))
     if "--fragment" in sys.argv:
         html = re.sub(r"<!doctype html>\s*|</?html[^>]*>\s*|</?head>\s*|</?body[^>]*>\s*", "", html, flags=re.I)
         html = re.sub(r'<meta charset="utf-8">\s*<meta name="viewport"[^>]*>\s*', "", html)
@@ -61,6 +76,9 @@ for f in sorted((root / "dashboard" / "engine").glob("*.js")):
     versioned_js(f, app_dir / "engine" / f.name)
 for f in ("style.css", "replay.json", "experiments.json"):
     shutil.copy(root / "dashboard" / f, app_dir / f)
+if (root / "dashboard" / "evidence").is_dir():            # the recorded season's offline evidence bundle
+    shutil.rmtree(app_dir / "evidence", ignore_errors=True)
+    shutil.copytree(root / "dashboard" / "evidence", app_dir / "evidence")
 if not app_only:
     sub = with_config("")
     page(root / "site" / "index.html", out / "index.html", lambda h: sub(h.replace('data-app=""', 'data-app="app/"')))

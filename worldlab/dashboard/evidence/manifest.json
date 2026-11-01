@@ -1,0 +1,67 @@
+{
+ "schema": "worldlab.evidence/1",
+ "run": "20261031-201618-spark",
+ "source": {
+  "commit": "5b49eac",
+  "note": "Recorded on 31 Oct 2026 from the working tree that was committed as 5b49eac; prompt, tool schema and simulator source are taken from that commit.",
+  "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+  "tool_schema_sha256": "d828bd376a505287e03d1a1bd5cbf1a418d8697e334195a4fc7215a805bb99c0",
+  "tools": 19,
+  "simulator_tree": "0e740f2216fd0222d09be5a6dd44c552d8cb1ed8",
+  "package_tree": "981ddccc176eff6b47d466ca2eff699a33bfcf11",
+  "package_version": "0.1.0"
+ },
+ "scientist": {
+  "agent": "spark",
+  "model": "muse-spark-1.3"
+ },
+ "perception": {
+  "mode": "meta",
+  "models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "images": "synthetic renders of the simulator's state",
+  "looks": 3
+ },
+ "farm": {
+  "seed": 7,
+  "scenario": "drip_fault",
+  "hidden_events": [
+   "clog@95"
+  ],
+  "limits": "defaults (60,000 m3 groundwater, 90,000 kWh)",
+  "hard_budget": true
+ },
+ "timestamps": {
+  "first_entry": 1793463378.703,
+  "last_entry": 1793463575.93
+ },
+ "status": "completed",
+ "result": {
+  "people_fed": 506.4,
+  "water_used_m3": 57650,
+  "energy_used_kwh": 87888,
+  "within_quota": true,
+  "within_energy": true
+ },
+ "usage": {
+  "scientist_model": "muse-spark-1.3",
+  "scientist_calls": 34,
+  "scientist_tokens": {
+   "prompt_tokens": 595360,
+   "completion_tokens": 6565
+  },
+  "perception_calls": 54
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256_gz": "0aea683e92122aa9af383d0abddfb61ddfe5f891956853025a704c7050696e75",
+   "sha256": "a612f25720d46172e96c384f035f53c9e2ef0b36f2266cbe58bb50f7cc7b2853",
+   "entries": 124,
+   "head": "bebff05dda831edf8401386aaa3b423fd5ad294255af442f125c16a2acc9255e"
+  }
+ },
+ "guarantee": "The hash chain detects any edit, reordering or removal relative to the final hash recorded here and in the repository. It does not by itself prove that a model was called or that the agronomy is correct.",
+ "verify": "python verify_evidence.py ."
+}
