@@ -391,6 +391,9 @@ function streamItem(e) {
     case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.recalibrate_sensor ? `recalibrates the soil-moisture sensor${d.recalibrate_sensor.offset_found_m3m3 ? ` (it was off by ${d.recalibrate_sensor.offset_found_m3m3 > 0 ? "+" : ""}${d.recalibrate_sensor.offset_found_m3m3} m³/m³)` : ""}` : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
     case "rebalance": return ["decide", `Re-plans water: ${d.people_p10_before} → ${d.people_p10_after} people in a bad year`, ""];
     case "anomaly_dismissed": return ["decide", "Dismisses the alarm", why(d.rationale)];
+    case "risk_decision": return ["decide", d.accepted_with ? `Accepts the nutrient risk of plan ${d.plan_id}` : `Starts the backup plan ${d.plan_id}${d.backup_for ? ` instead of ${d.backup_for}` : ""}`, why(d.accepted_with ? `If ${d.worst_field} failed: ${fmt(d.if_worst_field_fails_p10)} people. Evidence: ${d.accepted_with}` : "Spreads the concentrated nutrient over more fields")];
+    case "escalation": return ["alarm", `Escalates ${d.field}: ${String(d.decision).replace(/_/g, " ")}`, why(`Cause: ${String(d.cause).replace(/_/g, " ")}. ${d.rationale}`)];
+    case "alarm_muted": return null;
     case "review_requested": return ["alarm", `Asks a person to review ${d.field === "all" ? "the farm" : d.field}: cause not established`, why(`${d.question} Evidence: ${d.evidence}`)];
     case "decision_request": return ["decide", `Asks you: ${esc(d.question)}`, why(`The scientist would choose: ${(d.options.find((o) => o.id === d.default) || {}).label || d.default}`)];
     case "human_decision": return ["decide", `${d.by === "you" ? "You chose" : "No answer; the scientist's choice used"}: ${esc(d.choice.replace(/_/g, " "))}`, why(d.override ? "This overrides the scientist's own choice and is recorded as yours." : "")];
@@ -934,7 +937,19 @@ function planHtml() {
   const cmp = p.scientist_choice ? (p.scientist_choice.people_p10 > p.people_p10 ? ` With a free choice of crops the scientist would feed ${fmt(p.scientist_choice.people_p10)}.` : " The scientist found no crop mix that does better than your picks.") : "";
   return `<p style="margin:0 0 10px">Plan ${p.plan_id} feeds <b>${fmt(p.people_p10)}</b> people in a bad year (10th percentile) and ${fmt(p.people_p50)} in a typical one. Not knowing the varieties exactly costs ${fmt(p.cost_of_uncertainty_people)} people.${cmp}</p>
     <table><thead><tr><th>Field</th><th>Crop</th><th>Sowing</th><th class="n">Irrigation</th><th class="n">Desalinated</th><th class="n">Nitrogen</th><th class="n">Yield, t/ha: bad, typical, good year</th></tr></thead><tbody>${p.fields.map((f, i) => f.crop ? `<tr><td>${f.field} ${NAMES[i]}</td><td>${crop(f.crop)}${f.farmer_choice ? ' <span class="pill rl">your pick, locked</span>' : ""}</td><td>${dayLabel(f.mgmt.sow)}</td><td class="n">${Math.round(f.mgmt.irr * 100)}% of demand</td><td class="n">${Math.round(f.mgmt.desal * 100)}%</td><td class="n">${fmt(f.mgmt.nfert)} kg/ha</td><td class="n">${f.yield_t_ha_p10_p50_p90.map(yfmt).join(", ")}</td></tr>` : `<tr><td>${f.field} ${NAMES[i]}</td><td colspan="6" style="color:var(--ink-3)">Left fallow</td></tr>`).join("")}</tbody></table>
+    ${riskHtml(p)}
     <p class="note">The irrigation policy then adjusts the daily schedule if one is deployed (see Research). ${open}</p>`;
+}
+function riskHtml(p) {
+  const r = p.nutrient_risk;
+  if (!r || !r.level || r.level === "none") return "";
+  const dec = S.events.filter((e) => e.kind === "risk_decision").pop();
+  const lbl = { high: "High: one field carries a nutrient", watch: "Watch: a nutrient is concentrated", low: "Low" }[r.level] || r.level;
+  const conc = (r.concentrated || []).map((c) => `${c.field} ${crop(c.crop)} carries ${Math.round(c.share * 100)}% of the ${({ kcal: "calories", protein_g: "protein", vitA_ug: "vitamin A" })[c.nutrient] || c.nutrient}${c.topsoil_ece_dS_m != null ? `; topsoil salinity ${fmt(c.topsoil_ece_dS_m, 1)} dS/m against a believed salt threshold of ${fmt(c.believed_salt_threshold_dS_m, 2)} dS/m (2 sd: ${c.threshold_2sd_range.map((x) => fmt(x, 2)).join(" to ")}), ${Math.round(c.desal_blend * 100)}% desalinated water` : ""}`).join(". ");
+  return `<h3 style="margin:14px 0 4px">Nutrient risk before sowing: ${esc(lbl)}</h3>
+    <p style="margin:0">${esc(r.explanation || "")} ${conc ? esc(conc) + "." : ""}</p>
+    ${r.backup ? `<p class="note">Backup plan ${esc(r.backup_plan_id)}: ${fmt(r.backup.people_p10)} people in a bad year, ${fmt(r.backup.if_worst_field_fails_p10)} if its worst field fails (${r.backup.fields.filter((f) => f.crop).map((f) => `${f.field} ${crop(f.crop)}`).join(", ")}).</p>` : ""}
+    ${dec ? `<p class="note">Decision: ${dec.data.accepted_with ? `plan ${esc(dec.data.plan_id)} started with the risk accepted. Evidence given: ${esc(dec.data.accepted_with)}` : `the backup plan ${esc(dec.data.plan_id)} was started`}.</p>` : ""}`;
 }
 function versionsHtml() {
   const vs = S.events.filter((e) => e.kind === "plan" || e.kind === "rebalance" || e.kind === "farmer_choices");
