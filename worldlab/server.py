@@ -49,7 +49,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from .accounts import Accounts, AuthError, SESSION_DAYS
+from .accounts import Accounts, AuthError, SESSION_DAYS, BEARER_SESSION_S
 from .lab import Bus
 from .ledger import verify
 from .session import Session, Settings
@@ -59,8 +59,12 @@ APP = HERE / "dashboard"
 SITE = HERE / "site"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
-         ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json"}
+         ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json", ".gz": "application/gzip",
+         ".zip": "application/zip", ".txt": "text/plain; charset=utf-8", ".py": "text/plain; charset=utf-8"}
 STATIC = {name: APP / name for name in ("app.js", "client.js", "scene.js", "style.css", "replay.json", "experiments.json", "classic.html")}
+# the recorded season's offline evidence bundle (complete raw ledger, manifest, verifier)
+STATIC.update({f"evidence/{n}": APP / "evidence" / n for n in ("manifest.json", "ledger.jsonl.gz", "verify_evidence.py", "README.txt",
+                                                               "worldlab-evidence.zip")})
 STATIC.update({name: SITE / name for name in ("site.css", "site.js", "hero.js", "favicon.svg", "seasons.json", "favicon.ico",
                                                "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og-image.jpg", "site.webmanifest", "hero-still.jpg")})
 PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SITE / "signup.html",
@@ -341,7 +345,12 @@ def make_handler(app: App):
             self._send(code, dumps(obj).encode(), "application/json", headers)
 
         def _file(self, path: Path):
-            self._send(200, path.read_bytes(), TYPES.get(path.suffix, "application/octet-stream"))
+            body = path.read_bytes()
+            extra = None
+            if path.suffix == ".html":                      # pages run only their own and the pinned three.js scripts
+                from .csp import policy
+                extra = {"Content-Security-Policy": policy(body.decode("utf-8", "replace")) + "; frame-ancestors 'self'"}
+            self._send(200, body, TYPES.get(path.suffix, "application/octet-stream"), extra)
 
         def _redirect(self, to: str):
             self._send(302, b"", "text/plain", {"Location": to})
@@ -545,8 +554,13 @@ def make_handler(app: App):
                         user = app.accounts.login(b.get("email", ""), b.get("password", ""), client)
                 except AuthError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
-                token = app.accounts.new_session(user["id"])
-                return self._json({"ok": True, "user": user, "token": token}, headers={"Set-Cookie": self._cookie(token)})
+                # a token handed to another origin lives in that page's storage, not an HttpOnly cookie: keep it short
+                origin = self.headers.get("Origin") or ""
+                host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or ""
+                life = BEARER_SESSION_S if origin and urlsplit(origin).netloc != host else None
+                token = app.accounts.new_session(user["id"], seconds=life)
+                return self._json({"ok": True, "user": user, "token": token, "expires_in_s": life or SESSION_DAYS * 86400},
+                                  headers={"Set-Cookie": self._cookie(token)})
             if path == "/api/auth/logout":
                 app.accounts.end_session(self._token())
                 return self._json({"ok": True}, headers={"Set-Cookie": self._cookie(None)})

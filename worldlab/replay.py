@@ -31,7 +31,7 @@ def _compact(step: dict, limit: int = 900) -> dict:
 def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> dict:
     run_dir = Path(run_dir)
     src = run_dir / "events.jsonl"
-    msgs, images, agent = [], 0, None
+    msgs, images, agent, perception = [], 0, None, None
     for line in src.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -54,6 +54,7 @@ def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> 
                     d = {**d, "data": _compact(d["data"])}
             if d.get("kind") == "session":
                 agent = (d.get("data") or {}).get("agent", agent)
+                perception = "meta" if "Meta" in str((d.get("data") or {}).get("perception", "")) else "sim"
         if k == "scene":
             images += 1
             if images > max_images:
@@ -63,7 +64,7 @@ def build(run_dir: str | Path, max_images: int = 8, note: str | None = None) -> 
         msgs = _with_missions(msgs)
     if not any(m["kind"] == "reset" for m in msgs[:3]):
         msgs.insert(0, {"t": msgs[0]["t"] if msgs else 0, "kind": "reset", "data": {"agent": agent}})
-    meta = {"agent": agent, "run": run_dir.name, "exported": time.strftime("%Y-%m-%d %H:%M"), "messages": len(msgs)}
+    meta = {"agent": agent, "perception": perception, "run": run_dir.name, "exported": time.strftime("%Y-%m-%d %H:%M"), "messages": len(msgs)}
     if note:
         meta["note"] = note
     return {"meta": meta, "messages": msgs}

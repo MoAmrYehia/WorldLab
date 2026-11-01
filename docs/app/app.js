@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=3481ce85d1";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=161ae7d94d";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -90,7 +90,7 @@ function apply(m, live = true) {
       if (live && d.kind === "anomaly") { sel = d.data.field_index; if (scene) scene.setSelected(sel); invClosedFor = null; }
       if (live && d.kind === "season_result" && mode === "live") setTimeout(() => showReport(), reducedMotion ? 0 : 2200);
       break;
-    case "perturbation": S.perturbations.push({ ...d, _order: S.events.length }); break;
+    case "perturbation": S.perturbations.push({ ...d, _order: S.events.length, own: ownPerts > 0 && ownPerts-- > 0 }); break;
     case "beliefs": S.beliefs = d; break;
     case "projection": S.projections.push(d); break;
     case "trials": S.trials.push(d); if (live && scene) scene.addTrial(d); break;
@@ -150,11 +150,33 @@ function renderTop() {
 }
 function levelFor(xp) { let n = 1; while (100 * n * n <= xp) n++; return { lvl: n, floor: 100 * (n - 1) ** 2, next: 100 * n * n }; }
 
+// spoiler-free (default) or explained: when scheduled hidden changes become visible
+let explained = store.get("wl-explained", false), ownPerts = 0;
+function isRevealed(p) {
+  if (explained || p.own || (S.status && S.status.result)) return true;
+  const here = (e) => p.field === "all" || e.data.field === p.field;
+  return S.events.some((e) => (e.kind === "adjust" && e.data.repair && e.data.repair.repaired && here(e)) || (e.kind === "model_update" && e.data.finding && here(e)));
+}
+const shownPerts = () => S.perturbations.filter(isRevealed);
+function setExplained(on) { explained = !!on; store.set("wl-explained", explained); itemsCache.n = -1; drawerKey = ""; inspKey = ""; $("explainedChk").checked = explained; renderSpoilerNote(); dirty = true; }
+function renderSpoilerNote() {
+  const pend = S.perturbations.length - shownPerts().length;
+  const el = $("spoilerNote"), hide = explained || !(mode === "replay" || pend > 0);
+  if (el.hidden !== hide) el.hidden = hide;
+  const html = pend > 0 ? `Spoiler-free: a scheduled hidden change is not shown until the scientist identifies it or the season ends. <button class="linkish" type="button" id="spoilerShow">Show it now</button>`
+    : "Spoiler-free replay: scheduled hidden changes appear only once the scientist identifies them or the season ends. Change this in View settings.";
+  if (el.dataset.h === html) return;
+  el.dataset.h = html; el.innerHTML = html;
+  const b = $("spoilerShow"); if (b) b.onclick = () => setExplained(true);
+}
+
 // who decides, what perceives, what irrigates: shown in the run header at all times
 function deciderName() { const k = S.agentKind || info.agent; return /spark|glimmer/.test(k || "") ? agentName(k) : "Scripted protocol"; }
 function perceptionName() {
   const src = Object.values(S.scene || {}).map((x) => x.source).find(Boolean) || "";
-  return /simulated/i.test(src) ? "Simulated perception" : src ? "SAM 3.1 + Muse Spark" : (caps && caps.perception === "meta" ? "SAM 3.1 + Muse Spark" : "Simulated perception");
+  if (src) return /simulated/i.test(src) ? "Simulated perception" : "SAM 3.1 + Muse Spark";
+  const ses = S.events.find((e) => e.kind === "session"), declared = mode === "replay" ? meta && meta.perception : ses ? (/Meta/.test(ses.data.perception || "") ? "meta" : "sim") : caps && caps.perception;
+  return declared === "meta" ? "SAM 3.1 + Muse Spark" : declared ? "Simulated perception" : "Perception: loading";
 }
 function controllerName() {
   const ld = lastDay(), c = (ld && ld.controller) || (S.status && S.status.controller);
@@ -174,6 +196,7 @@ function renderTransport() {
   const hb = $("handoverBtn");
   if (hb) hb.hidden = !(mode === "live" && ["failed", "timeout"].includes(rs) && S.status.phase === "season" && !info.running);
   $("provChip").textContent = `${deciderName()} · ${perceptionName()} · ${controllerName()}`;
+  renderSpoilerNote();
   const d = curDay();
   const date = d == null ? (S.trials.length || S.plan ? "Before sowing: trials and planning" : "Before sowing") : `${dayLabel(d)} · day ${d + 1} of ${D}`;
   if (mode === "replay") { $("tpDate").textContent = date; $("dateScrub").setAttribute("aria-valuetext", date); }
@@ -320,7 +343,7 @@ function renderDock() {
   $("tlFill").style.width = `${(100 * day) / D}%`;
   const tl = $("timeline").querySelector(".tl-track");
   const marks = [];
-  S.perturbations.forEach((p) => marks.push([p.day, "change", `${dayLabel(p.day)}: hidden change, ${p.note} (not known to the scientist)`]));
+  shownPerts().forEach((p) => marks.push([p.day, "change", `${dayLabel(p.day)}: hidden change, ${p.note} (not known to the scientist)`]));
   kinds("anomaly").forEach((e) => marks.push([e.data.detected_day, "alarm", `${dayLabel(e.data.detected_day)}: alarm in ${e.data.field}, ${e.data.signal_label} ${e.data.direction}`]));
   kinds("adjust").forEach((e) => marks.push([e.t, "fix", `${dayLabel(e.t)}: action in ${e.data.field}`]));
   kinds("harvest").forEach((e) => marks.push([e.data.day, "harvest", `${dayLabel(e.data.day)}: ${e.data.field} harvested`]));
@@ -393,9 +416,9 @@ function eventDay(e) {
 }
 let itemsCache = { n: -1, p: -1, items: [] };
 function streamItems() {
-  if (itemsCache.n === S.events.length && itemsCache.p === S.perturbations.length) return itemsCache.items;
+  if (itemsCache.n === S.events.length && itemsCache.p === S.perturbations.length && itemsCache.x === explained) return itemsCache.items;
   const items = []; let inSeason = false;
-  const pert = [...S.perturbations];
+  const pert = shownPerts();
   const due = (p, k, e) => (p._order != null ? p._order <= k : !e || (inSeason && e.t != null && e.t > p.day));
   const pushPert = (k, e) => { while (pert.length && due(pert[0], k, e)) { const p = pert.shift(); items.push({ it: ["world", `Hidden change in ${p.field === "all" ? "the farm" : p.field}`, `<span class="why">${esc(p.note)}. The scientist is not told.</span>`], t: p.day }); } };
   S.events.forEach((e, k) => {
@@ -405,7 +428,7 @@ function streamItems() {
     items.push({ it, t: inSeason && e.kind !== "season_start" ? t : null, tl, e });
   });
   pushPert(1e13, null);
-  itemsCache = { n: S.events.length, p: S.perturbations.length, items };
+  itemsCache = { n: S.events.length, p: S.perturbations.length, x: explained, items };
   return items;
 }
 
@@ -417,7 +440,7 @@ function select(i, focus = false) {
 }
 function renderInspector() {
   if ($("inspector").hidden || sel < 0) return;
-  const ik = `${sel}|${S.days.length}|${S.events.length}|${S.perturbations.length}|${mode}|${S.status.phase}|${Object.keys(S.scene).length}`;
+  const ik = `${sel}|${S.days.length}|${S.events.length}|${S.perturbations.length}|${explained}|${mode}|${S.status.phase}|${Object.keys(S.scene).length}`;
   if (ik === inspKey) return; inspKey = ik;
   const fl = fieldsNow(), f = fl[sel] || {}, ld = lastDay(), w = ld && ld.world && ld.world[sel];
   $("fiTitle").textContent = `${FIELD_IDS[sel]} ${NAMES[sel]}`;
@@ -480,7 +503,7 @@ function droneBig(on) {
 }
 function markersFor(i) {
   const id = FIELD_IDS[i], m = [];
-  S.perturbations.forEach((p) => { if (p.field === id || p.field === "all") m.push({ day: p.day, cls: "change" }); });
+  shownPerts().forEach((p) => { if (p.field === id || p.field === "all") m.push({ day: p.day, cls: "change" }); });
   S.events.forEach((e) => {
     if (e.kind === "anomaly" && e.data.field === id) m.push({ day: e.data.detected_day, cls: "alarm" });
     if (e.kind === "adjust" && e.data.field === id) m.push({ day: e.t, cls: "fix" });
@@ -617,6 +640,7 @@ function currentIncident() {
 function renderIncident() {
   const inc = currentIncident(), open = inc && inc.open;
   $("incident").hidden = !open;
+  document.body.classList.toggle("alarm-on", !!open);   // moves the 2D-map notice below the banner so the alert never covers it
   document.body.classList.toggle("incident-on", !!open);
   if (open) $("incidentText").textContent = `Field ${inc.a.data.field} · ${inc.a.data.signal_label} ${inc.a.data.direction} · measured ${dayLabel(inc.a.data.detected_day)}`;
 }
@@ -629,7 +653,7 @@ function incidentHtml(inc, full) {
   const sig = d.signal, unit = sig === "ec" ? " dS/m" : sig === "sw" ? " m³/m³" : "";
   const dec = sig === "sw" ? 3 : sig === "cc" ? 2 : 1;
   const obs = f && f[sig + "_obs"], pred = f && f[sig + "_pred"];
-  const pert = S.perturbations.find((p) => p.field === d.field || p.field === "all");
+  const pert = shownPerts().find((p) => p.field === d.field || p.field === "all");
   const done = S.status && S.status.result;
   const rec = F.recovery;
   const recParts = [];
@@ -758,7 +782,7 @@ function applyHash() {
   openView(v || "farm", t === "beliefs" ? "traits" : t, true);
 }
 function renderDrawer() {
-  const key = `${drawer}|${drawerTab}|${S.drone.length}|${S.trials.length}|${S.rl_train.length}|${!!S.rl}|${S.plan && S.plan.plan_id}|${S.beliefs && S.beliefs.day}|${S.events.length}|${S.days.length}|${progress ? progress.level.xp : 0}|${traceFilter}|${ledgerQ}|${ledgerN}`;
+  const key = `${drawer}|${drawerTab}|${explained}|${S.drone.length}|${S.trials.length}|${S.rl_train.length}|${!!S.rl}|${S.plan && S.plan.plan_id}|${S.beliefs && S.beliefs.day}|${S.events.length}|${S.days.length}|${progress ? progress.level.xp : 0}|${traceFilter}|${ledgerQ}|${ledgerN}`;
   if (key === drawerKey) return; drawerKey = key;
   const b = $("drawerBody");
   const keepScroll = b.scrollTop;
@@ -1018,13 +1042,14 @@ function componentsHtml() {
 }
 function ledgerHtml() {
   const q = ledgerQ.toLowerCase();
-  const all = S.events.filter((e) => !q || e.kind.includes(q) || JSON.stringify(e.data).toLowerCase().includes(q));
+  const one = /^#(\d+)$/.exec(q.trim());
+  const all = S.events.filter((e) => (one ? e.seq === Number(one[1]) : !q || e.kind.includes(q) || JSON.stringify(e.data).toLowerCase().includes(q)));
   const ev = all.slice(-ledgerN).reverse();
   const verify = mode === "live"
     ? '<button class="ghost sm" id="verifyBtn" type="button">Verify the full ledger on the server</button> <span id="verifyOut" role="status"></span>'
-    : '<span class="note">A recorded replay omits some large entries, so its chain can\'t be re-verified here; verify a live run on the server.</span>';
+    : `<span class="note">This replay omits some large entries, so its chain can't be re-checked in the page. The complete raw ledger is published separately: <a href="evidence/worldlab-evidence.zip" download>download the evidence bundle</a> (ledger, manifest and a verifier; run <code>python verify_evidence.py .</code> with no installs), or open the <a href="evidence/manifest.json" target="_blank" rel="noopener">manifest</a>.</span>`;
   return `<p style="margin:0 0 8px">Each entry stores the hash of the one before, so editing any entry breaks the chain from there on (tamper-evident). A consistent chain shows the record wasn't altered after it was written; it does not prove the observations themselves are true. ${verify}</p>
-    <div class="trace-bar"><label class="filter">Search <input id="ledgerQ" type="search" value="${esc(ledgerQ)}" placeholder="kind or text, e.g. anomaly"></label><span class="note">${all.length} matching of ${S.events.length} entries</span></div>
+    <div class="trace-bar"><label class="filter">Search <input id="ledgerQ" type="search" value="${esc(ledgerQ)}" placeholder="kind, text or #entry, e.g. anomaly"></label><span class="note">${all.length} matching of ${S.events.length} entries</span></div>
     <table><thead><tr><th class="n">#</th><th>Entry</th><th>Day</th><th>Hash</th><th>Payload</th></tr></thead><tbody>${ev.map((e) => `<tr><td class="n">${e.seq}</td><td>${esc(e.kind.replace(/_/g, " "))}</td><td>${e.t != null ? dayLabel(Math.min(e.t, D - 1)) : ""}</td><td class="hash">${String(e.hash || "").slice(0, 16)}</td><td><details class="raw"><summary>Show</summary><pre>${esc(JSON.stringify(e.data, null, 1)).slice(0, 4000)}</pre></details></td></tr>`).join("")}</tbody></table>
     ${all.length > ledgerN ? `<p><button class="ghost sm" id="ledgerMore" type="button">Show ${Math.min(100, all.length - ledgerN)} older entries</button></p>` : ""}`;
 }
@@ -1396,7 +1421,7 @@ function toast(title, body, ms = 5200) {
   $("toasts").appendChild(t); setTimeout(() => t.remove(), ms);
 }
 function badgeToasts(m) {
-  (m.achievements || []).forEach((a) => { if (!seenBadges.has(a.id)) { seenBadges.add(a.id); toast(`Achievement: ${a.title}`, a.evidence); } });
+  (m.achievements || []).forEach((a) => { if (!seenBadges.has(a.id)) { seenBadges.add(a.id); if (WK.i < 0) toast(`Achievement: ${a.title}`, a.evidence); } });   // no pop-ups over the walkthrough
 }
 
 // ------------------------------------------------------------ season planner
@@ -1637,8 +1662,9 @@ async function startLive(state) {
   $("stopBtn").onclick = () => post("api/stop");
   $("speed").oninput = () => post("api/speed", { speed: Number($("speed").value) });
   document.querySelectorAll("#perturb button").forEach((b) => (b.onclick = async () => {
+    ownPerts++;                                            // the change you make yourself is never hidden from you
     const r = await post("api/perturb", { kind: b.dataset.kind, field: FIELD_IDS[sel] });
-    if (!r.ok) toast("The farm didn't change", r.error || "Try again once the season is running.");
+    if (!r.ok) { ownPerts = Math.max(0, ownPerts - 1); toast("The farm didn't change", r.error || "Try again once the season is running."); }
     else toast("Hidden change made", `${r.note}. The scientist is not told.`);
   }));
   stream("api/stream", (batch) => batch.forEach((m) => {
@@ -1736,6 +1762,9 @@ async function startReplay(url) {
   const h = location.hash.replace(/^#/, "").split("/")[0];
   if (["results", "plan", "research", "agent"].includes(h)) { seek(R.total); syncScrub(); }
   else if (h === "incidents") { const a = R.msgs.map((x, i) => (x.kind === "ledger" && x.data.kind === "rebalance" ? i : -1)).filter((i) => i >= 0)[0]; seek(a != null ? R.pt[a] + 0.01 : R.total); syncScrub(); }
+  $("walkBtn").hidden = false;
+  $("walkBtn").onclick = () => walkTo(WK.i >= 0 ? WK.i : 0);
+  if (new URLSearchParams(location.search).has("walkthrough")) { walkTo(Number(new URLSearchParams(location.search).get("walkthrough")) - 1 || 0); return; }
   if (h) { applyHash(); return; }
   if (!store.get("wl-toured", false) && !reducedMotion) startTour();
 }
@@ -1782,11 +1811,92 @@ function showTour() {
   $("tourNext").focus();
 }
 
+// ------------------------------------------------------------ judge walkthrough (recorded season): seven steps, each tied to ledger entries
+// Prediction → surprising observation → competing explanations → discriminating test → bounded action → outcome → comparison.
+// Every number in the cards is read from the ledger at that point, and every step links to the entries it rests on.
+const WK = { i: -1, open: true };
+const ledgerAt = (pred) => R.msgs ? R.msgs.findIndex((x) => x.kind === "ledger" && pred(x.data)) : -1;
+const entryOf = (pred) => { const a = ledgerAt(pred); return a >= 0 ? R.msgs[a].data : null; };
+function seekAfter(pred) { const a = ledgerAt(pred); R.playing = false; $("playBtn").textContent = "Play"; seek(a >= 0 ? R.pt[a] + 0.01 : R.total); syncScrub(); }
+const evLink = (e, label) => (e ? `<button class="linkish" type="button" data-entry="${e.seq}">${esc(label)} (entry #${e.seq})</button>` : "");
+function walkSteps() {
+  const an = entryOf((e) => e.kind === "anomaly");
+  const after = (e) => (x) => an && x.seq > an.seq && e(x);
+  const h1 = entryOf((e) => e.kind === "hypothesis"), c1 = entryOf((e) => e.kind === "conclusion" && h1 && e.data.hypothesis_id === h1.data.id);
+  const look = entryOf(after((e) => e.kind === "look"));
+  const hyps = R.msgs.filter((x) => x.kind === "ledger" && x.data.kind === "hypothesis" && an && x.data.seq > an.seq).map((x) => x.data);
+  const tests = R.msgs.filter((x) => x.kind === "ledger" && x.data.kind === "field_test" && an && x.data.seq > an.seq).map((x) => x.data);
+  const concl = R.msgs.filter((x) => x.kind === "ledger" && x.data.kind === "conclusion" && an && x.data.seq > an.seq).map((x) => x.data);
+  const repair = entryOf(after((e) => e.kind === "adjust")), upd = entryOf(after((e) => e.kind === "model_update" && e.data.finding)), reb = entryOf(after((e) => e.kind === "rebalance"));
+  const res = entryOf((e) => e.kind === "season_result"), run0 = entryOf((e) => e.kind === "run_start");
+  const lim = run0 && run0.data.limits, A = an && an.data;
+  const testTxt = (t) => t.data.test === "emitter_flow" ? `emitter flow ${fmt(100 * t.data.delivered_vs_design)}% of design` : t.data.test === "water_test" ? `groundwater ${fmt(t.data.groundwater_ec_dS_m, 2)} dS/m` : t.data.test.replace(/_/g, " ");
+  const steps = [
+    { title: "The prediction", view: ["research", "trials"], at: (e) => c1 && e.seq === c1.seq,
+      body: () => `Before sowing, ${esc(deciderName())} wrote a testable hypothesis: <q>${esc(h1 ? h1.data.statement : "")}</q> It predicted a 90% yield range for every trial plot before planting it. ${c1 ? `Verdict: <b>${esc(c1.data.verdict)}</b>. ${esc(c1.data.evidence)}` : ""}`,
+      evidence: () => [evLink(h1, "Hypothesis"), evLink(c1, "Verdict")] },
+    { title: "A surprising observation", view: ["incidents"], at: (e) => an && e.seq === an.seq,
+      body: () => A ? `On ${dayLabel(A.detected_day)}, field ${esc(A.field)}'s ${esc(A.signal_label)} measured <b>${esc(A.direction)}</b>, outside the model's 90% band (residual ${fmt(A.residual, 3)}${A.signal === "sw" ? " m³/m³" : ""}). Nothing tells the scientist what changed; it only sees that its model no longer explains the measurements.` : "No incident in this season.",
+      evidence: () => [evLink(an, "Alarm")] },
+    { title: "Competing explanations", view: ["incidents"], at: (e) => hyps.length && e.seq === hyps[hyps.length - 1].seq,
+      body: () => `${look ? `It sent the drone first: SAM 3.1 and Muse Spark vision compared the photo with the view its own model expected. ` : ""}Then it wrote ${hyps.length} competing hypotheses, each with a prediction that a test could break:<ul>${hyps.map((h) => `<li><b>${esc(h.data.id)}</b> ${esc(h.data.statement)}. <span class="note">Predicts: ${esc(h.data.prediction)}</span></li>`).join("")}</ul>`,
+      evidence: () => [evLink(look, "Drone look"), ...hyps.map((h) => evLink(h, h.data.id))] },
+    { title: "A discriminating test", view: ["incidents"], at: (e) => concl.length && e.seq === concl[concl.length - 1].seq,
+      body: () => `It ran ${tests.length} field test${tests.length === 1 ? "" : "s"} chosen to separate the explanations: ${tests.map(testTxt).join("; ")}. ${concl.map((c) => `<b>${esc(c.data.hypothesis_id)} ${esc(c.data.verdict)}</b>`).join(", ")}.`,
+      evidence: () => [...tests.map((t) => evLink(t, t.data.test.replace(/_/g, " "))), ...concl.map((c) => evLink(c, `${c.data.hypothesis_id} verdict`))] },
+    { title: "A bounded action", view: ["plan", "versions"], at: (e) => reb && e.seq === reb.seq,
+      body: () => `${repair ? `It repaired ${esc(repair.data.field)} (${repair.data.repair && repair.data.repair.found_clogged_emitters ? "clogged emitters found and repaired" : "action recorded"}), ` : ""}${upd ? `taught its model the measured fault (${esc(upd.data.finding.replace(/_/g, " "))} ${fmt(upd.data.value, 3)} since ${dayLabel(upd.data.since_day)}), ` : ""}and re-planned the remaining water and energy. ${lim ? `Every action is checked against the hard limits: ${fmt(lim.water_quota_m3)} m³ of groundwater and ${fmt(lim.energy_kwh)} kWh for the season, ${lim.field_tests} field tests, ${lim.trial_plots} trial plots.` : ""}`,
+      evidence: () => [evLink(repair, "Repair"), evLink(upd, "Model update"), evLink(reb, "Re-plan")] },
+    { title: "The outcome", view: ["results", "report"], at: null,
+      body: () => { const r = res && res.data; const inc = incidentList()[0], F = inc && incidentFacts(inc);
+        return r ? `The harvest feeds <b>${fmt(r.people_fed, 1)} people</b> (modelled person-years; the farm goal is 500), using ${fmt(r.water_used_m3)} m³ of water and ${fmt(r.energy_used_kwh)} kWh, ${r.within_quota && r.within_energy ? "within both limits" : "outside a limit"}. ${F && F.recovery && F.recovery.ok ? `Physical recovery in ${esc(A.field)} was observed on ${dayLabel(F.recovery.day)}, ${F.recovery.lag} days after the repair, from measurements alone.` : ""} The complete raw ledger of this run is in the <a href="evidence/worldlab-evidence.zip" download>evidence bundle</a>, with a verifier that runs offline.` : "The season has no harvest record."; },
+      evidence: () => [evLink(res, "Season result")] },
+    { title: "The comparison", view: ["results", "compare"], at: null,
+      body: () => `Compare lists each experiment with what was held fixed and what changed. On the same farm and weather, the hidden clog costs the scripted scientist 6.9 people fed (492.0 without it, 485.1 with it), and investigating alarms is worth 7.6 (464.9 against 457.3 when alarms are ignored). Across five farms and five scenarios, Muse Spark averaged 455.9 people fed, below the scripted protocol with its learned policy (471.3) and above the fixed rule (421.6): it investigates well but does not yet out-farm the hand-written protocol.`,
+      evidence: () => [`<a href="https://github.com/moamryehia/WorldLab/tree/main/docs/bench" target="_blank" rel="noopener">Benchmark runs and summary</a>`] },
+  ];
+  return steps;
+}
+function walkTo(i) {
+  if (mode !== "replay" || !R.msgs) return;
+  const steps = walkSteps(); WK.i = Math.max(0, Math.min(steps.length - 1, i)); WK.open = true;
+  const st = steps[WK.i];
+  if (st.at) seekAfter(st.at); else { R.playing = false; $("playBtn").textContent = "Play"; seek(R.total); syncScrub(); }
+  openView(st.view[0], st.view[1]);
+  renderWalk(true);
+  store.set("wl-walk", WK.i);
+}
+function renderWalk(focus = false) {
+  const box = $("walk");
+  if (WK.i < 0 || mode !== "replay") { box.hidden = true; document.body.classList.remove("walking"); return; }
+  const steps = walkSteps(), st = steps[WK.i];
+  box.hidden = false; box.classList.toggle("min", !WK.open);
+  box.innerHTML = `<div class="wk-head"><span class="wk-n">Walkthrough, step ${WK.i + 1} of ${steps.length}</span><h3 id="walkTitle" tabindex="-1">${esc(st.title)}</h3>
+    <button class="ghost sm" type="button" id="walkMin" aria-expanded="${WK.open}">${WK.open ? "Hide details" : "Show details"}</button><button class="collapse" type="button" id="walkClose" aria-label="End the walkthrough">×</button></div>
+    ${WK.open ? `<div class="wk-scroll"><div class="wk-body">${st.body()}</div><p class="wk-ev">Evidence: ${st.evidence().filter(Boolean).join(" ")}</p></div>` : ""}
+    <div class="wk-foot"><span class="wk-dots" aria-hidden="true">${steps.map((_, k) => `<i class="${k === WK.i ? "on" : k < WK.i ? "done" : ""}"></i>`).join("")}</span>
+      ${WK.i ? '<button class="ghost sm" type="button" id="walkBack">Back</button>' : ""}
+      <button class="primary sm" type="button" id="walkNext">${WK.i === steps.length - 1 ? "Finish" : "Continue walkthrough"}</button></div>`;
+  $("walkMin").onclick = () => { WK.open = !WK.open; renderWalk(); };
+  $("walkClose").onclick = endWalk;
+  if ($("walkBack")) $("walkBack").onclick = () => walkTo(WK.i - 1);
+  $("walkNext").onclick = () => (WK.i === steps.length - 1 ? endWalk() : walkTo(WK.i + 1));
+  box.querySelectorAll("[data-entry]").forEach((b) => (b.onclick = () => showEntry(Number(b.dataset.entry))));
+  document.body.classList.add("walking");
+  document.body.style.setProperty("--walk-h", `${box.offsetHeight}px`);
+  if (focus) $("walkTitle").focus({ preventScroll: true });
+}
+addEventListener("resize", () => { if (WK.i >= 0) document.body.style.setProperty("--walk-h", `${$("walk").offsetHeight}px`); });
+// read-only hook for the browser checks (tests/browser): what is hidden, what is shown, where the replay is
+window.__wlCheck = () => ({ hidden: S.perturbations.length, shown: shownPerts().length, day: curDay(), explained, walk: WK.i });
+function endWalk() { WK.i = -1; $("walk").hidden = true; document.body.classList.remove("walking"); store.del("wl-walk"); $("walkBtn").focus(); }
+function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", "ledger"); }
+
 // ------------------------------------------------------------ boot
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=3481ce85d1");
+    const mod = await import("./scene.js?v=161ae7d94d");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
@@ -1867,6 +1977,8 @@ function wireUi() {
   $("followChk").checked = store.get("wl-follow", true);
   $("followChk").onchange = () => { store.set("wl-follow", $("followChk").checked); if (scene && scene.setFollow) scene.setFollow($("followChk").checked); };
   $("tourBtn").onclick = () => { pop(null); startTour(); };
+  $("explainedChk").checked = explained;
+  $("explainedChk").onchange = () => setExplained($("explainedChk").checked);
   $("retry3d").onclick = () => location.reload();
   $("plannerClose").onclick = closePlanner;
   $("tryPlanBtn").onclick = openPlanner;
