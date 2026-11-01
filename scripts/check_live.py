@@ -88,6 +88,8 @@ def main():
     ap.add_argument("--spark", action="store_true")
     ap.add_argument("--full-spark", action="store_true")
     ap.add_argument("--spark-minutes", type=float, default=60)
+    ap.add_argument("--progress-seconds", type=float, default=240,
+                    help="how long a season may take to show progress (raise it for a small host, such as Render's free 0.1 CPU)")
     a = ap.parse_args()
     base = a.base.rstrip("/")
     report = {"server": base}
@@ -129,7 +131,7 @@ def main():
         fail(f"start: HTTP {st} {d}")
     print(f"ok   scripted season started: run {d['run_id']}")
     counts, kinds, t1 = [], set(), time.time()
-    while time.time() - t1 < 240:
+    while time.time() - t1 < a.progress_seconds:
         s = state(base, tok, a.site)
         ev = s.get("events") or []
         counts.append(len(ev))
@@ -138,7 +140,7 @@ def main():
             break
         time.sleep(6)
     else:
-        fail(f"progress: ledger entries over time {counts[:12]}, kinds {sorted(k for k in kinds if k)}; the season did not progress")
+        fail(f"progress: ledger entries over {a.progress_seconds:.0f} s {counts[:6]} ... {counts[-6:]}, kinds {sorted(k for k in kinds if k)}; the season did not progress")
     print(f"ok   the run progresses: ledger {counts[0]} -> {counts[-1]} entries over {len(counts)} polls, reached {sorted(kinds & {'plan', 'trial_result', 'season_start'})}")
 
     # 4. stream, then a reconnect
@@ -177,7 +179,7 @@ def main():
             fail(f"spark start: HTTP {st} {d2}")
         print(f"ok   Muse Spark season started: run {d2.get('run_id')}")
         t2, called, ran = time.time(), None, None
-        limit = a.spark_minutes * 60 if a.full_spark else 300
+        limit = a.spark_minutes * 60 if a.full_spark else max(300, a.progress_seconds)
         while time.time() - t2 < limit:
             s = state(base, tok2, a.site)
             ev = s.get("events") or []

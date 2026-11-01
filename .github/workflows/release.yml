@@ -128,7 +128,7 @@ jobs:
   server:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -201,7 +201,10 @@ jobs:
         if: steps.upload.outputs.deployed == 'true'
         env:
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          SERVER_DEPLOY: ${{ vars.SERVER_DEPLOY }}
         run: |
           extra=""
           if [ -n "$MODEL_API_KEY" ]; then extra="--spark"; fi
+          # Render's free plan has 0.1 CPU, so a season shows progress about ten times more slowly
+          if [ "$SERVER_DEPLOY" = "render" ]; then extra="$extra --progress-seconds 900"; fi
           python rel/scripts/check_live.py "${{ steps.upload.outputs.server }}" --site https://moamryehia.github.io --release "$GITHUB_SHA" --wait 1500 $extra
