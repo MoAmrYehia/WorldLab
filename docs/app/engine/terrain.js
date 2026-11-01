@@ -1,6 +1,6 @@
 // Desert terrain near Al Ain: a levelled farm, dunes beyond, and the Jebel Hafeet ridge on the horizon.
 import * as THREE from "three";
-import { fbm2, ridged, noise2 } from "./textures.js?v=161ae7d94d";
+import { fbm2, ridged, noise2 } from "./textures.js?v=9ac5d4508e";
 
 export const FARM = { x0: -62, x1: 40, z0: -42, z1: 30 };     // levelled farm area (scene units ~ 6 m)
 
