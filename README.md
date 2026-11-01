@@ -8,6 +8,40 @@
 
 **[Open the website](https://moamryehia.github.io/WorldLab/)** · **[Watch a recorded season](https://moamryehia.github.io/WorldLab/app/?demo)** (no account needed) · Built for the Meta Global AI Developer Hackathon, theme *Push the Frontier*
 
+## For reviewers: the short version
+
+**Who it's for.** Agronomy and irrigation research teams working on water-limited farms. They choose crops and irrigation under a hard water and energy budget, then have to work out what went wrong when the field stops behaving as expected.
+
+**What it does.** An AI scientist runs a simulated desert farm near Al Ain. It predicts before it acts, tests its predictions with trial plots and field tests, diagnoses hidden faults, acts within the budget, and records every step in a tamper-evident ledger.
+
+**Try it.**
+- **Guided walkthrough of a recorded Muse Spark season:** [app/?demo&walkthrough](https://moamryehia.github.io/WorldLab/app/?demo&walkthrough). It takes seven steps, from prediction to comparison, each linked to its ledger entries. Replays are spoiler-free by default.
+- **Live season:** *Try a live season (no account)* on the [website](https://moamryehia.github.io/WorldLab/). Choose **Unknown challenge** for a hidden case drawn at random on the server. The run header always says *Recorded* or *Live*, and which models are running.
+- **Verify the recorded season offline:** download [the evidence bundle](https://moamryehia.github.io/WorldLab/app/evidence/worldlab-evidence.zip) and run `python verify_evidence.py .`
+
+**What Meta's models do (and what they don't).**
+- **Muse Spark** (`muse-spark-1.3`) is the scientist. It chooses every step through tool calls.
+- **SAM 3.1** segments plants and salt crust in the drone photos.
+- **Muse Spark vision** compares each photo with the view the scientist's own model expected.
+- The crop model, budget checks, statistics and ledger are ordinary code.
+- **Muse Glimmer:** an endpoint adapter exists, but it has **not been run or benchmarked**.
+
+**Measured comparison (benchmark v2: 5 farms × 5 scenarios, every run kept, scored event by event; [details](docs/bench/v2/)).**
+- **Diagnosis:** Muse Spark diagnosed 14 of 15 hidden faults, with no wrong findings or actions. Median time to diagnosis was 14 days from onset.
+- **People fed (simulated index):** Muse Spark averaged 441.1, against 471.3 for the scripted protocol with its learned irrigation policy. The matched difference is −30.3 (95% interval −59.3 to −1.9); Spark was ahead in 9 of 25 pairs. **Muse Spark does not out-farm the hand-written protocol.** Its losses come from crop plans, including one farm where it fed 26 people because its only vitamin-A crop failed on the saltiest field.
+- **Frozen holdout ([details](docs/bench/holdout/)):** 8 unfamiliar farms, including a faulty sensor and a disease no test can identify. Both scientists diagnosed 5 of 7 faults, escalated the unidentifiable one to a person, and stayed calm when nothing was wrong. Spark made more wrong findings (3 against 1). Neither caught clogs on sandy fields: a detection limit of the monitor.
+
+**Limits.** Nothing is field-validated. Drone photos are renders of the simulator's state. Soils, crop traits and faults are simulated. The one real input is NASA POWER weather for Al Ain, 2024–25, available as a scenario. "People fed" is a nutrition index, not people actually fed. See the [model card](docs/model-card.md).
+
+**Reproduce.**
+
+```bash
+pip install -r requirements.txt
+python -m pytest -q tests/test_worldlab.py                    # 80 tests, no API key needed
+python -m worldlab serve                                       # the app on http://127.0.0.1:8765 (scripted scientist without a key)
+MODEL_API_KEY=... python -m worldlab bench2 --agents spark,scripted-rl --perception meta --farms 5   # benchmark v2
+```
+
 | | |
 |---|---|
 | ![The landing page: a 3D flyover of the farm at golden hour](docs/screens/landing.jpg) | ![Six crop fields, palms, tanks, the greenhouse and trial plots in 3D](docs/screens/fields.jpg) |
