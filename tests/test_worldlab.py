@@ -1221,3 +1221,59 @@ class RealWeatherTests(unittest.TestCase):
         farm.start_season([{"crop": "wheat", **mg("wheat")}] * 6)
         obs = farm.step(farm.sim.irrigation_demand(0))
         self.assertAlmostEqual(obs["weather"]["tmax"], 37.83)
+
+
+class BenchScoreTests(unittest.TestCase):
+    """Event-level scoring (P0.3): evidence, diagnosis, justified action, re-alarms, and what went wrong."""
+
+    E = staticmethod(lambda t, kind, **d: {"t": t, "kind": kind, "data": d})
+
+    def test_clog_found_and_fixed(self):
+        from worldlab.benchscore import score
+        E = self.E
+        ev = [{"kind": "clog", "field": "F4", "day": 95}]
+        L = [E(115, "anomaly", field="F4", detected_day=115, signal="sw"),
+             E(116, "field_test", field="F4", test="emitter_flow", delivered_vs_design=0.46),
+             E(116, "adjust", field="F4", repair={"repaired": True}),
+             E(116, "model_update", finding="drip_delivery", field="F4", value=0.46)]
+        s = score(L, ev, "clog")
+        e = s["events"][0]
+        self.assertEqual((e["first_evidence_day"], e["correct_diagnosis_day"], e["days_to_diagnosis"]), (115, 116, 21))
+        self.assertTrue(e["justified_intervention"] and e["no_realarm_30d"])
+        self.assertEqual((s["wrong_findings"], s["wrong_interventions"], s["unnecessary_tests"]), (0, 0, 0))
+
+    def test_acting_before_diagnosis_is_not_justified_and_wrong_field_is_wrong(self):
+        from worldlab.benchscore import score
+        E = self.E
+        ev = [{"kind": "clog", "field": "F4", "day": 95}]
+        L = [E(100, "adjust", field="F4", repair={"repaired": True}),                       # a lucky guess, no evidence
+             E(110, "model_update", finding="drip_delivery", field="F4", value=0.5),
+             E(111, "adjust", field="F2", repair={"repaired": True})]
+        s = score(L, ev, "clog")
+        self.assertFalse(s["events"][0]["justified_intervention"])
+        self.assertEqual(s["wrong_interventions"], 1)
+
+    def test_salinity_is_farm_wide_and_answered_by_desal_or_replan(self):
+        from worldlab.benchscore import score
+        E = self.E
+        ev = [{"kind": "salinity", "field": "all", "day": 90}]
+        L = [E(120, "anomaly", field="F2", detected_day=120, signal="ec"),
+             E(121, "field_test", field="F2", test="water_test", groundwater_ec_dS_m=8.9),
+             E(121, "model_update", finding="groundwater_ec", field="all", value=8.9),
+             E(121, "rebalance", rationale="x")]
+        s = score(L, ev, "salinity")
+        self.assertEqual((s["faults_diagnosed"], s["faults_justified_intervention"], s["unrelated_alarms"]), (1, 1, 0))
+
+    def test_a_late_realarm_and_an_unexplained_alarm_are_counted(self):
+        from worldlab.benchscore import score
+        E = self.E
+        ev = [{"kind": "pest", "field": "F1", "day": 100}]
+        L = [E(110, "anomaly", field="F1", detected_day=110, signal="cc"),
+             E(111, "field_test", field="F1", test="leaf_inspection", pest_damage_seen=True),
+             E(111, "adjust", field="F1", pest_control={"treated": True}),
+             E(111, "model_update", finding="pest", field="F1", value=0.03),
+             E(125, "anomaly", field="F1", detected_day=125, signal="cc"),
+             E(60, "anomaly", field="F3", detected_day=60, signal="sw")]
+        s = score(L, ev, "pest")
+        self.assertFalse(s["events"][0]["no_realarm_30d"])
+        self.assertEqual(s["unrelated_alarms"], 1)
