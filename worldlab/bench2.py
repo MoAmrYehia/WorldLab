@@ -64,9 +64,9 @@ def run_case(case: dict) -> dict:
     """case: {id, seed, agent, perception, events: [{kind, day, field?, severity?}], label, out, prov}"""
     out = Path(case["out"])
     out.mkdir(parents=True, exist_ok=True)
-    farm = Farm(seed=case["seed"])
+    farm = Farm(seed=case["seed"], weather=case.get("weather"))
     for ev in case["events"]:
-        kw = {k: ev[k] for k in ("field", "severity") if ev.get(k) is not None}
+        kw = {k: ev[k] for k in ("field", "severity", "pick") if ev.get(k) is not None}
         farm.schedule(ev["kind"], ev["day"], **kw)
     perc = perception_for(case["perception"])
     lab = Lab(farm, run_dir=out, perception=perc)
@@ -258,6 +258,24 @@ def write_summary(src: str, dst: str, reference: str | None):
             if r:
                 lines.append(f"| {c} | {r['matched_pairs']} | {r['farm_seeds']} | {r['mean_difference']:+} | {r['ci95_seed_bootstrap']} | {r['ahead_in']} |")
     (d / "summary.md").write_text("\n".join(lines) + "\n")
+    # every run, case by case: wins, losses and unknowns all listed
+    cl = ["| case | scientist | status | people fed | hidden events → outcome | wrong findings/actions | unrelated alarms | reviews asked |",
+          "|---|---|---|---|---|---|---|---|"]
+    for m in sorted(rows, key=lambda m: (m.get("case", ""), m.get("agent", ""), m.get("perception", ""))):
+        sc = m.get("score") or {}
+        evs = []
+        for e in sc.get("events", []):
+            if e["kind"] == "blight":
+                evs.append(f"{e['kind']} {e['field']} d{e['onset']}: " + ("review asked, no false cause" if (sc.get("unidentifiable_handled") or [False])[0]
+                                                                         else "review asked" if e["correct_diagnosis_day"] is not None else "not escalated"))
+            else:
+                evs.append(f"{e['kind']} {e['field']} d{e['onset']}: " + (f"diagnosed d{e['correct_diagnosis_day']}" if e["correct_diagnosis_day"] is not None else "not diagnosed")
+                           + (", justified action" if e["justified_intervention"] else ""))
+        if not evs:
+            evs = ["none: " + ("stayed calm" if sc.get("appropriate_non_intervention") else "acted on a fault that wasn't there")] if sc else ["–"]
+        cl.append(f"| {m.get('case')} | {m.get('agent')}/{m.get('perception')} | {m.get('status')} | {(m.get('result') or {}).get('people_fed')} | "
+                  f"{'; '.join(evs)} | {sc.get('wrong_findings', 0) + sc.get('wrong_interventions', 0) if sc else '–'} | {sc.get('unrelated_alarms', '–')} | {sc.get('reviews_requested', 0) if sc else '–'} |")
+    (d / "cases.md").write_text("\n".join(cl) + "\n")
     # an index of the manifests, so the summary can be regenerated and checked
     (d / "manifests.json").write_text(json.dumps(rows, indent=1, default=str))
     print("\n".join(lines))

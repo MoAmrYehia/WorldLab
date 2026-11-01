@@ -388,9 +388,10 @@ function streamItem(e) {
     case "anomaly": return ["alarm", `Alarm in ${d.field}: ${esc(d.signal_label)} ${esc(d.direction)}`, why(`Measured on ${dayLabel(d.detected_day)}; drift began around ${dayLabel(d.onset_day)}. Season paused to investigate.`)];
     case "field_test": return ["test", `${d.field}: ${esc(testText(d))}`, why(d.rationale)];
     case "look": return ["test", `Drone over ${d.field}: canopy ${fmt(d.canopy_cover_measured, 2)} measured vs ${fmt(d.canopy_cover_predicted, 2)} predicted`, why(d.diagnosis && d.diagnosis.condition ? `Image analysis (${d.source || "perception"}): ${String(d.diagnosis.condition).replace(/_/g, " ")}` : d.reason)];
-    case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
+    case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.recalibrate_sensor ? `recalibrates the soil-moisture sensor${d.recalibrate_sensor.offset_found_m3m3 ? ` (it was off by ${d.recalibrate_sensor.offset_found_m3m3 > 0 ? "+" : ""}${d.recalibrate_sensor.offset_found_m3m3} m³/m³)` : ""}` : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
     case "rebalance": return ["decide", `Re-plans water: ${d.people_p10_before} → ${d.people_p10_after} people in a bad year`, ""];
     case "anomaly_dismissed": return ["decide", "Dismisses the alarm", why(d.rationale)];
+    case "review_requested": return ["alarm", `Asks a person to review ${d.field === "all" ? "the farm" : d.field}: cause not established`, why(`${d.question} Evidence: ${d.evidence}`)];
     case "decision_request": return ["decide", `Asks you: ${esc(d.question)}`, why(`The scientist would choose: ${(d.options.find((o) => o.id === d.default) || {}).label || d.default}`)];
     case "human_decision": return ["decide", `${d.by === "you" ? "You chose" : "No answer; the scientist's choice used"}: ${esc(d.choice.replace(/_/g, " "))}`, why(d.override ? "This overrides the scientist's own choice and is recorded as yours." : "")];
     case "curtailment": return ["alarm", `Budget reached: irrigation curtailed to ${Math.round(d.fraction_applied * 100)}% of demand`, why(d.note)];
@@ -404,6 +405,7 @@ function testText(d) {
   if (d.test === "emitter_flow") return `emitter flow test reads ${Math.round((d.delivered_vs_design || 0) * 100)}% of design`;
   if (d.test === "water_test") return `water test: groundwater ${d.groundwater_ec_dS_m} dS/m (model assumes ${d.assumed_by_model ?? 4.5})`;
   if (d.test === "soil_sample") return `soil sample: ${(d.ece_dS_m_by_layer || []).join(", ")} dS/m by layer`;
+  if (d.test === "sensor_check") return `sensor check: installed sensor ${fmt(d.sensor_m3m3, 3)} vs reference probe ${fmt(d.reference_m3m3, 3)} m³/m³ (difference ${d.sensor_minus_reference > 0 ? "+" : ""}${fmt(d.sensor_minus_reference, 3)})`;
   if (d.test === "leaf_inspection") return d.pest_damage_seen ? `leaf inspection: ${d.severity} pest damage, ${d.insects_per_leaf} insects per leaf` : "leaf inspection: no pests found";
   return String(d.test || "field test");
 }
@@ -1484,7 +1486,7 @@ function renderFarmSettings(saved) {
   const applyScenario = (id, keep) => {
     const x = sc.find((s) => s.id === id) || sc[0]; if (!x) return;
     sel.value = x.id;
-    $("scenarioAbout").textContent = `${x.about}${x.hidden_events ? ` ${x.hidden_events} hidden event${x.hidden_events > 1 ? "s" : ""}; the scientist isn't told when.` : ""}`;
+    $("scenarioAbout").textContent = `${x.about}${x.hidden_events === "unknown" ? " Neither you nor the scientist is told what or when until the season ends." : x.hidden_events ? ` ${x.hidden_events} hidden event${x.hidden_events > 1 ? "s" : ""}; the scientist isn't told when.` : ""}`;
     if (!keep) {
       $("edQuota").value = x.limits.water_quota_m3 ?? dflt.water_quota_m3;
       $("edEnergy").value = x.limits.energy_kwh ?? dflt.energy_kwh;

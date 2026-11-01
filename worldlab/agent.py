@@ -7,6 +7,7 @@ to the ledger.
 """
 from __future__ import annotations
 
+import numpy as np
 import json
 import time
 import traceback
@@ -36,6 +37,7 @@ Method:
    - Look before you test: look_at_field sends the drone over the field. Muse Spark compares the photo with the view your own model expects (same plants, predicted canopy, no faults) and SAM 3.1 counts plants and segments salt crust. Use what it sees to shape your hypotheses; a photo is evidence, not proof, so confirm with a field test.
    - Record competing hypotheses, run the test that tells them apart, conclude.
    - Act on what you found (adjust_field: repair_drip, pest_control, more desalinated water), then update_model with the measured value and the onset day so predictions match reality again. Use dismiss_anomaly only if the tests show nothing changed.
+   - Instruments can be wrong as well as the farm. When no test explains an alarm, ask whether the measurement or your model is at fault before acting on the field. If your tools cannot establish a cause, conclude inconclusive, follow a real decline with update_model canopy_loss_unexplained, and request_review; never treat a cause you have not established.
    - After a fault that cost water or yield, rebalance_water to re-plan irrigation for the rest of the season within the remaining quota.
    - The policy was trained on a fault-free farm. If you diagnose a fault, you may set_irrigation_controller back to rule.
 7. Keep advancing to the end of the season (30 June), then finish with an honest summary: what you learned about the varieties, what went wrong, what it cost, how many people the farm feeds.
@@ -92,19 +94,23 @@ TOOLS = [
      "parameters": _obj({"days": {"type": "integer", "minimum": 1, "maximum": 60}, "rationale": S}, ["days", "rationale"])},
     {"name": "look_at_field", "description": "Fly the drone over a field. SAM 3.1 counts plants (on image tiles) and segments white salt crust; Muse Spark compares the photo with the view your model expects and diagnoses stress, pests or salt; also measured vs predicted canopy cover.",
      "parameters": _obj({"field": FIELD, "reason": S}, ["field", "reason"])},
-    {"name": "field_test", "description": "Run a field test: emitter_flow (drip delivery vs design), soil_sample (salinity by layer vs model), water_test (groundwater salinity vs model), leaf_inspection (pests).",
-     "parameters": _obj({"field": FIELD, "test": {"type": "string", "enum": ["emitter_flow", "soil_sample", "water_test", "leaf_inspection"]},
+    {"name": "field_test", "description": "Run a field test: emitter_flow (drip delivery vs design), soil_sample (salinity by layer vs model), water_test (groundwater salinity vs model), leaf_inspection (pests), sensor_check (the installed soil-moisture sensor against a calibrated reference probe).",
+     "parameters": _obj({"field": FIELD, "test": {"type": "string", "enum": ["emitter_flow", "soil_sample", "water_test", "leaf_inspection", "sensor_check"]},
                          "rationale": S}, ["field", "test", "rationale"])},
-    {"name": "adjust_field", "description": "Change a field from today: irrigation level, desal blend, repair the drip line, or apply pest control.",
+    {"name": "adjust_field", "description": "Change a field from today: irrigation level, desal blend, repair the drip line, apply pest control, or recalibrate the field's soil-moisture sensor.",
      "parameters": _obj({"field": FIELD, "rationale": S, "irr": {"type": "number", "minimum": 0, "maximum": 1.5},
                          "desal": {"type": "number", "minimum": 0, "maximum": 1},
-                         "repair_drip": {"type": "boolean"}, "pest_control": {"type": "boolean"}}, ["field", "rationale"])},
-    {"name": "update_model", "description": "Teach the model a diagnosed fact so its predictions match reality again: drip_delivery (measured delivered fraction), pest (daily canopy loss fraction, e.g. 0.03) or groundwater_ec (dS/m), from since_day.",
-     "parameters": _obj({"rationale": S, "finding": {"type": "string", "enum": ["drip_delivery", "pest", "groundwater_ec"]},
+                         "repair_drip": {"type": "boolean"}, "pest_control": {"type": "boolean"},
+                         "recalibrate_sensor": {"type": "boolean"}}, ["field", "rationale"])},
+    {"name": "update_model", "description": "Teach the model a diagnosed fact so its predictions match reality again: drip_delivery (measured delivered fraction), pest (daily canopy loss fraction, e.g. 0.03), canopy_loss_unexplained (a measured daily canopy loss whose cause is not established) or groundwater_ec (dS/m), from since_day.",
+     "parameters": _obj({"rationale": S, "finding": {"type": "string", "enum": ["drip_delivery", "pest", "canopy_loss_unexplained", "groundwater_ec"]},
                          "value": {"type": "number", "minimum": 0, "maximum": 30}, "since_day": {"type": "integer", "minimum": 0, "maximum": 272}, "field": FIELD},
                         ["rationale", "finding", "value", "since_day"])},
     {"name": "dismiss_anomaly", "description": "Close an anomaly when tests show nothing physical changed.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
+    {"name": "request_review", "description": "Ask a human expert (agronomist or lab) to look at a question your tools cannot settle. Logged with your evidence; the season continues.",
+     "parameters": _obj({"field": {"type": "string", "enum": ["F1", "F2", "F3", "F4", "F5", "F6", "all"]}, "question": S, "evidence": S},
+                        ["field", "question", "evidence"])},
     {"name": "rebalance_water", "description": "Re-plan irrigation level and desal blend per field for the rest of the season within the remaining quota and energy.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
     {"name": "finish", "description": "End the run with an honest summary.",
@@ -195,12 +201,15 @@ def dispatch(lab: Lab, name: str, a: dict):
         return lab.field_test(a.get("field", ""), a.get("test", ""), a.get("rationale", ""))
     if name == "adjust_field":
         return lab.adjust_field(a.get("field", ""), a.get("rationale", ""), irr=a.get("irr"), desal=a.get("desal"),
-                                repair_drip=bool(a.get("repair_drip")), pest_control=bool(a.get("pest_control")))
+                                repair_drip=bool(a.get("repair_drip")), pest_control=bool(a.get("pest_control")),
+                                recalibrate_sensor=bool(a.get("recalibrate_sensor")))
     if name == "update_model":
         return lab.update_model(a.get("rationale", ""), a.get("finding", ""), float(a.get("value", 0)),
                                 int(a.get("since_day", lab.day)), a.get("field"))
     if name == "dismiss_anomaly":
         return lab.dismiss_anomaly(a.get("rationale", ""))
+    if name == "request_review":
+        return lab.request_review(a.get("field", "all"), a.get("question", ""), a.get("evidence", ""))
     if name == "rebalance_water":
         return lab.rebalance_water(a.get("rationale", ""))
     if name == "finish":
@@ -464,6 +473,20 @@ class ScriptedScientist:
         if ch != "auto":
             self._test(a["field"], ch, "chosen by you in human decision mode")
 
+    def _sensor_explains(self, f: str, a: dict) -> bool:
+        """Is the soil-moisture sensor itself off? If so, recalibrate it rather than act on the soil."""
+        hs = self.call("record_hypothesis", {"statement": f"The soil-moisture sensor in {f} reads wrong; the soil itself is as modelled.",
+                                             "prediction": "The installed sensor differs from a calibrated reference probe by more than 0.025 m³/m³.",
+                                             "falsified_if": "Sensor and reference agree within 0.015 m³/m³."})["hypothesis_id"]
+        t = self._test(f, "sensor_check", "an instrument fault would look like a soil change")
+        diff = t.get("sensor_minus_reference", 0.0)
+        if abs(diff) > 0.025:
+            self.call("adjust_field", {"field": f, "recalibrate_sensor": True, "rationale": f"sensor off by {diff:+.3f} m³/m³"})
+            self.call("conclude", {"hypothesis_id": hs, "verdict": "supported", "evidence": f"sensor minus reference {diff:+.3f} m³/m³"})
+            return True
+        self.call("conclude", {"hypothesis_id": hs, "verdict": "refuted", "evidence": f"sensor minus reference {diff:+.3f} m³/m³"})
+        return False
+
     def _test(self, f: str, test: str, rationale: str) -> dict:
         """Run a field test once per investigation; a test you already chose is reused, not paid for twice."""
         if test not in self._tests:
@@ -534,7 +557,10 @@ class ScriptedScientist:
                 self.call("rebalance_water", {"rationale": "re-plan irrigation after the fault"})
             else:
                 self.call("conclude", {"hypothesis_id": h1, "verdict": "refuted", "evidence": ev})
-                self.call("conclude", {"hypothesis_id": h2, "verdict": "inconclusive", "evidence": "delivery normal; likely model error"})
+                if self._sensor_explains(f, a):
+                    self.call("conclude", {"hypothesis_id": h2, "verdict": "refuted", "evidence": "the sensor, not the soil, was off"})
+                    return
+                self.call("conclude", {"hypothesis_id": h2, "verdict": "inconclusive", "evidence": "delivery normal and sensor accurate; likely model error"})
                 self.call("dismiss_anomaly", {"rationale": "no physical fault found"})
             return
         hp = self.call("record_hypothesis", {"statement": f"Pests are eating the canopy in {f}.",
@@ -564,4 +590,19 @@ class ScriptedScientist:
             self.call("rebalance_water", {"rationale": "blend more desalinated water where it pays"})
             return
         self.call("conclude", {"hypothesis_id": hs, "verdict": "refuted", "evidence": f"water test {ec} dS/m"})
+        if a["signal"] == "sw" and self._sensor_explains(f, a):
+            return
+        if a["signal"] == "cc" and a.get("residual", 0) < -0.05:
+            # a real decline no available test explains: follow it in the model, say so, and ask a person
+            days = max(5, a["detected_day"] - a["onset_day"])
+            rate = float(np.clip(-a["residual"] / max(0.15, a.get("predicted") or 0.5) / days, 0.003, 0.05))
+            hu = self.call("record_hypothesis", {"statement": f"The canopy in {f} is declining from a cause my tests can't see (disease, roots, nutrition).",
+                                                 "prediction": "Pests, water delivery and salinity all test normal while the canopy keeps falling.",
+                                                 "falsified_if": "A field test finds pests, low delivery or saltier water."})["hypothesis_id"]
+            self.call("update_model", {"finding": "canopy_loss_unexplained", "value": round(rate, 4), "since_day": a["onset_day"], "field": f,
+                                       "rationale": "follow the measured decline without claiming a cause"})
+            self.call("conclude", {"hypothesis_id": hu, "verdict": "inconclusive", "evidence": "no pests, normal water; cause not established"})
+            self.call("request_review", {"field": f, "question": "Canopy is falling with no pests, normal delivery and normal water salinity. Root disease or nutrition? Please sample.",
+                                         "evidence": f"canopy {a.get('residual')} below the model since {a['onset_day']}; leaf inspection clean; water test {ec} dS/m"})
+            return
         self.call("dismiss_anomaly", {"rationale": "no physical cause found; model error"})

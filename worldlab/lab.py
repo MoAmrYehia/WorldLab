@@ -32,7 +32,7 @@ from .ledger import Ledger
 
 D = WX.SEASON_DAYS
 NF = len(FIELDS)
-TESTS = ("emitter_flow", "soil_sample", "water_test", "leaf_inspection")
+TESTS = ("emitter_flow", "soil_sample", "water_test", "leaf_inspection", "sensor_check")
 
 
 @dataclass
@@ -1058,6 +1058,8 @@ class Lab:
             r["expected_if_healthy"] = round(float(self.deliver_est[i, max(self.day - 1, 0)]), 2)
         if test == "water_test":
             r["assumed_by_model"] = round(float(self.ecgw_est[i, max(self.day - 1, 0)]), 2)
+        if test == "sensor_check":
+            r["expected_if_healthy"] = "difference within ±0.015 m³/m³"
         if test == "soil_sample":
             ece = self.ens.ece_layers().reshape(NF, self.S_mon, 3)[i]
             r["model_predicted_ece_by_layer"] = ece.mean(0).round(2).tolist()
@@ -1066,7 +1068,7 @@ class Lab:
         return r
 
     def adjust_field(self, field: str, rationale: str, irr: float | None = None, desal: float | None = None,
-                     repair_drip: bool = False, pest_control: bool = False) -> dict:
+                     repair_drip: bool = False, pest_control: bool = False, recalibrate_sensor: bool = False) -> dict:
         i = self._fi(field)
         if i is None or self.phase != "season":
             return {"error": "unknown field or season not running"}
@@ -1089,6 +1091,12 @@ class Lab:
         if pest_control:
             out["pest_control"] = self.farm.pest_control(i)
             self.pest_est[i, d:] = np.minimum(self.pest_est[i, d:], 0.001)
+        if recalibrate_sensor:                    # readings from tomorrow are corrected; the monitor starts afresh
+            out["recalibrate_sensor"] = self.farm.recalibrate_sensor(i)
+            if self.anomaly and self.anomaly.get("field") == FIELDS[i]["id"] and self.anomaly.get("signal") == "sw":
+                out["resolved_anomaly"] = self.anomaly
+                self.anomaly = None
+            self._reset_monitor()
         self._build_ensemble()
         self._log("adjust", {"rationale": rationale, **out})
         return out
@@ -1114,8 +1122,11 @@ class Lab:
                 self.pest_est[i, since:d] = float(value)
                 if not np.all(self.pest_est[i, d:] <= 0.001):
                     self.pest_est[i, d:] = float(value)
+            elif finding == "canopy_loss_unexplained":
+                # the model follows the measured decline without claiming a cause; it continues until shown otherwise
+                self.pest_est[i, since:] = float(value)
             else:
-                return {"error": "finding must be drip_delivery, pest or groundwater_ec"}
+                return {"error": "finding must be drip_delivery, pest, canopy_loss_unexplained or groundwater_ec"}
         resolved = self.anomaly
         self.anomaly = None
         self._build_ensemble()
@@ -1130,6 +1141,15 @@ class Lab:
                 out["rl_policy_warning"] = (f"the irrigation policy was trained with groundwater at {EC_GROUNDWATER} dS/m; "
                                             f"{value} dS/m is outside what it has seen. Consider set_irrigation_controller rule.")
         return out
+
+    def request_review(self, field: str, question: str, evidence: str) -> dict:
+        """Hand a question the available tests can't settle to a human expert (an agronomist or a lab). The season
+        continues; the request and its evidence are in the ledger for whoever reviews the run."""
+        i = self._fi(field) if field not in (None, "all") else None
+        fid = FIELDS[i]["id"] if i is not None else "all"
+        self._log("review_requested", {"field": fid, "question": question, "evidence": evidence, "day": self.day,
+                                       "open_anomaly": self.anomaly})
+        return {"ok": True, "note": "logged for human review (an agronomist or a lab test outside this toolset); the season continues"}
 
     def dismiss_anomaly(self, rationale: str) -> dict:
         resolved = self.anomaly

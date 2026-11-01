@@ -1069,3 +1069,155 @@ class EvidenceServedTests(unittest.TestCase):
         z = zipfile.ZipFile(d / "worldlab-evidence.zip")
         self.assertEqual(z.read("worldlab-evidence/ledger.jsonl.gz"), (d / "ledger.jsonl.gz").read_bytes())
         self.assertEqual(z.read("worldlab-evidence/manifest.json"), (d / "manifest.json").read_bytes())
+
+
+class HoldoutTests(unittest.TestCase):
+    """New hidden-event families for the frozen holdout (P1.1), what the agent can and can't see, and their scoring."""
+
+    def season(self, kind, sev, field=0):
+        farm = Farm(seed=7)
+        farm.start_season([{"crop": "wheat", **mg("wheat")}] * 6)
+        if kind:
+            farm.schedule(kind, 70, field=field, severity=sev)
+        for d in range(90):
+            farm.step(farm.sim.irrigation_demand(d))
+        return farm
+
+    def test_sensor_bias_shows_in_readings_and_the_sensor_check_only(self):
+        farm = self.season("sensor_bias", -0.06)
+        obs = farm.step(farm.sim.irrigation_demand(90))
+        true = (farm.sim.W / farm.sim.th)[0]
+        self.assertLess(float(np.mean(obs["theta"][0] - true)), -0.04)                      # the sensor reads drier
+        sc = farm.field_test(0, "sensor_check")
+        self.assertLess(sc["sensor_minus_reference"], -0.04)
+        self.assertAlmostEqual(farm.field_test(1, "sensor_check")["sensor_minus_reference"], 0, delta=0.025)
+        self.assertGreater(farm.field_test(0, "emitter_flow")["delivered_vs_design"], 0.85)  # delivery is fine
+        r = farm.recalibrate_sensor(0)
+        self.assertLess(r["offset_found_m3m3"], -0.04)
+        obs = farm.step(farm.sim.irrigation_demand(91))
+        self.assertLess(abs(float(np.mean(obs["theta"][0] - (farm.sim.W / farm.sim.th)[0]))), 0.02)
+
+    def test_root_disease_lowers_canopy_but_no_test_shows_it(self):
+        sick, healthy = self.season("blight", 0.025, field=2), self.season(None, None)
+        self.assertLess(sick.sim.cc[2], healthy.sim.cc[2] - 0.05)
+        self.assertFalse(sick.field_test(2, "leaf_inspection")["pest_damage_seen"])
+        self.assertGreater(sick.field_test(2, "emitter_flow")["delivered_vs_design"], 0.85)
+        self.assertLess(sick.field_test(2, "water_test")["groundwater_ec_dS_m"], 5.5)
+        self.assertAlmostEqual(sick.field_test(2, "sensor_check")["sensor_minus_reference"], 0, delta=0.025)
+        self.assertTrue(sick.pest_control(2)["treated"])
+        self.assertLess(sick.sim.cc[2], healthy.sim.cc[2])                                    # pest control can't cure it
+
+    def test_random_field_pick_lands_on_a_growing_crop(self):
+        farm = Farm(seed=7)
+        farm.start_season([{"crop": None, "sow": 0, "density": 1, "irr": 0, "desal": 0, "nfert": 0, "mulch": 0}] * 3 +
+                          [{"crop": "wheat", **mg("wheat")}] * 3)
+        farm.schedule("clog", 70, pick=4)
+        for d in range(72):
+            farm.step(farm.sim.irrigation_demand(d))
+        self.assertIn(farm.events[0]["field"], ("F4", "F5", "F6"))
+
+    def test_agent_tools_never_see_hidden_events(self):
+        from worldlab.agent import dispatch
+        farm = Farm(seed=7)
+        farm.schedule("blight", 60, pick=1, severity=0.02)
+        farm.schedule("sensor_bias", 61, pick=2, severity=0.07)
+        lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
+        plan = lab.plan_season("go")
+        lab.start_season(plan["plan_id"], "go", "rule")
+        seen = []
+        for _ in range(4):
+            r = dispatch(lab, "advance", {"days": 30, "rationale": "x"})
+            seen.append(json.dumps(r, default=str))
+            if lab.anomaly:
+                seen.append(json.dumps(dispatch(lab, "dismiss_anomaly", {"rationale": "x"}), default=str))
+        seen.append(json.dumps(dispatch(lab, "observe", {}), default=str))
+        text = " ".join(seen).lower()
+        self.assertTrue(farm.events)                                                           # both events happened
+        for word in ("blight", "sensor_bias", "root disease", "hidden", "scheduled", "reads +"):
+            self.assertNotIn(word, text)
+
+    def test_scoring_of_the_new_families(self):
+        from worldlab.benchscore import score
+        E = lambda t, kind, **d: {"t": t, "kind": kind, "data": d}
+        ev = [{"kind": "sensor_bias", "field": "F3", "day": 100}]
+        good = [E(110, "anomaly", field="F3", detected_day=110, signal="sw"),
+                E(111, "field_test", field="F3", test="emitter_flow", delivered_vs_design=0.98),
+                E(111, "field_test", field="F3", test="sensor_check", sensor_minus_reference=-0.06),
+                E(111, "adjust", field="F3", recalibrate_sensor={"recalibrated": True})]
+        s = score(good, ev, "sensor_bias")
+        self.assertEqual((s["faults_diagnosed"], s["faults_justified_intervention"], s["wrong_interventions"]), (1, 1, 0))
+        bad = good[:2] + [E(111, "adjust", field="F3", irr=1.3), E(112, "adjust", field="F3", repair={"repaired": True})]
+        s = score(bad, ev, "sensor_bias")
+        self.assertEqual((s["faults_diagnosed"], s["wrong_interventions"]), (0, 1))            # repaired a line that wasn't clogged
+        ev = [{"kind": "blight", "field": "F5", "day": 100}]
+        honest = [E(120, "anomaly", field="F5", detected_day=120, signal="cc"),
+                  E(121, "field_test", field="F5", test="leaf_inspection", pest_damage_seen=False),
+                  E(121, "model_update", finding="canopy_loss_unexplained", field="F5", value=0.02),
+                  E(121, "review_requested", field="F5", question="?")]
+        s = score(honest, ev, "blight")
+        self.assertEqual(s["unidentifiable_handled"], [True])
+        self.assertEqual(s["wrong_findings"], 0)
+        guess = honest[:2] + [E(121, "model_update", finding="pest", field="F5", value=0.02), E(121, "adjust", field="F5", pest_control={"treated": True})]
+        s = score(guess, ev, "blight")
+        self.assertEqual(s["unidentifiable_handled"], [False])
+        self.assertEqual((s["wrong_findings"], s["wrong_interventions"]), (1, 1))
+        calm = score([E(130, "anomaly", field="F1", detected_day=130, signal="sw")], [], "none")
+        self.assertEqual((calm["unrelated_alarms"], calm["appropriate_non_intervention"]), (1, True))
+
+    def test_unknown_challenge_draws_every_family(self):
+        import random
+        from worldlab import scenarios as SC
+        from worldlab.session import parse_perturb, perturb_extras
+        rng = random.Random(1)
+        fams = set()
+        for _ in range(200):
+            fam, specs = SC.draw_challenge(rng)
+            fams.add(fam)
+            for sp in specs:
+                kind, day, _ = parse_perturb(sp)
+                self.assertTrue(75 <= day <= 170)
+                Farm(seed=1).schedule(kind, day, **perturb_extras(sp))
+        self.assertEqual(fams, set(SC.FAMILIES))
+        self.assertEqual(next(s for s in SC.public() if s["id"] == "mystery")["hidden_events"], "unknown")
+
+
+class RealWeatherTests(unittest.TestCase):
+    """The NASA POWER import (P1.2): pinned file, units, gaps, ET0 against FAO-56's worked example."""
+
+    def test_import_is_complete_and_pinned(self):
+        from worldlab.farm import observed as O
+        wx, rep = O.load()
+        self.assertEqual(rep["rows"], 273)
+        self.assertEqual((rep["first_day"], rep["last_day"]), ("20241001", "20250630"))
+        self.assertEqual(sum(rep["missing"].values()), 0)
+        self.assertEqual(wx["tmax"].shape, (1, 273))
+        self.assertAlmostEqual(float(wx["tmax"][0, 0]), 37.83)              # 1 Oct 2024 as published
+        self.assertTrue(1500 < float(wx["et0"].sum()) < 2100)               # a plausible season total for inland UAE, mm
+
+    def test_gaps_are_filled_and_reported(self):
+        from worldlab.farm import observed as O
+        lines = O.FILE.read_text().splitlines()
+        cells = lines[11].split(","); cells[1] = "-999"; lines[11] = ",".join(cells)          # one missing day: interpolated
+        for k in range(50, 56):                                                              # six missing days: climatology
+            cells = lines[k].split(","); cells[3] = ""; lines[k] = ",".join(cells)
+        p = Path(tempfile.mkdtemp()) / "w.csv"
+        p.write_text("\n".join(lines) + "\n")
+        with self.assertRaises(ValueError):
+            O.load(p)                                                                        # the pinned hash refuses edits
+        wx, rep = O.load(p, check_hash=False)
+        self.assertEqual((rep["filled_by_interpolation"]["tmax"], rep["filled_from_climatology"]["rh"]), (1, 6))
+        self.assertFalse(np.isnan(wx["et0"]).any())
+
+    def test_et0_matches_the_fao56_worked_example(self):
+        # FAO Irrigation and Drainage Paper 56, Example 18 (Brussels, 6 July): ET0 = 3.9 mm/day. The example uses
+        # RHmax 84% and RHmin 63%; WorldLab takes daily mean RH (73.5%), so a small difference is expected.
+        et0 = float(WX.et0_pm(np.array(21.5), np.array(12.3), np.array(73.5), np.array(2.078), np.array(22.07),
+                              np.array(187), lat_deg=50.8, z=100.0))
+        self.assertAlmostEqual(et0, 3.9, delta=0.25)
+
+    def test_a_farm_runs_on_real_weather(self):
+        farm = Farm(seed=7, weather="nasa_power_2024_25")
+        self.assertEqual(farm.weather_source["sha256"], "c66ae08853e3f9c40bfad490f8811464c1ba85619f8858f6ae358089c1a8d63d")
+        farm.start_season([{"crop": "wheat", **mg("wheat")}] * 6)
+        obs = farm.step(farm.sim.irrigation_demand(0))
+        self.assertAlmostEqual(obs["weather"]["tmax"], 37.83)

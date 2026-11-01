@@ -196,7 +196,13 @@ class App:
         sc = SC.BY_ID.get(body.get("scenario") or "baseline")
         if sc is None:
             raise ValueError("unknown scenario")
-        s.scenario, s.perturb = sc["id"], list(sc["perturb"])
+        if sc["id"] == "mystery":                       # drawn now, from the operating system's randomness; revealed after the season
+            import random
+            _, specs = SC.draw_challenge(random.SystemRandom())
+            s.scenario, s.perturb = sc["id"], specs
+        else:
+            s.scenario, s.perturb = sc["id"], list(sc["perturb"])
+        s.weather = sc.get("weather")
         s.limits = {**s.limits, **sc["limits"]}
         s.salinity_scale = sc["salinity_scale"]
         ed = body.get("farm") or {}

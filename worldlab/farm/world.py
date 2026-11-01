@@ -40,7 +40,7 @@ EC_GROUNDWATER = 4.5
 
 
 class Farm:
-    def __init__(self, seed: int = 7, randomize_traits: bool = True, fields: list[dict] | None = None):
+    def __init__(self, seed: int = 7, randomize_traits: bool = True, fields: list[dict] | None = None, weather: str | None = None):
         self.seed = seed
         self.image_mime = "image/jpeg"
         # this farm's fields: the standard six, or a variant (scenario soil, or soil carried over from last season)
@@ -59,6 +59,13 @@ class Farm:
         self.ecgw_base = EC_GROUNDWATER
         self.trial_seed = seed * 100 + 1
         self.year_wx = WX.generate(1, seed * 7 + 3)        # this season's actual weather (hidden ahead)
+        self.weather_source = {"name": "synthetic", "seed": seed * 7 + 3}
+        if weather == "nasa_power_2024_25":                # real 2024-25 weather at Al Ain (farm/observed.py)
+            from . import observed
+            self.year_wx, rep = observed.load()
+            self.weather_source = {**observed.SOURCE, "import_report": rep}
+        elif weather:
+            raise ValueError(f"unknown weather source {weather!r}")
         self.lock = threading.RLock()
         self.sim: Sim | None = None
         self.plan = None
@@ -106,11 +113,17 @@ class Farm:
             D = WX.SEASON_DAYS
             self.deliver = np.ones((len(FIELDS), D))
             self.pest = np.zeros((len(FIELDS), D))
+            self.blight = np.zeros((len(FIELDS), D))        # root disease: canopy loss with no insects (hidden)
+            self.loss = np.zeros((len(FIELDS), D))          # what the crop model applies: pests plus root disease
+            self.bias = np.zeros((len(FIELDS), D))          # soil-moisture sensor offset (hidden)
             self.ecgw = np.full((len(FIELDS), D), self.ecgw_base)
             self.sim = Sim(crop_arrays(crops, traits), mg, soil_arrays(self.fields), self.year_wx,
                            np.zeros(len(FIELDS), int), self.ecgw, eff=self.eff,
-                           deliver=self.deliver, pest=self.pest, record=True)
+                           deliver=self.deliver, pest=self.loss, record=True)
             self.day = 0
+
+    def _sync_loss(self):
+        self.loss[:] = np.clip(self.pest + self.blight, 0, 0.5)
 
     def step(self, gross_mm: np.ndarray) -> dict:
         """Advance one day with the controller's commanded irrigation."""
@@ -123,7 +136,7 @@ class Farm:
             self.sim.step(gross_mm)
             self.day += 1
             n = self.rng
-            theta = self.sim.W / self.sim.th + n.normal(0, 0.008, (len(FIELDS), 3))
+            theta = self.sim.W / self.sim.th + n.normal(0, 0.008, (len(FIELDS), 3)) + self.bias[:, d][:, None]
             ece = self.sim.ece_layers() * n.lognormal(0, 0.08, (len(FIELDS), 3))
             wx = {k: float(self.year_wx[k][0, d]) for k in ("tmax", "tmin", "rh", "u2", "rs", "rain", "et0")}
             return {"day": d, "weather": wx, "theta": np.clip(theta, 0.01, 0.5), "ece": ece,
@@ -167,6 +180,14 @@ class Farm:
                 return {"test": kind, "ece_dS_m_by_layer": ece.round(2).tolist(), "layers_cm": ["0-20", "20-50", "50-100"]}
             if kind == "water_test":
                 return {"test": kind, "groundwater_ec_dS_m": round(float(self.ecgw[f, d] * self.rng.normal(1, 0.02)), 2)}
+            if kind == "sensor_check":
+                # a hand probe calibrated against an oven-dried core, read beside the field's installed sensor
+                true = float(np.mean((self.sim.W / self.sim.th)[f]))
+                sensor = true + float(self.bias[f, d]) + self.rng.normal(0, 0.006)
+                ref = true + self.rng.normal(0, 0.006)
+                return {"test": kind, "sensor_m3m3": round(sensor, 3), "reference_m3m3": round(ref, 3),
+                        "sensor_minus_reference": round(sensor - ref, 3),
+                        "note": "installed soil-moisture sensor against a calibrated reference probe, root-zone mean"}
             if kind == "leaf_inspection":
                 p = float(self.pest[f, d])
                 return {"test": kind, "pest_damage_seen": bool(p > 0.004),
@@ -191,16 +212,29 @@ class Farm:
         with self.lock:
             had = bool(self.pest[f, self.day - 1] > 0.004) if self.day else False
             self.pest[f, self.day:] = np.minimum(self.pest[f, self.day:], 0.001)
+            self._sync_loss()
             return {"treated": True, "pests_present": had}
 
+    def recalibrate_sensor(self, f: int) -> dict:
+        with self.lock:
+            d = max(self.day - 1, 0)
+            off = float(self.bias[f, d]) if self.sim is not None else 0.0
+            if self.sim is not None:
+                self.bias[f, self.day:] = 0.0
+            return {"recalibrated": True, "offset_found_m3m3": round(off, 3) if abs(off) > 0.01 else 0.0}
+
     # --------------------------------------------------------- perturbations
-    def perturb(self, kind: str, field: int | None = None, severity: float | None = None) -> dict:
+    def perturb(self, kind: str, field: int | None = None, severity: float | None = None, pick: int | None = None) -> dict:
         """A change in the world the agent is not told about. severity: clog delivered fraction (default 0.45),
-        pest daily canopy loss (0.03), groundwater salinity in dS/m (9.0)."""
+        pest daily canopy loss (0.03), groundwater salinity in dS/m (9.0), root disease (blight) daily canopy loss
+        (0.02, invisible to every field test), soil-moisture sensor offset in m³/m³ (-0.06)."""
         with self.lock:
             d = self.day
             sown = [i for i, p in enumerate(self.plan or []) if p["crop"] and d >= p["sow"] and not self.sim.done[i]]
-            f = field if field is not None else (sown[len(sown) // 2] if sown else 2)
+            if pick is not None and field is None:          # a randomly chosen field among those growing a crop now
+                f = sown[int(pick) % len(sown)] if sown else 2
+            else:
+                f = field if field is not None else (sown[len(sown) // 2] if sown else 2)
             if kind == "clog":
                 v = 0.45 if severity is None else float(severity)
                 self.deliver[f, d:] = v
@@ -208,7 +242,18 @@ class Farm:
             elif kind == "pest":
                 v = 0.03 if severity is None else float(severity)
                 self.pest[f, d:] = v
+                self._sync_loss()
                 info = {"kind": kind, "field": FIELDS[f]["id"], "note": f"pest outbreak eating {v:.1%} of the canopy a day"}
+            elif kind == "blight":
+                v = 0.02 if severity is None else float(severity)
+                self.blight[f, d:] = v
+                self._sync_loss()
+                info = {"kind": kind, "field": FIELDS[f]["id"],
+                        "note": f"root disease: canopy declines {v:.1%} a day; no insects, normal water delivery and salinity (hidden)"}
+            elif kind == "sensor_bias":
+                v = -0.06 if severity is None else float(severity)
+                self.bias[f, d:] = v
+                info = {"kind": kind, "field": FIELDS[f]["id"], "note": f"soil-moisture sensor reads {v:+.2f} m³/m³ off (hidden); the crop is unaffected"}
             elif kind == "salinity":
                 v = 9.0 if severity is None else float(severity)
                 self.ecgw[:, d:] = v
@@ -247,7 +292,7 @@ class Farm:
             return out
 
     def truth(self) -> dict:
-        return {"traits": self.traits, "eff": self.eff.round(3).tolist(), "events": self.events}
+        return {"traits": self.traits, "eff": self.eff.round(3).tolist(), "events": self.events}   # never shown to the agent
 
     # --------------------------------------------------------- imagery
     def expected_image(self, f: int, cc: float, ece_top: float) -> bytes:

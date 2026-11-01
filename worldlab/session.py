@@ -26,6 +26,7 @@ class Settings:
     choices: list = field(default_factory=list)   # the farmer's crop per field: see Lab.set_crop_choices
     scenario: str = ""             # a named scenario from worldlab.scenarios (sets perturb, limits, starting salt)
     salinity_scale: float = 1.0    # starting soil salinity relative to the standard farm
+    weather: str | None = None     # None: a synthetic weather year; "nasa_power_2024_25": real 2024-25 weather at Al Ain
     soil: list | None = None       # per-field starting salt by layer [[ece x3] x6], e.g. carried over from last season
     human: bool = False            # human decision mode: pause for the person at tests and repairs
     parent_run: int | None = None  # the run this one branches from (one input changed)
@@ -38,14 +39,29 @@ class Settings:
 
 
 def parse_perturb(spec: str):
-    """'clog@80:F3' -> ('clog', 80, field index or None)"""
+    """'clog@80:F3' -> ('clog', 80, field index or None). Longer forms used by the challenge generator:
+    'clog@80:F3:0.5' (severity) and 'blight@110:#7:0.02' (field picked at random among those growing: pick 7)."""
     kind, _, rest = spec.partition("@")
     day, _, fld = rest.partition(":")
+    fld, _, sev = fld.partition(":")
     fi = None
-    if fld:
+    if fld and not fld.startswith("#"):
         from .farm.world import FIELDS
         fi = next((i for i, f in enumerate(FIELDS) if f["id"] == fld.upper()), None)
     return kind, int(day or 80), fi
+
+
+def perturb_extras(spec: str) -> dict:
+    """Severity and random field pick from a perturbation spec, if given."""
+    _, _, rest = spec.partition("@")
+    _, _, fld = rest.partition(":")
+    fld, _, sev = fld.partition(":")
+    out = {}
+    if fld.startswith("#"):
+        out["pick"] = int(fld[1:])
+    if sev:
+        out["severity"] = float(sev)
+    return out
 
 
 class Session:
@@ -65,11 +81,11 @@ class Session:
         if settings.soil:
             for f, ece in zip(fields, settings.soil):
                 f["ece"] = [round(float(v), 2) for v in ece][:3]
-        self.farm = Farm(seed=settings.seed, fields=fields)
+        self.farm = Farm(seed=settings.seed, fields=fields, weather=getattr(settings, "weather", None))
         self.farm.on_event = lambda info: self.bus.publish("perturbation", info)
         for spec in settings.perturb:
             kind, day, fi = parse_perturb(spec)
-            self.farm.schedule(kind, day, field=fi)
+            self.farm.schedule(kind, day, field=fi, **perturb_extras(spec))
         perception = self._make_perception()
         self.lab = Lab(self.farm, limits=Limits(**settings.limits), run_dir=self.run_dir,
                        perception=perception, bus=self.bus, speed=settings.speed)
@@ -81,7 +97,8 @@ class Session:
                                   "scenario": settings.scenario or None, "salinity_scale": settings.salinity_scale,
                                   "soil_carried_over": bool(settings.soil), "human_mode": bool(settings.human),
                                   "budget_mode": "hard" if self.lab.limits.hard_budget else "soft",
-                                  "parent_run": settings.parent_run, "change": settings.change})
+                                  "parent_run": settings.parent_run, "change": settings.change,
+                                  "weather": {k: v for k, v in self.farm.weather_source.items() if k != "import_report"}})
         if settings.choices:
             self.lab.set_crop_choices(settings.choices)
         self.on_finish = None
