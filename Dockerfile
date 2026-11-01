@@ -13,6 +13,7 @@ ENV PYTHONUNBUFFERED=1 \
     WORLDLAB_SECURE_COOKIES=1 \
     WORLDLAB_COOKIE_SAMESITE=None \
     WORLDLAB_MAX_RUNS=3 \
+    WORLDLAB_TRUST_PROXY=1 \
     WORLDLAB_ALLOWED_ORIGINS=https://moamryehia.github.io
 EXPOSE 7860
 CMD ["python", "-m", "worldlab", "serve", "--host", "0.0.0.0", "--http-port", "7860"]

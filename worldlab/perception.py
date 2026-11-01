@@ -101,8 +101,10 @@ def parse_sam_boxes(text: str) -> list[dict]:
 
 
 class MetaPerception:
-    def __init__(self, client: LLMClient | None = None):
+    def __init__(self, client: LLMClient | None = None, sam: bool = True, vision: bool = True):
+        """sam / vision switch the two image models on or off (for modality ablations)."""
         self.client = client or LLMClient(LLMConfig.meta_vision())
+        self.use_sam, self.use_vision = sam, vision
         self.errors: list[str] = []
 
     def _sam(self, url: str, phrase: str) -> list[dict]:
@@ -176,13 +178,15 @@ class MetaPerception:
         crop = farm.plan[i]["crop"] if farm is not None and farm.plan and i is not None else None
         cereal = crop in ("wheat", "rice", "millet")       # drilled cereals form rows, not countable plants
         try:
-            tiles = [] if cereal else self._tiles(frame)
+            tiles = [] if (cereal or not self.use_sam) else self._tiles(frame)
         except Exception as e:                              # undecodable frame: whole-frame counting only
             errors.append(f"tiling: {e}")
             tiles = [(url, (0, 0, size[0], size[1]), (0, 0, size[0], size[1]))]
-        jobs = [(CONCEPTS["plant"], t[0]) for t in tiles] + [(CONCEPTS["salt"], url)]
+        jobs = [(CONCEPTS["plant"], t[0]) for t in tiles] + ([(CONCEPTS["salt"], url)] if self.use_sam else [])
         with ThreadPoolExecutor(8) as ex:
             found = list(ex.map(sam, jobs))
+        if not self.use_sam:
+            found = [("not_run", [])]
         objects = []
         tiles_ok = 0
         for (turl, (ox, oy, _, _), (cx0, cy0, cx1, cy1)), (st, boxes) in zip(tiles, found[:len(tiles)]):
@@ -198,7 +202,9 @@ class MetaPerception:
         area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "plant")
         salt_area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "salt")
         # plant count: valid (every tile answered), partial (a lower bound), unavailable, or not counted (cereal)
-        if cereal:
+        if not self.use_sam:
+            plant_status, plants = "not_run", None
+        elif cereal:
             plant_status, plants = "not_counted", None
         elif tiles_ok == len(tiles):
             plant_status, plants = "valid", n_plants
@@ -207,15 +213,16 @@ class MetaPerception:
         else:
             plant_status, plants = ("malformed" if any(st == "malformed" for st, _ in found[:len(tiles)]) else "unavailable"), None
         salt_status = "valid" if salt_st == "ok" else salt_st
-        diag, diag_status = None, "unavailable"
+        diag, diag_status = None, ("unavailable" if self.use_vision else "not_run")
         try:
-            diag, diag_status = self._diagnose(url, crop, ref_url), "valid"
+            if self.use_vision:
+                diag, diag_status = self._diagnose(url, crop, ref_url), "valid"
         except MalformedOutput as e:
             diag_status = "malformed"
             errors.append(f"Muse Spark diagnosis: {e}")
         except (APIError, KeyError, IndexError, TypeError) as e:
             errors.append(f"Muse Spark diagnosis: {str(e)[:120]}")
-        parts = [plant_status if plant_status != "not_counted" else "valid", salt_status, diag_status]
+        parts = [p for p in (plant_status if plant_status != "not_counted" else "valid", salt_status, diag_status) if p != "not_run"]
         overall = "complete" if all(p == "valid" for p in parts) else "unavailable" if all(p != "valid" and p != "partial" for p in parts) else "partial"
         self.errors += errors
         models = [m for m, ok in (("SAM 3.1", plant_status in ("valid", "partial") or salt_status == "valid"), ("Muse Spark", diag_status == "valid")) if ok]

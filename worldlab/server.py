@@ -106,6 +106,41 @@ class App:
         self.slots: dict[int, Slot] = {}
         self.lock = threading.Lock()
         self.max_runs = max_runs or int(os.environ.get("WORLDLAB_MAX_RUNS", "3"))
+        self.reserved: set[int] = set()            # users whose start is being set up (counted as active)
+        self.started = time.time()
+        self.guest_hits: dict[str, list[float]] = {}
+        # inference budget: Muse Spark seasons per day (all accounts) and per guest; guests' total seasons
+        self.spark_daily = int(os.environ.get("WORLDLAB_SPARK_DAILY", "40"))
+        self.guest_spark_daily = int(os.environ.get("WORLDLAB_GUEST_SPARK_DAILY", "25"))
+        self.guest_runs = int(os.environ.get("WORLDLAB_GUEST_RUNS", "3"))
+        self.guests_enabled = os.environ.get("WORLDLAB_GUESTS", "1") != "0"
+
+    def day_start(self) -> float:
+        now = time.time()
+        return now - now % 86400                      # midnight UTC
+
+    def spark_left(self, guest: bool) -> int:
+        since = self.day_start()
+        left = self.spark_daily - self.accounts.count_runs(since, "spark")
+        if guest:
+            guests = self.db_guest_spark(since)
+            left = min(left, self.guest_spark_daily - guests)
+        return max(0, left)
+
+    def db_guest_spark(self, since: float) -> int:
+        return int(self.accounts.db.execute(
+            "SELECT COUNT(*) FROM runs r JOIN users u ON u.id = r.user_id WHERE r.created >= ? AND r.agent = 'spark' AND u.email LIKE ?",
+            (since, "%" + self.accounts.GUEST_DOMAIN)).fetchone()[0])
+
+    def ready(self) -> dict:
+        """Public readiness: what works right now, no secrets."""
+        key = bool(os.environ.get("MODEL_API_KEY"))
+        return {"ready": True, "service": "worldlab", "uptime_s": round(time.time() - self.started),
+                "version": os.environ.get("WORLDLAB_VERSION") or None,
+                "models": {"muse_spark": key, "sam_3_1": key, "muse_glimmer": bool(os.environ.get("WORLDLAB_GLIMMER_BASE_URL"))},
+                "capacity": {"runs_active": self.active_runs(), "run_capacity": self.max_runs, "busy": self.active_runs() >= self.max_runs},
+                "guests": {"enabled": self.guests_enabled, "seasons_per_guest": self.guest_runs,
+                           "muse_spark_seasons_left_today": self.spark_left(True) if key else 0}}
 
     def slot(self, user_id: int) -> Slot:
         with self.lock:
@@ -123,10 +158,28 @@ class App:
         normalize_choices(body.get("choices") or [])          # reject impossible picks before touching the farm
         if agent == "spark" and not os.environ.get("MODEL_API_KEY"):
             raise ValueError("Muse Spark needs MODEL_API_KEY on the server. Choose the scripted scientist instead.")
-        with self.lock:
-            busy = slot.session and slot.session.alive()
-            if not busy and self.active_runs() >= self.max_runs:
+        guest = Accounts.is_guest(user)
+        since = self.day_start()
+        if guest and self.accounts.count_runs(0, user_id=user["id"]) >= self.guest_runs:
+            raise RuntimeError(f"Guest sessions can run {self.guest_runs} seasons. Sign up to run more, or watch the recorded season.")
+        if agent == "spark" and self.spark_left(guest) <= 0:
+            raise RuntimeError("Today's Muse Spark budget on this server is used up. The scripted scientist is still available, "
+                               "and the recorded Muse Spark season is always available.")
+        with self.lock:                               # admission is atomic: check and reserve under one lock
+            if user["id"] in self.reserved:
+                raise RuntimeError("A season is already starting for this account.")
+            busy = bool(slot.session and slot.session.alive())
+            others = self.active_runs() - (1 if busy else 0) + len(self.reserved)
+            if others >= self.max_runs:
                 raise RuntimeError("The farm simulator is busy with other seasons. Try again in a few minutes.")
+            self.reserved.add(user["id"])
+        try:
+            return self._start(user, body, slot, agent, busy)
+        finally:
+            with self.lock:
+                self.reserved.discard(user["id"])
+
+    def _start(self, user: dict, body: dict, slot: "Slot", agent: str, busy: bool) -> dict:
         if busy:
             slot.session.stop()
             slot.session.thread.join(timeout=10)
@@ -357,7 +410,7 @@ def make_handler(app: App):
             q = parse_qs(url.query)
             if path in PAGES:
                 user = self._user()
-                if path == "/app" and not user:
+                if path == "/app" and not user and "guest" not in parse_qs(url.query):
                     return self._redirect("/login?next=/app" + (f"%3F{url.query}" if url.query else ""))
                 if path in ("/login", "/signup") and user:
                     return self._redirect("/app")
@@ -386,6 +439,8 @@ def make_handler(app: App):
                     return self._json({"error": "not found"}, 404)
                 from .replay import build
                 return self._json(build(r["run_dir"], note="A shared WorldLab season, replayed read-only from its log."))
+            if path in ("/api/ready", "/healthz"):     # readiness for deploy checks and the website, no secrets
+                return self._json(app.ready())
             if path == "/api/capabilities":       # what this server can do right now, no account needed
                 return self._json({"service": "ok", "schema": 2, "accounts": True,
                                    "agents": {"scripted": True, "scripted-rl": True,
@@ -395,7 +450,8 @@ def make_handler(app: App):
                                    "budget_mode": "hard", "run_capacity": app.max_runs,
                                    "runs_active": app.active_runs(),
                                    "busy": app.active_runs() >= app.max_runs,
-                                   "features": ["scenarios", "farm_editor", "human_mode", "branch", "next_season", "share"]})
+                                   "guests": app.guests_enabled,
+                                   "features": ["scenarios", "farm_editor", "human_mode", "branch", "next_season", "share", "guest", "handover"]})
             if path == "/api/me":
                 user = self._user()
                 return self._json({"user": user}, 200 if user else 401)
@@ -463,10 +519,24 @@ def make_handler(app: App):
         def do_POST(self):
             path = urlsplit(self.path).path.rstrip("/")
             # A request carrying a bearer token can't be forged by another site; a cookie-only one must be same-origin.
-            if not self._same_origin() and not (self._bearer() and path not in ("/api/auth/signup", "/api/auth/login")):
+            if not self._same_origin() and not (self._bearer() and path not in ("/api/auth/signup", "/api/auth/login", "/api/auth/guest")):
                 return self._json({"error": "cross-site request refused"}, 403)
             b = self._body()
-            client = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            # the client address: forwarded headers are trusted only behind a configured proxy (Hugging Face sets one)
+            client = (self.headers.get("X-Forwarded-For", "").split(",")[0].strip() if os.environ.get("WORLDLAB_TRUST_PROXY") == "1" else "") \
+                or self.client_address[0]
+            if path == "/api/auth/guest":              # a short-lived guest session for trying a live season
+                if not app.guests_enabled:
+                    return self._json({"ok": False, "error": "Guest sessions are turned off on this server."}, 403)
+                now = time.time()
+                hits = [t for t in app.guest_hits.get(client, []) if now - t < 3600]
+                if len(hits) >= 5:
+                    return self._json({"ok": False, "error": "Too many guest sessions from this address. Try again later."}, 429)
+                app.guest_hits[client] = hits + [now]
+                user = app.accounts.guest()
+                token = app.accounts.new_session(user["id"], seconds=4 * 3600)
+                return self._json({"ok": True, "user": {**user, "guest": True}, "token": token, "expires_in_s": 4 * 3600},
+                                  headers={"Set-Cookie": self._cookie(token)})
             if path in ("/api/auth/signup", "/api/auth/login"):
                 try:
                     if path.endswith("signup"):

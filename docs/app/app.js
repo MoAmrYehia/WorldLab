@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=a38106126f";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=3481ce85d1";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -1786,7 +1786,7 @@ function showTour() {
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=a38106126f");
+    const mod = await import("./scene.js?v=3481ce85d1");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {
@@ -1917,11 +1917,26 @@ async function boot() {
   if (q.get("shared")) $("modeChip").textContent = "Shared season";
   else if (q.get("run")) $("modeChip").textContent = "Your past season";
   // what the server can do, with a short timeout so a missing server never blocks the page
-  try { const r = await api("api/capabilities", { timeout: 4000 }); if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) { caps = await r.json(); serverUp = true; } } catch (e) { /* no server */ }
+  const wantGuest = q.has("guest");
+  const capsOnce = async () => { try { const r = await api("api/capabilities", { timeout: 4000 }); if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) { caps = await r.json(); serverUp = true; } } catch (e) { /* no server */ } };
+  await capsOnce();
+  if (!serverUp && wantGuest) {                       // a sleeping server can take a while to start: say so, then give up clearly
+    for (let k = 1; k <= 20 && !serverUp; k++) {
+      $("modeNote").textContent = `Waking the live server… (${k * 3} s; a sleeping server can take up to a minute)`;
+      await new Promise((ok) => setTimeout(ok, 3000));
+      await capsOnce();
+    }
+    if (!serverUp) { $("modeNote").textContent = "The live server isn't reachable right now, so this is the recorded Muse Spark season. Try the live season again later."; toast("Live server unavailable", "Showing the recorded season instead."); }
+  }
   let state = null;
   if (!replay && serverUp) {
     try {
-      const r = await api("api/state", { timeout: 8000 });
+      let r = await api("api/state", { timeout: 8000 });
+      if (r.status === 401 && wantGuest) {             // a short-lived guest session: no account, strict limits
+        const g = await apiJson("api/auth/guest", { method: "POST", body: {}, timeout: 10000 }).catch(() => null);
+        if (g && g.ok && g.data.token) { setToken(g.data.token); r = await api("api/state", { timeout: 8000 }); }
+        else toast("Guest session not available", (g && g.data.error) || "Sign up instead, or watch the recorded season.");
+      }
       if (r.status === 401) { go("login", `?next=${encodeURIComponent(PAGES.app)}`); return; }
       if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) state = await r.json();
     } catch (e) { /* unreachable */ }

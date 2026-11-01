@@ -41,6 +41,15 @@ async function nav() {
     if (box) box.innerHTML = `<a class="btn solid" href="${PAGES.demo}">Watch a season</a>`;
     return;
   }
+  if (!st.user) {                                   // live, without an account: a short-lived guest session
+    document.querySelectorAll(".cta").forEach((c) => {
+      if (c.querySelector("[data-guest]")) return;
+      const a = document.createElement("a");
+      a.className = "btn glassy big"; a.dataset.guest = "1"; a.href = PAGES.app + (PAGES.app.includes("?") ? "&" : "?") + "guest=1";
+      a.textContent = "Try a live season (no account)"; a.title = "A guest session: up to 3 live seasons, with Muse Spark while today's budget lasts";
+      c.appendChild(a);
+    });
+  }
   if (st.user && box) {
     box.innerHTML = `<span class="who">${esc(st.user.name)}</span><a class="btn solid" href="${PAGES.app}">Open your farm</a>`;
     document.querySelectorAll(".cta [data-needs-server]").forEach((a) => { a.textContent = "Open your farm"; a.href = PAGES.app; });

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
 import time
 
@@ -51,6 +52,21 @@ def main(argv=None):
     b.add_argument("--out", default="runs/bench")
     b.add_argument("--workers", type=int, default=0)
 
+    b2 = sub.add_parser("bench2", help="benchmark v2: saved ledgers and manifests, event-level scoring")
+    b2.add_argument("--farms", type=int, default=5)
+    b2.add_argument("--seed0", type=int, default=200)
+    b2.add_argument("--agents", default="spark,scripted-rl")
+    b2.add_argument("--perception", default="meta", help="comma list of meta, meta-sam, meta-vision, none, sim")
+    b2.add_argument("--scenarios", default="none,clog,pest,salinity,heatwave")
+    b2.add_argument("--holdout", default=None, help="a frozen holdout suite (JSON) instead of the standard scenarios")
+    b2.add_argument("--out", default="runs/bench_v2")
+    b2.add_argument("--workers", type=int, default=5)
+
+    b2s = sub.add_parser("bench2-summary", help="summarise bench2 manifests")
+    b2s.add_argument("src")
+    b2s.add_argument("--out", default="docs/bench/v2")
+    b2s.add_argument("--reference", default="scripted-rl/meta")
+
     v = sub.add_parser("verify", help="verify a ledger's hash chain")
     v.add_argument("ledger")
 
@@ -79,6 +95,15 @@ def main(argv=None):
         if sess.error:
             print(sess.error, file=sys.stderr)
             sys.exit(1)
+    elif a.cmd == "bench2":
+        from . import bench2
+        hold = json.loads(Path(a.holdout).read_text())["cases"] if a.holdout else None
+        cases = bench2.plan(a.agents.split(","), a.perception.split(","), [a.seed0 + i for i in range(a.farms)],
+                            a.scenarios.split(","), a.out, holdout=hold)
+        bench2.run(cases, workers=a.workers)
+    elif a.cmd == "bench2-summary":
+        from . import bench2
+        bench2.write_summary(a.src, a.out, a.reference or None)
     elif a.cmd == "bench":
         from .bench import run_bench
         run_bench(a.farms, a.agents.split(","), a.scenarios.split(","), a.out, workers=a.workers)

@@ -194,21 +194,25 @@ class Farm:
             return {"treated": True, "pests_present": had}
 
     # --------------------------------------------------------- perturbations
-    def perturb(self, kind: str, field: int | None = None) -> dict:
-        """A change in the world the agent is not told about."""
+    def perturb(self, kind: str, field: int | None = None, severity: float | None = None) -> dict:
+        """A change in the world the agent is not told about. severity: clog delivered fraction (default 0.45),
+        pest daily canopy loss (0.03), groundwater salinity in dS/m (9.0)."""
         with self.lock:
             d = self.day
             sown = [i for i, p in enumerate(self.plan or []) if p["crop"] and d >= p["sow"] and not self.sim.done[i]]
             f = field if field is not None else (sown[len(sown) // 2] if sown else 2)
             if kind == "clog":
-                self.deliver[f, d:] = 0.45
-                info = {"kind": kind, "field": FIELDS[f]["id"], "note": "drip emitters clogged: 45% of water delivered (hidden)"}
+                v = 0.45 if severity is None else float(severity)
+                self.deliver[f, d:] = v
+                info = {"kind": kind, "field": FIELDS[f]["id"], "note": f"drip emitters clogged: {v:.0%} of water delivered (hidden)"}
             elif kind == "pest":
-                self.pest[f, d:] = 0.03
-                info = {"kind": kind, "field": FIELDS[f]["id"], "note": "pest outbreak eating 3% of the canopy a day"}
+                v = 0.03 if severity is None else float(severity)
+                self.pest[f, d:] = v
+                info = {"kind": kind, "field": FIELDS[f]["id"], "note": f"pest outbreak eating {v:.1%} of the canopy a day"}
             elif kind == "salinity":
-                self.ecgw[:, d:] = 9.0
-                info = {"kind": kind, "field": "all", "note": "groundwater salinity rises from 4.5 to 9 dS/m (hidden)"}
+                v = 9.0 if severity is None else float(severity)
+                self.ecgw[:, d:] = v
+                info = {"kind": kind, "field": "all", "note": f"groundwater salinity rises from 4.5 to {v:g} dS/m (hidden)"}
             elif kind == "heatwave":
                 WX.heat_wave_inject(self.year_wx, 0, min(d + 3, WX.SEASON_DAYS - 1), 6, 6.5)
                 info = {"kind": kind, "field": "all", "note": "a heat wave arrives in 3 days (in the forecast)"}
