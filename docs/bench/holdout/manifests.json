@@ -1,0 +1,1537 @@
+[
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h401-blight",
+  "label": "blight",
+  "seed": 401,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "blight",
+    "day": 110,
+    "pick": 42,
+    "severity": 0.014
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "blight",
+    "field": "F3",
+    "day": 110
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 479.9,
+  "finished_at": "2026-11-01T08:14:58Z",
+  "result": {
+   "people_fed": 539.4,
+   "water_m3": 55282,
+   "energy_kwh": 80247,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "blight",
+     "field": "F3",
+     "onset": 110,
+     "first_evidence_day": 143,
+     "correct_diagnosis_day": 144,
+     "intervention_day": 144,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 34
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": [
+    true
+   ],
+   "reviews_requested": 1
+  },
+  "trait_error_common": 0.509,
+  "trait_error_planted": 0.238,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 2,
+  "looks": 1,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 18,
+   "perception_calls": 18
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "6abd322aa43cabe9957a5bf98bd6bc152aff96d63acb084721884922c58a0729",
+    "entries": 95,
+    "head": "5d7ff37fbfa113c2dc60aafac40884ede26317712e4d1834ad96f7b6a1b3ffe0"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h402-clog",
+  "label": "clog",
+  "seed": 402,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "clog",
+    "day": 132,
+    "pick": 71,
+    "severity": 0.59
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "clog",
+    "field": "F6",
+    "day": 132
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 459.0,
+  "finished_at": "2026-11-01T08:15:13Z",
+  "result": {
+   "people_fed": 468.5,
+   "water_m3": 60000,
+   "energy_kwh": 82329,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F6",
+     "onset": 132,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.698,
+  "trait_error_planted": 0.305,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 0,
+  "looks": 0,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 0,
+   "perception_calls": 0
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "5377c258db19c8c93f2856907c239d65f31d0e0e0da5ad6cc30c88acf3863a25",
+    "entries": 59,
+    "head": "dc9aa32f7ca738a0df128635950e7f65011accb440b1b032d7a99b1fb90dde2f"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h403-compound",
+  "label": "compound",
+  "seed": 403,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "clog",
+    "day": 86,
+    "pick": 17,
+    "severity": 0.62
+   },
+   {
+    "kind": "pest",
+    "day": 137,
+    "pick": 18,
+    "severity": 0.015
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "day": 86
+   },
+   {
+    "kind": "pest",
+    "field": "F1",
+    "day": 137
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 493.8,
+  "finished_at": "2026-11-01T08:16:00Z",
+  "result": {
+   "people_fed": 520.8,
+   "water_m3": 60000,
+   "energy_kwh": 81590,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 86,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    },
+    {
+     "kind": "pest",
+     "field": "F1",
+     "onset": 137,
+     "first_evidence_day": 151,
+     "correct_diagnosis_day": 152,
+     "intervention_day": 152,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 15
+    }
+   ],
+   "faults": 2,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.688,
+  "trait_error_planted": 0.494,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 1,
+  "looks": 1,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 18,
+   "perception_calls": 18
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "9cc9713cea6f10e52cb43b878bbffb643a667e5789768d090efbb81a13303bd0",
+    "entries": 90,
+    "head": "4f80104940da2036257290962f960570f70d9a7f820caebde729040dad57fb57"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h404-salinity",
+  "label": "salinity",
+  "seed": 404,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "salinity",
+    "day": 78,
+    "severity": 8.5
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "day": 78
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 740.8,
+  "finished_at": "2026-11-01T08:21:46Z",
+  "result": {
+   "people_fed": 365.2,
+   "water_m3": 52887,
+   "energy_kwh": 90000,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "salinity",
+     "field": "all",
+     "onset": 78,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": false,
+     "days_to_diagnosis": 22
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 7,
+   "wrong_findings": 1,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 12,
+   "tests": 22,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 1
+  },
+  "trait_error_common": 0.45,
+  "trait_error_planted": 0.237,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rule",
+  "plots": 10,
+  "tests": 22,
+  "looks": 11,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 198,
+   "perception_calls": 198
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "b4a4153cd2184b2c26f9ae55b2383c0e8ac845043ed4b2ee1d96795d3081f549",
+    "entries": 373,
+    "head": "5cf7c3342eb8513e4f9d039eb681d61f494d738a22a2be976cbfb3b41ec8a91e"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h405-sensor_bias",
+  "label": "sensor_bias",
+  "seed": 405,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "sensor_bias",
+    "day": 88,
+    "pick": 63,
+    "severity": -0.078
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "sensor_bias",
+    "field": "F4",
+    "day": 88
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 431.5,
+  "finished_at": "2026-11-01T08:22:09Z",
+  "result": {
+   "people_fed": 580.9,
+   "water_m3": 60000,
+   "energy_kwh": 89064,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "field": "F4",
+     "onset": 88,
+     "first_evidence_day": 90,
+     "correct_diagnosis_day": 91,
+     "intervention_day": 91,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 3
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 1,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.657,
+  "trait_error_planted": 0.282,
+  "planted": [
+   "maize",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 2,
+  "looks": 1,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 18,
+   "perception_calls": 18
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "af14491297233826f82473fa6b10ee8cd6609247a77ea1fb422df8baa82b3488",
+    "entries": 93,
+    "head": "7e8be334dae99a23a03ee0f6d663e04799a2a9263ee8bc1802dca3b1e7127ccb"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h406-pest",
+  "label": "pest",
+  "seed": 406,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "pest",
+    "day": 88,
+    "pick": 80,
+    "severity": 0.023
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "pest",
+    "field": "F3",
+    "day": 88
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 421.4,
+  "finished_at": "2026-11-01T08:22:14Z",
+  "result": {
+   "people_fed": 407.9,
+   "water_m3": 50810,
+   "energy_kwh": 90000,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "pest",
+     "field": "F3",
+     "onset": 88,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 12
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.637,
+  "trait_error_planted": 0.336,
+  "planted": [
+   "maize",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 1,
+  "looks": 1,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 18,
+   "perception_calls": 18
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "65403fb834dc994a57e795df43290648cb88f837cc30d19ee247cc626cc5590d",
+    "entries": 87,
+    "head": "99df46e796fdd7bd359acb86a1076304a44a6b25c21e5f2efdfd2c45ef274fe7"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h407-none",
+  "label": "none",
+  "seed": 407,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [],
+  "applied_events": [],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 418.0,
+  "finished_at": "2026-11-01T08:22:58Z",
+  "result": {
+   "people_fed": 540.6,
+   "water_m3": 60000,
+   "energy_kwh": 89843,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.483,
+  "trait_error_planted": 0.454,
+  "planted": [
+   "maize",
+   "potato",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 13,
+  "tests": 0,
+  "looks": 0,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 0,
+   "perception_calls": 0
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "e942c969cd334e509fed387679df156530a36d75605c44899cb3fff0bbc1243b",
+    "entries": 72,
+    "head": "64c8f3f03920b14217e03bde5abcd36320b5997c70678d1ee87212f8de88bb4f"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h408-heatwave",
+  "label": "heatwave",
+  "seed": 408,
+  "agent": "scripted-rl",
+  "scientist_model": null,
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "heatwave",
+    "day": 135
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "heatwave",
+    "field": "all",
+    "day": 135
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 157.4,
+  "finished_at": "2026-11-01T08:24:23Z",
+  "result": {
+   "people_fed": 441.2,
+   "water_m3": 58077,
+   "energy_kwh": 85988,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.725,
+  "trait_error_planted": 0.386,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 0,
+  "looks": 0,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 0,
+   "perception_calls": 0
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "10c547adae49227e3c22792a367ee200d6efc9cf5ca60e0a4b5f32aad17c99a1",
+    "entries": 58,
+    "head": "1f4acac4e58c2a9016f0152f5323aec31bfbed8db23961301632d11ce8efadcd"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h401-blight",
+  "label": "blight",
+  "seed": 401,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "blight",
+    "day": 110,
+    "pick": 42,
+    "severity": 0.014
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "blight",
+    "field": "F3",
+    "day": 110
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 843.9,
+  "finished_at": "2026-11-01T07:55:30Z",
+  "result": {
+   "people_fed": 529.5,
+   "water_m3": 58063,
+   "energy_kwh": 85229,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "blight",
+     "field": "F3",
+     "onset": 110,
+     "first_evidence_day": 139,
+     "correct_diagnosis_day": 140,
+     "intervention_day": 140,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 30
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 4,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": [
+    true
+   ],
+   "reviews_requested": 1
+  },
+  "trait_error_common": 0.409,
+  "trait_error_planted": 0.276,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 16,
+  "tests": 4,
+  "looks": 5,
+  "usage": {
+   "scientist_calls": 48,
+   "scientist_attempts": 48,
+   "scientist_tokens": {
+    "prompt_tokens": 1198559,
+    "completion_tokens": 9443
+   },
+   "perception_attempts": 74,
+   "perception_calls": 74
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "482df8d1426c245ed552d59f39041d72ca6b4e99e3bf0ca69620c73bef2b15cf",
+    "entries": 182,
+    "head": "4504641d68998b489927d9619006c0f98c5cb2551d1463be454aee8f72f3d00f"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h402-clog",
+  "label": "clog",
+  "seed": 402,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "clog",
+    "day": 132,
+    "pick": 71,
+    "severity": 0.59
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "day": 132
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 714.2,
+  "finished_at": "2026-11-01T07:53:20Z",
+  "result": {
+   "people_fed": 450.7,
+   "water_m3": 60000,
+   "energy_kwh": 83463,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 132,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 1,
+   "wrong_findings": 1,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 3,
+   "tests": 3,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.648,
+  "trait_error_planted": 0.519,
+  "planted": [
+   "maize",
+   "millet",
+   "sorghum",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 16,
+  "tests": 3,
+  "looks": 4,
+  "usage": {
+   "scientist_calls": 35,
+   "scientist_attempts": 35,
+   "scientist_tokens": {
+    "prompt_tokens": 704667,
+    "completion_tokens": 8115
+   },
+   "perception_attempts": 40,
+   "perception_calls": 40
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "e1a692db35eda25696d69254a86b7c48f6d214b16373ff66dcfef7e22b595b97",
+    "entries": 128,
+    "head": "0e4ea04f2b47105e5fd872818b8bd654226241e4b02791e759566b764e168e68"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h403-compound",
+  "label": "compound",
+  "seed": 403,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "clog",
+    "day": 86,
+    "pick": 17,
+    "severity": 0.62
+   },
+   {
+    "kind": "pest",
+    "day": 137,
+    "pick": 18,
+    "severity": 0.015
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "day": 86
+   },
+   {
+    "kind": "pest",
+    "field": "F1",
+    "day": 137
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 840.5,
+  "finished_at": "2026-11-01T07:55:26Z",
+  "result": {
+   "people_fed": 445.8,
+   "water_m3": 58713,
+   "energy_kwh": 78812,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 86,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    },
+    {
+     "kind": "pest",
+     "field": "F1",
+     "onset": 137,
+     "first_evidence_day": 151,
+     "correct_diagnosis_day": 152,
+     "intervention_day": 152,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 15
+    }
+   ],
+   "faults": 2,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.651,
+  "trait_error_planted": 0.337,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rule",
+  "plots": 13,
+  "tests": 1,
+  "looks": 6,
+  "usage": {
+   "scientist_calls": 38,
+   "scientist_attempts": 38,
+   "scientist_tokens": {
+    "prompt_tokens": 778419,
+    "completion_tokens": 7821
+   },
+   "perception_attempts": 92,
+   "perception_calls": 92
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "e74986021a64a9c05e6c38a6d9d80e11ab6fe6516a426a85d8f5e5f0c85536b5",
+    "entries": 152,
+    "head": "d7749865fd63da88e1904adc600da72d971a9f92b33396a8eadaa46ba08a924e"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h404-salinity",
+  "label": "salinity",
+  "seed": 404,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "salinity",
+    "day": 78,
+    "severity": 8.5
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "day": 78
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 872.2,
+  "finished_at": "2026-11-01T07:55:58Z",
+  "result": {
+   "people_fed": 358.2,
+   "water_m3": 54634,
+   "energy_kwh": 89072,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "salinity",
+     "field": "all",
+     "onset": 78,
+     "first_evidence_day": 79,
+     "correct_diagnosis_day": 97,
+     "intervention_day": 97,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 19
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 1,
+   "wrong_findings": 2,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 5,
+   "tests": 6,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 1
+  },
+  "trait_error_common": 0.442,
+  "trait_error_planted": 0.218,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rule",
+  "plots": 16,
+  "tests": 6,
+  "looks": 3,
+  "usage": {
+   "scientist_calls": 57,
+   "scientist_attempts": 57,
+   "scientist_tokens": {
+    "prompt_tokens": 1520940,
+    "completion_tokens": 13441
+   },
+   "perception_attempts": 54,
+   "perception_calls": 54
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "599e6ddd4075e6ed4fb2af018e3433fb1d7bc67498135b8a422fe7468fca49bc",
+    "entries": 230,
+    "head": "35f4449dab233121a5518fd49b9f8e9c9bf04d407e8470e0146b5bb5be987c58"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h405-sensor_bias",
+  "label": "sensor_bias",
+  "seed": 405,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "sensor_bias",
+    "day": 88,
+    "pick": 63,
+    "severity": -0.078
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "sensor_bias",
+    "field": "F4",
+    "day": 88
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 817.8,
+  "finished_at": "2026-11-01T08:06:58Z",
+  "result": {
+   "people_fed": 585.8,
+   "water_m3": 59865,
+   "energy_kwh": 90000,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "field": "F4",
+     "onset": 88,
+     "first_evidence_day": 90,
+     "correct_diagnosis_day": 91,
+     "intervention_day": 91,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 3
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 1,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.488,
+  "trait_error_planted": 0.294,
+  "planted": [
+   "maize",
+   "potato",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 16,
+  "tests": 2,
+  "looks": 3,
+  "usage": {
+   "scientist_calls": 40,
+   "scientist_attempts": 40,
+   "scientist_tokens": {
+    "prompt_tokens": 945937,
+    "completion_tokens": 10838
+   },
+   "perception_attempts": 54,
+   "perception_calls": 54
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "67ded33563622d35dc9a460116574faf1993c556b01a62ed3ba5cbf026cdb98a",
+    "entries": 146,
+    "head": "53b34cb9fa5db960ad675bd47773c248b3ac8aae90482ea43478be6065584a9a"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h406-pest",
+  "label": "pest",
+  "seed": 406,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "pest",
+    "day": 88,
+    "pick": 80,
+    "severity": 0.023
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "pest",
+    "field": "F3",
+    "day": 88
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 739.6,
+  "finished_at": "2026-11-01T08:07:46Z",
+  "result": {
+   "people_fed": 408.0,
+   "water_m3": 58776,
+   "energy_kwh": 88095,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [
+    {
+     "kind": "pest",
+     "field": "F3",
+     "onset": 88,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 12
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.614,
+  "trait_error_planted": 0.301,
+  "planted": [
+   "maize",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rule",
+  "plots": 16,
+  "tests": 1,
+  "looks": 3,
+  "usage": {
+   "scientist_calls": 34,
+   "scientist_attempts": 34,
+   "scientist_tokens": {
+    "prompt_tokens": 664473,
+    "completion_tokens": 7227
+   },
+   "perception_attempts": 38,
+   "perception_calls": 38
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "c8532df39458dac2088a6d0898b31c187e7d6da5dce14a22a07a483e32ff9ad4",
+    "entries": 125,
+    "head": "de875bd621abf2fde7b6a4419ee066e44f156c5795d68cede3baebcab85ebd4d"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h407-none",
+  "label": "none",
+  "seed": 407,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [],
+  "applied_events": [],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 724.0,
+  "finished_at": "2026-11-01T08:07:34Z",
+  "result": {
+   "people_fed": 534.8,
+   "water_m3": 60000,
+   "energy_kwh": 88332,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.488,
+  "trait_error_planted": 0.278,
+  "planted": [
+   "maize",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rl_policy",
+  "plots": 15,
+  "tests": 0,
+  "looks": 2,
+  "usage": {
+   "scientist_calls": 31,
+   "scientist_attempts": 31,
+   "scientist_tokens": {
+    "prompt_tokens": 566320,
+    "completion_tokens": 7049
+   },
+   "perception_attempts": 20,
+   "perception_calls": 20
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "24f95ed9c077c08f0a08bd2b3b45947f5b577f18ee9f446b3d1c7b101b7fffba",
+    "entries": 118,
+    "head": "2ab387ef420fa187d832dfbe0ab611715ddd1b340e0bea99b8fe2df681af53b4"
+   }
+  }
+ },
+ {
+  "schema": "worldlab.bench/2",
+  "case": "h408-heatwave",
+  "label": "heatwave",
+  "seed": 408,
+  "agent": "spark",
+  "scientist_model": "muse-spark-1.3",
+  "perception": "meta",
+  "perception_models": [
+   "sam-3.1",
+   "muse-spark-1.3"
+  ],
+  "hidden_events": [
+   {
+    "kind": "heatwave",
+    "day": 135
+   }
+  ],
+  "applied_events": [
+   {
+    "kind": "heatwave",
+    "field": "all",
+    "day": 135
+   }
+  ],
+  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
+  "source_dirty": false,
+  "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+  "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+  "status": "completed",
+  "status_reason": null,
+  "error": null,
+  "wall_seconds": 807.2,
+  "finished_at": "2026-11-01T08:09:25Z",
+  "result": {
+   "people_fed": 482.2,
+   "water_m3": 60000,
+   "energy_kwh": 80371,
+   "within_limits": true,
+   "limiting": "kcal"
+  },
+  "score": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.601,
+  "trait_error_planted": 0.085,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 16,
+  "tests": 0,
+  "looks": 3,
+  "usage": {
+   "scientist_calls": 28,
+   "scientist_attempts": 28,
+   "scientist_tokens": {
+    "prompt_tokens": 519446,
+    "completion_tokens": 6243
+   },
+   "perception_attempts": 54,
+   "perception_calls": 54
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "34840e8a07e2bafba68cd5d17bcc6f6b8cd1381280ce566fe3d463630568cc12",
+    "entries": 107,
+    "head": "64d5b065d2eff26e08d7d99c99efc61b2caa460ed2f4c6be1b2d8287e1aecb42"
+   }
+  }
+ }
+]
