@@ -35,12 +35,12 @@ def req(base, path, body=None, token=None, origin=None, timeout=20, raw=False):
         return urllib.request.urlopen(r, timeout=timeout)
     try:
         with urllib.request.urlopen(r, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read() or b"{}"), dict(resp.headers)
+            return resp.status, json.loads(resp.read() or b"{}"), resp.headers
     except urllib.error.HTTPError as e:
         try:
-            return e.code, json.loads(e.read() or b"{}"), dict(e.headers)
+            return e.code, json.loads(e.read() or b"{}"), e.headers
         except Exception:
-            return e.code, {}, dict(e.headers)
+            return e.code, {}, e.headers
 
 
 def fail(msg):

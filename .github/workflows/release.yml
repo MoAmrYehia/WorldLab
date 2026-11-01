@@ -106,8 +106,14 @@ jobs:
           if [ -z "$server" ] && [ -n "$HF_SPACE" ]; then
             server="https://$(echo "$HF_SPACE" | tr '[:upper:]' '[:lower:]' | sed 's#/#-#; s#[_.]#-#g').hf.space"
           fi
-          if [ -n "$server" ]; then
+          default=$(sed -n 's/.*var SERVER = "\(.*\)";.*/\1/p' site/config.js | head -1)
+          if [ -n "$server" ] && [ "$server" != "$default" ]; then
             sed -i "s#var SERVER = \".*\";#var SERVER = \"${server}\";#" site/config.js
+            # the pages' Content-Security-Policy names the default server in connect-src and form-action: point it at this one
+            if [ -n "$default" ]; then
+              grep -rl --include='*.html' -F "$default" site | xargs -r sed -i "s#${default}#${server}#g"
+            fi
+            grep -c -F "$server" site/app/index.html
           fi
           grep -m1 "var SERVER" site/config.js
           cd site
