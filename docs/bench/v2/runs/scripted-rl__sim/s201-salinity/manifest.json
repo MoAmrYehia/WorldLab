@@ -1,0 +1,88 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s201-salinity",
+ "label": "salinity",
+ "seed": 201,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "salinity",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "salinity",
+   "field": "all",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 349.6,
+ "finished_at": "2026-11-01T08:46:44Z",
+ "result": {
+  "people_fed": 621.8,
+  "water_m3": 60000,
+  "energy_kwh": 87620,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 90,
+    "first_evidence_day": 100,
+    "correct_diagnosis_day": 101,
+    "intervention_day": 101,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 11
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.624,
+ "trait_error_planted": 0.126,
+ "planted": [
+  "maize",
+  "sweet_potato"
+ ],
+ "controller": "rule",
+ "plots": 10,
+ "tests": 1,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "c3d9c498e081e9bea58fb947bfc23050f48b50cbca37cb19cdc8bd1dab82e0f1",
+   "entries": 81,
+   "head": "3b394bccb2ebd02e44c3c5c1a5574b0b42261d2c3309610feeae403b89ac960b"
+  }
+ }
+}
