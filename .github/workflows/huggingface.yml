@@ -2,6 +2,8 @@
 # One-time setup: add a Hugging Face token with write access as the repository secret HF_TOKEN
 # (Settings > Secrets and variables > Actions). The Space is created on the first run.
 # Optional repository variable HF_SPACE picks its name (default: <your Hugging Face user>/worldlab).
+# Optional repository secret MODEL_API_KEY is copied into the Space's secrets so live seasons can use Muse Spark.
+# After uploading, scripts/check_live.py checks the running server end to end; a failed check fails the job.
 name: Deploy server to Hugging Face
 on:
   push:
@@ -23,12 +25,17 @@ jobs:
           pip install --quiet -r requirements.txt pytest
           python -m pytest -q tests/
       - name: Upload to the Space
+        id: upload
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
         run: |
           if [ -z "$HF_TOKEN" ]; then
-            echo "::notice::Add the HF_TOKEN secret to deploy the server to Hugging Face."
+            echo "::warning::NOT DEPLOYED: the HF_TOKEN repository secret is missing, so the live server was not updated."
+            echo "## Server NOT deployed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The HF_TOKEN repository secret is missing. Add a Hugging Face write token under Settings > Secrets and variables > Actions." >> "$GITHUB_STEP_SUMMARY"
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           pip install --quiet "huggingface_hub>=0.25,<1"
@@ -42,6 +49,9 @@ jobs:
           api = HfApi(token=os.environ["HF_TOKEN"])
           space = os.environ.get("HF_SPACE") or f"{api.whoami()['name']}/worldlab"
           api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+          if os.environ.get("MODEL_API_KEY"):             # the Space's own secret, so live seasons can use Muse Spark
+              api.add_space_secret(space, "MODEL_API_KEY", os.environ["MODEL_API_KEY"])
+              print("Space secret MODEL_API_KEY set from the repository secret")
           api.upload_folder(folder_path="stage", repo_id=space, repo_type="space",
                             commit_message=f"Deploy {os.environ['GITHUB_SHA'][:7]} from GitHub",
                             delete_patterns=["worldlab/**"])
@@ -50,4 +60,9 @@ jobs:
           print(f"Server: https://{host}.hf.space")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write(f"Deployed to https://huggingface.co/spaces/{space}\n\nServer address: https://{host}.hf.space\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"deployed=true\nserver=https://{host}.hf.space\n")
           PY
+      - name: Check the live server (readiness, guest session, a season that starts, the event stream, CORS)
+        if: steps.upload.outputs.deployed == 'true'
+        run: python scripts/check_live.py "${{ steps.upload.outputs.server }}" --site https://moamryehia.github.io --wait 900

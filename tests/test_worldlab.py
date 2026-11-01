@@ -862,3 +862,95 @@ class PerceptionStatusTests(unittest.TestCase):
                                   "sam": {"plants": None, "salt_patches": None}, "diagnosis": None, "status": "unavailable"}]
         ps = lab.perception_summary()
         self.assertEqual((ps["plants_drawn"], ps["salt_frames_detected_by_sam"], ps["frames_not_complete"]), (0, "0/0", 1))
+
+
+class LiveAccessTests(unittest.TestCase):
+    """Readiness, guest sessions and admission limits (P0.1, P1.5)."""
+
+    def setUp(self):
+        import threading
+        from http.server import ThreadingHTTPServer
+        from worldlab.server import App, make_handler
+        from worldlab.session import Settings
+        self.app = App(Settings(agent="scripted", speed=0, perception="sim"), tempfile.mkdtemp(), max_runs=1)
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.app))
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+
+    def tearDown(self):
+        for sl in self.app.slots.values():
+            if sl.session:
+                sl.session.stop()
+        self.httpd.shutdown()
+
+    def call(self, path, body=None, token=None):
+        import urllib.error
+        import urllib.request
+        h = {"Content-Type": "application/json", "Origin": self.base}
+        if token:
+            h["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(self.base + path, None if body is None else json.dumps(body).encode(), h)
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read())
+
+    def test_ready_discloses_no_secrets(self):
+        import os
+        os.environ["MODEL_API_KEY"] = "secret-test-key"
+        try:
+            st, d = self.call("/api/ready")
+        finally:
+            del os.environ["MODEL_API_KEY"]
+        self.assertEqual(st, 200)
+        self.assertTrue(d["ready"] and d["models"]["muse_spark"])
+        self.assertNotIn("secret-test-key", json.dumps(d))
+
+    def test_guest_session_limits(self):
+        st, g = self.call("/api/auth/guest", {})
+        self.assertEqual(st, 200, g)
+        tok = g["token"]
+        self.assertTrue(g["user"]["email"].endswith("@guest.worldlab"))
+        self.app.guest_runs = 1
+        st, d = self.call("/api/start", {"agent": "scripted", "speed": 60}, tok)
+        self.assertEqual(st, 200, d)
+        self.app.slot(g["user"]["id"]).session.stop()
+        self.app.slot(g["user"]["id"]).session.thread.join(60)
+        st, d = self.call("/api/start", {"agent": "scripted", "speed": 60}, tok)
+        self.assertEqual(st, 429)                                     # the guest's season allowance is used
+        st, d = self.call("/api/auth/signup", {"name": "x", "email": "guest-zz@guest.worldlab", "password": "longenough1"})
+        self.assertEqual(st, 400)                                     # nobody can sign up with a guest address
+        for _ in range(5):
+            self.call("/api/auth/guest", {})
+        self.assertEqual(self.call("/api/auth/guest", {})[0], 429)     # guest creation is rate-limited
+
+    def test_admission_is_atomic(self):
+        import threading
+        toks = [self.call("/api/auth/guest", {})[1]["token"] for _ in range(4)]
+        codes = []
+        th = [threading.Thread(target=lambda t=t: codes.append(self.call("/api/start", {"agent": "scripted", "speed": 1}, t)[0])) for t in toks]
+        [x.start() for x in th]
+        [x.join(60) for x in th]
+        self.assertEqual(codes.count(200), 1, codes)                  # capacity 1: exactly one start admitted
+        self.assertEqual(self.app.reserved, set())                    # reservations released
+
+    def test_spark_daily_budget(self):
+        import os
+        os.environ["MODEL_API_KEY"] = "x"
+        try:
+            self.app.spark_daily = 0
+            tok = self.call("/api/auth/guest", {})[1]["token"]
+            st, d = self.call("/api/start", {"agent": "spark"}, tok)
+            self.assertEqual(st, 429)
+            self.assertIn("budget", d["error"])
+        finally:
+            del os.environ["MODEL_API_KEY"]
+
+    def test_runs_are_private(self):
+        a = self.call("/api/auth/guest", {})[1]["token"]
+        b = self.call("/api/auth/guest", {})[1]["token"]
+        st, d = self.call("/api/start", {"agent": "scripted", "speed": 60}, a)
+        rid = d["run_id"]
+        self.assertEqual(self.call(f"/api/runs/{rid}/replay", None, b)[0], 404)
+        self.assertEqual(self.call(f"/api/runs/{rid}/share", {}, b)[0], 400)
