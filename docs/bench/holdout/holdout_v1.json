@@ -1,0 +1,139 @@
+{
+ "schema": "worldlab.holdout/1",
+ "frozen_at": "2026-11-01T07:41:16Z",
+ "generator_seed": 20261101,
+ "generated_from_commit": "43f4299fc867d460c76ec88d5e2f2a2fe82774b0",
+ "prompt_sha256": "758aa0dd625012b6ff798363ae5499f90a47de8416ca5e469a1610c0b9f908c7",
+ "tool_schema_sha256": "e3537e27c79cd65887bb786770989903993ba48652a03ff21405ba6b35ebd5de",
+ "rules": "- new farm seeds 401-408 (never used in development, the recorded season or benchmarks v1/v2), one per case\n  - one case per family: clean control, forecast heat wave, clog, pest outbreak, saltier groundwater, a compound fault\n    (clog then pests in another field), a biased soil-moisture sensor, and a root disease no available test can detect\n  - onset day drawn uniformly from 75-150 (heat wave 120-170); severity from the family's range; the affected field is\n    picked at random among the fields growing a crop on that day (scenarios.draw_challenge)\n  - each case is run once per scientist: Muse Spark (Meta perception) and the scripted protocol with RL (same\n    perception), with the same tool and test budgets; every run is kept, including failures",
+ "scientists": [
+  "spark/meta",
+  "scripted-rl/meta"
+ ],
+ "cases_sha256": "3f80955a441a8a8fb4a135679dd94afef11ec76740ce896028a31acdfccf321d",
+ "cases": [
+  {
+   "id": "h401-blight",
+   "seed": 401,
+   "label": "blight",
+   "specs": [
+    "blight@110:#42:0.014"
+   ],
+   "events": [
+    {
+     "kind": "blight",
+     "day": 110,
+     "pick": 42,
+     "severity": 0.014
+    }
+   ]
+  },
+  {
+   "id": "h402-clog",
+   "seed": 402,
+   "label": "clog",
+   "specs": [
+    "clog@132:#71:0.59"
+   ],
+   "events": [
+    {
+     "kind": "clog",
+     "day": 132,
+     "pick": 71,
+     "severity": 0.59
+    }
+   ]
+  },
+  {
+   "id": "h403-compound",
+   "seed": 403,
+   "label": "compound",
+   "specs": [
+    "clog@86:#17:0.62",
+    "pest@137:#18:0.015"
+   ],
+   "events": [
+    {
+     "kind": "clog",
+     "day": 86,
+     "pick": 17,
+     "severity": 0.62
+    },
+    {
+     "kind": "pest",
+     "day": 137,
+     "pick": 18,
+     "severity": 0.015
+    }
+   ]
+  },
+  {
+   "id": "h404-salinity",
+   "seed": 404,
+   "label": "salinity",
+   "specs": [
+    "salinity@78::8.5"
+   ],
+   "events": [
+    {
+     "kind": "salinity",
+     "day": 78,
+     "severity": 8.5
+    }
+   ]
+  },
+  {
+   "id": "h405-sensor_bias",
+   "seed": 405,
+   "label": "sensor_bias",
+   "specs": [
+    "sensor_bias@88:#63:-0.078"
+   ],
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "day": 88,
+     "pick": 63,
+     "severity": -0.078
+    }
+   ]
+  },
+  {
+   "id": "h406-pest",
+   "seed": 406,
+   "label": "pest",
+   "specs": [
+    "pest@88:#80:0.023"
+   ],
+   "events": [
+    {
+     "kind": "pest",
+     "day": 88,
+     "pick": 80,
+     "severity": 0.023
+    }
+   ]
+  },
+  {
+   "id": "h407-none",
+   "seed": 407,
+   "label": "none",
+   "specs": [],
+   "events": []
+  },
+  {
+   "id": "h408-heatwave",
+   "seed": 408,
+   "label": "heatwave",
+   "specs": [
+    "heatwave@135"
+   ],
+   "events": [
+    {
+     "kind": "heatwave",
+     "day": 135
+    }
+   ]
+  }
+ ]
+}
