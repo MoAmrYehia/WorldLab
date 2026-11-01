@@ -1,0 +1,106 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "h602-sensor_bias",
+ "label": "sensor_bias",
+ "seed": 602,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "sensor_bias",
+   "day": 141,
+   "pick": 78,
+   "severity": 0.079
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "sensor_bias",
+   "field": "F1",
+   "day": 141,
+   "severity": 0.079
+  }
+ ],
+ "source_commit": "b4144b84acda46e41b7ca439704a03a30727f309",
+ "source_dirty": false,
+ "prompt_sha256": "9279ff8b81a5057d3e66bbd828f1201d9562ec3553849a92d1f1a8f6d990ec67",
+ "tool_schema_sha256": "937a462707724654863eb2364b6fd3732699b08df0cb165ba49aa85cebda49f6",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 333.3,
+ "finished_at": "2026-11-01T11:24:39Z",
+ "result": {
+  "people_fed": 678.4,
+  "water_m3": 60000,
+  "energy_kwh": 88599,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "scorer_version": "2.1",
+  "events": [
+   {
+    "kind": "sensor_bias",
+    "field": "F1",
+    "onset": 141,
+    "severity": 0.079,
+    "first_evidence_day": 143,
+    "correct_claim_day": 144,
+    "correct_guess": false,
+    "intervention_day": 144,
+    "justified_intervention": true,
+    "no_realarm_30d": null,
+    "follow_up_censored": true,
+    "correct_diagnosis_day": 144,
+    "days_to_diagnosis": 3
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 1,
+  "follow_up_censored": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "premature_claims": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 2,
+  "tests": 3,
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.57,
+ "trait_error_planted": 0.322,
+ "planted": [
+  "maize",
+  "sweet_potato"
+ ],
+ "controller": "rl_policy",
+ "plots": 10,
+ "tests": 3,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": 18,
+  "perception_calls": 18
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "eabe0fae0bab50c0a21b47eb75aec69a823e06e27d7d96db046c3944adeecc37",
+   "entries": 99,
+   "head": "557e205bd330ad2ae4bcdaa0e9db44c01919431a147ea5809031d931ab9bdcfc"
+  }
+ },
+ "condition": "scripted-rl/meta (new code)"
+}

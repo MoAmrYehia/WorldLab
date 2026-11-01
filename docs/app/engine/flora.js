@@ -1,7 +1,7 @@
 // Native and planted vegetation around the farm: date palms, ghaf trees, desert shrubs and grass.
 import * as THREE from "three";
-import { GeoBuilder, V, C, rng, polar } from "./geo.js?v=ade89bcd05";
-import { heightAt, FARM } from "./terrain.js?v=ade89bcd05";
+import { GeoBuilder, V, C, rng, polar } from "./geo.js?v=f3621d8e7e";
+import { heightAt, FARM } from "./terrain.js?v=f3621d8e7e";
 
 // --------------------------------------------------------------- date palm (Phoenix dactylifera)
 function palmCrown(seed) {
