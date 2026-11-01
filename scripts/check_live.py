@@ -159,14 +159,16 @@ def main():
             break
         time.sleep(2)
     req(base, "/api/stop", {}, tok, origin=a.site)
-    for _ in range(20):
+    # a stop takes effect at the season's next checkpoint, which on a small host can be minutes away (planning is CPU-bound)
+    t3, rs = time.time(), None
+    while time.time() - t3 < max(60, a.progress_seconds):
         rs = (state(base, tok, a.site).get("status") or {}).get("run_status")
         if rs == "cancelled":
             break
-        time.sleep(3)
+        time.sleep(5)
     else:
-        fail(f"cancel: run status after stop is {rs!r}, expected 'cancelled'")
-    print(f"ok   stop ends a running season as cancelled (run {d3.get('run_id')})")
+        fail(f"cancel: run status {time.time() - t3:.0f} s after stop is {rs!r}, expected 'cancelled'")
+    print(f"ok   stop ends a running season as cancelled (run {d3.get('run_id')}, after {time.time() - t3:.0f} s)")
 
     # 6. Muse Spark
     if a.spark or a.full_spark:
