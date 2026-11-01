@@ -566,7 +566,13 @@ class Lab:
             return {"refused": "controller must be rule or rl_policy"}
         if controller == "rl_policy" and not (self.policy and self.policy["plan_id"] == plan_id):
             return {"refused": f"no irrigation policy trained for {plan_id}; call train_irrigation_policy first"}
-        if risk.get("level") == "high":
+        if self.season_plan is not p:                      # the plan that is actually sown is the one the app shows
+            self.season_plan = p
+            self.bus.publish("plan", {**p, "day": self.day})
+        if p.get("backup_for"):
+            self._log("risk_decision", {"plan_id": plan_id, "backup_for": p["backup_for"], "accepted_with": None,
+                                        "if_worst_field_fails_p10": risk.get("if_worst_field_fails_p10"), "worst_field": risk.get("worst_field")})
+        elif risk.get("level") == "high":
             self._log("risk_decision", {"plan_id": plan_id, "accepted_with": (accept_nutrient_risk or "").strip() or None,
                                         "if_worst_field_fails_p10": risk.get("if_worst_field_fails_p10"), "worst_field": risk.get("worst_field")})
         self.controller = controller
