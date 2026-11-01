@@ -1,0 +1,257 @@
+{
+ "conditions": {
+  "scripted-rl/meta": {
+   "attempted": 25,
+   "completed": 25,
+   "status_counts": {
+    "completed": 25
+   },
+   "people_fed_mean_completed": 471.3,
+   "water_m3_mean": 57580.4,
+   "energy_kwh_mean": 85500.8,
+   "within_limits": "25/25",
+   "fault_events": 15,
+   "events_with_evidence": 15,
+   "diagnosis_recall": "15/15",
+   "diagnosis_precision": "15/15",
+   "justified_interventions": "15/15",
+   "days_to_diagnosis_median": 15.0,
+   "unrelated_alarms": 1,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 5,
+   "calm_when_nothing_was_wrong": "10/10",
+   "trait_error_common_mean": 0.699,
+   "wall_seconds_median": 713.8,
+   "cost_usd_list_price_mean": 0.024,
+   "scientist_calls_mean": null,
+   "perception_attempts_mean": 16.0
+  },
+  "scripted-rl/sim": {
+   "attempted": 25,
+   "completed": 25,
+   "status_counts": {
+    "completed": 25
+   },
+   "people_fed_mean_completed": 471.3,
+   "water_m3_mean": 57580.4,
+   "energy_kwh_mean": 85500.8,
+   "within_limits": "25/25",
+   "fault_events": 15,
+   "events_with_evidence": 15,
+   "diagnosis_recall": "15/15",
+   "diagnosis_precision": "15/15",
+   "justified_interventions": "15/15",
+   "days_to_diagnosis_median": 15.0,
+   "unrelated_alarms": 1,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 5,
+   "calm_when_nothing_was_wrong": "10/10",
+   "trait_error_common_mean": 0.699,
+   "wall_seconds_median": 342.2,
+   "cost_usd_list_price_mean": 0.0,
+   "scientist_calls_mean": null,
+   "perception_attempts_mean": null,
+   "vs_reference": {
+    "matched_pairs": 25,
+    "farm_seeds": 5,
+    "mean_difference": 0.0,
+    "ci95_seed_bootstrap": [
+     0.0,
+     0.0
+    ],
+    "ahead_in": "0/25",
+    "by_seed": {
+     "200": 0.0,
+     "201": 0.0,
+     "202": 0.0,
+     "203": 0.0,
+     "204": 0.0
+    }
+   }
+  },
+  "spark/meta": {
+   "attempted": 25,
+   "completed": 25,
+   "status_counts": {
+    "completed": 25
+   },
+   "people_fed_mean_completed": 441.1,
+   "water_m3_mean": 57850.9,
+   "energy_kwh_mean": 84967.2,
+   "within_limits": "25/25",
+   "fault_events": 15,
+   "events_with_evidence": 14,
+   "diagnosis_recall": "14/15",
+   "diagnosis_precision": "14/14",
+   "justified_interventions": "14/15",
+   "days_to_diagnosis_median": 14.0,
+   "unrelated_alarms": 18,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 20,
+   "calm_when_nothing_was_wrong": "10/10",
+   "trait_error_common_mean": 0.635,
+   "wall_seconds_median": 682.8,
+   "cost_usd_list_price_mean": 1.108,
+   "scientist_calls_mean": 34.8,
+   "perception_attempts_mean": 69.1,
+   "vs_reference": {
+    "matched_pairs": 25,
+    "farm_seeds": 5,
+    "mean_difference": -30.3,
+    "ci95_seed_bootstrap": [
+     -59.3,
+     -1.9
+    ],
+    "ahead_in": "9/25",
+    "by_seed": {
+     "200": 18.9,
+     "201": -33.0,
+     "202": -49.9,
+     "203": -7.6,
+     "204": -79.7
+    }
+   }
+  },
+  "spark/meta-sam": {
+   "attempted": 10,
+   "completed": 10,
+   "status_counts": {
+    "completed": 10
+   },
+   "people_fed_mean_completed": 453.2,
+   "water_m3_mean": 57124.1,
+   "energy_kwh_mean": 85662.0,
+   "within_limits": "10/10",
+   "fault_events": 10,
+   "events_with_evidence": 9,
+   "diagnosis_recall": "9/10",
+   "diagnosis_precision": "9/9",
+   "justified_interventions": "9/10",
+   "days_to_diagnosis_median": 14.0,
+   "unrelated_alarms": 0,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 6,
+   "calm_when_nothing_was_wrong": "0/0",
+   "trait_error_common_mean": 0.64,
+   "wall_seconds_median": 428.0,
+   "cost_usd_list_price_mean": 1.244,
+   "scientist_calls_mean": 38.4,
+   "perception_attempts_mean": 58.4,
+   "vs_reference": {
+    "matched_pairs": 10,
+    "farm_seeds": 5,
+    "mean_difference": -27.7,
+    "ci95_seed_bootstrap": [
+     -51.6,
+     -3.7
+    ],
+    "ahead_in": "3/10",
+    "by_seed": {
+     "200": 10.0,
+     "201": -54.9,
+     "202": -53.0,
+     "203": 2.1,
+     "204": -42.4
+    }
+   }
+  },
+  "spark/meta-vision": {
+   "attempted": 10,
+   "completed": 10,
+   "status_counts": {
+    "completed": 10
+   },
+   "people_fed_mean_completed": 463.2,
+   "water_m3_mean": 57971.5,
+   "energy_kwh_mean": 85172.1,
+   "within_limits": "10/10",
+   "fault_events": 10,
+   "events_with_evidence": 9,
+   "diagnosis_recall": "9/10",
+   "diagnosis_precision": "9/9",
+   "justified_interventions": "9/10",
+   "days_to_diagnosis_median": 14.0,
+   "unrelated_alarms": 0,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 9,
+   "calm_when_nothing_was_wrong": "0/0",
+   "trait_error_common_mean": 0.613,
+   "wall_seconds_median": 412.70000000000005,
+   "cost_usd_list_price_mean": 1.071,
+   "scientist_calls_mean": 37.4,
+   "perception_attempts_mean": 4.0,
+   "vs_reference": {
+    "matched_pairs": 10,
+    "farm_seeds": 5,
+    "mean_difference": -17.7,
+    "ci95_seed_bootstrap": [
+     -36.4,
+     -0.3
+    ],
+    "ahead_in": "3/10",
+    "by_seed": {
+     "200": 6.7,
+     "201": -22.3,
+     "202": -54.4,
+     "203": 0.6,
+     "204": -19.2
+    }
+   }
+  },
+  "spark/none": {
+   "attempted": 10,
+   "completed": 10,
+   "status_counts": {
+    "completed": 10
+   },
+   "people_fed_mean_completed": 457.2,
+   "water_m3_mean": 57776.0,
+   "energy_kwh_mean": 84018.1,
+   "within_limits": "10/10",
+   "fault_events": 10,
+   "events_with_evidence": 9,
+   "diagnosis_recall": "9/10",
+   "diagnosis_precision": "9/9",
+   "justified_interventions": "9/10",
+   "days_to_diagnosis_median": 14.0,
+   "unrelated_alarms": 0,
+   "wrong_findings_or_interventions": 0,
+   "unnecessary_tests": 7,
+   "calm_when_nothing_was_wrong": "0/0",
+   "trait_error_common_mean": 0.621,
+   "wall_seconds_median": 435.0,
+   "cost_usd_list_price_mean": 1.007,
+   "scientist_calls_mean": 36.8,
+   "perception_attempts_mean": null,
+   "vs_reference": {
+    "matched_pairs": 10,
+    "farm_seeds": 5,
+    "mean_difference": -23.7,
+    "ci95_seed_bootstrap": [
+     -45.3,
+     -4.9
+    ],
+    "ahead_in": "3/10",
+    "by_seed": {
+     "200": -6.3,
+     "201": -37.8,
+     "202": -60.8,
+     "203": 2.2,
+     "204": -15.5
+    }
+   }
+  }
+ },
+ "reference": "scripted-rl/meta",
+ "prices": {
+  "source": "https://dev.meta.ai/docs/pricing-rate-limits (read 31 Oct 2026)",
+  "muse-spark-1.3": {
+   "input_per_m": 1.25,
+   "cached_input_per_m": 0.15,
+   "output_per_m": 4.25
+  },
+  "sam-3.1": {
+   "per_1000_images": 2.5
+  }
+ }
+}
