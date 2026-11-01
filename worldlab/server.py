@@ -72,6 +72,25 @@ PAGES = {"/": SITE / "index.html", "/login": SITE / "login.html", "/signup": SIT
 COOKIE = "wl_session"
 
 
+def release_info() -> dict:
+    """Which source this server runs: worldlab/release.json written by the release workflow, else git, else unknown."""
+    f = Path(__file__).resolve().parent / "release.json"
+    if f.is_file():
+        try:
+            return json.loads(f.read_text())
+        except ValueError:
+            pass
+    try:
+        import subprocess
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3,
+                             cwd=Path(__file__).resolve().parent).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--", "."], capture_output=True, text=True, timeout=3,
+                                    cwd=Path(__file__).resolve().parent).stdout.strip())
+        return {"sha": sha or None, "source": "git working tree", "dirty": dirty}
+    except Exception:
+        return {"sha": None, "source": "unknown"}
+
+
 def allowed_origins() -> set[str]:
     """Sites (for example the GitHub Pages copy) allowed to call this API from the browser."""
     return {o.strip().rstrip("/") for o in os.environ.get("WORLDLAB_ALLOWED_ORIGINS", "").split(",") if o.strip()}
@@ -140,7 +159,7 @@ class App:
         """Public readiness: what works right now, no secrets."""
         key = bool(os.environ.get("MODEL_API_KEY"))
         return {"ready": True, "service": "worldlab", "uptime_s": round(time.time() - self.started),
-                "version": os.environ.get("WORLDLAB_VERSION") or None,
+                "version": os.environ.get("WORLDLAB_VERSION") or None, "release": release_info(),
                 "models": {"muse_spark": key, "sam_3_1": key, "muse_glimmer": bool(os.environ.get("WORLDLAB_GLIMMER_BASE_URL"))},
                 "capacity": {"runs_active": self.active_runs(), "run_capacity": self.max_runs, "busy": self.active_runs() >= self.max_runs},
                 "guests": {"enabled": self.guests_enabled, "seasons_per_guest": self.guest_runs,

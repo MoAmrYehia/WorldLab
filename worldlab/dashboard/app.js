@@ -1910,6 +1910,14 @@ function renderWalk(focus = false) {
 addEventListener("resize", () => { if (WK.i >= 0) document.body.style.setProperty("--walk-h", `${$("walk").offsetHeight}px`); });
 // read-only hook for the browser checks (tests/browser): what is hidden, what is shown, where the replay is
 window.__wlCheck = () => ({ hidden: S.perturbations.length, shown: shownPerts().length, day: curDay(), explained, walk: WK.i });
+// which release is this? the site's build.json (written by the release workflow) and the server's /api/ready
+async function showBuild() {
+  const short = (x) => (x ? String(x).slice(0, 7) : null);
+  let site = null, server = null;
+  try { const r = await fetch(new URL(PAGES.home + "build.json", location.href), { cache: "no-store" }); if (r.ok) site = (await r.json()).sha; } catch (e) { /* local copy */ }
+  try { const r = await api("api/ready", { timeout: 5000 }); if (r.ok) server = ((await r.json()).release || {}).sha; } catch (e) { /* no server */ }
+  $("buildLabel").textContent = `Build: website ${short(site) || "local copy"} · server ${server ? short(server) : serverUp ? "unknown" : "not connected"}${site && server && short(site) !== short(server) ? " (different releases)" : ""}`;
+}
 function endWalk() { WK.i = -1; $("walk").hidden = true; document.body.classList.remove("walking"); store.del("wl-walk"); $("walkBtn").focus(); }
 function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", "ledger"); }
 
@@ -1998,6 +2006,7 @@ function wireUi() {
   $("followChk").checked = store.get("wl-follow", true);
   $("followChk").onchange = () => { store.set("wl-follow", $("followChk").checked); if (scene && scene.setFollow) scene.setFollow($("followChk").checked); };
   $("tourBtn").onclick = () => { pop(null); startTour(); };
+  showBuild();
   $("explainedChk").checked = explained;
   $("explainedChk").onchange = () => setExplained($("explainedChk").checked);
   $("retry3d").onclick = () => location.reload();
