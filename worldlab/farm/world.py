@@ -264,6 +264,8 @@ class Farm:
             else:
                 raise ValueError(kind)
             info["day"] = d
+            if kind != "heatwave":
+                info["severity"] = round(float(v), 4)
             self.events.append(info)
         if self.on_event:
             self.on_event(info)

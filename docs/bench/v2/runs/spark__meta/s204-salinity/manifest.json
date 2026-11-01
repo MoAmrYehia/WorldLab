@@ -20,7 +20,8 @@
   {
    "kind": "salinity",
    "field": "all",
-   "day": 90
+   "day": 90,
+   "severity": 9.0
   }
  ],
  "source_commit": "5498e84a1eabb6fb3793b8f8d96689597e5b498d",
@@ -40,29 +41,40 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [
    {
     "kind": "salinity",
     "field": "all",
     "onset": 90,
+    "severity": 9.0,
     "first_evidence_day": 108,
-    "correct_diagnosis_day": 109,
+    "correct_claim_day": 109,
+    "correct_guess": false,
     "intervention_day": 109,
     "justified_intervention": true,
     "no_realarm_30d": true,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": 109,
     "days_to_diagnosis": 19
    }
   ],
   "faults": 1,
   "faults_with_evidence": 1,
   "faults_diagnosed": 1,
+  "correct_guesses": 0,
   "faults_justified_intervention": 1,
+  "follow_up_censored": 0,
   "unrelated_alarms": 0,
   "wrong_findings": 0,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 1,
   "tests": 2,
-  "appropriate_non_intervention": null
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
  },
  "trait_error_common": 0.647,
  "trait_error_planted": 0.391,
@@ -92,5 +104,30 @@
    "entries": 135,
    "head": "c2bccf58c4d785dd525328476083b5164e8d9132a0f3f99a8c0af900428de9b5"
   }
+ },
+ "score_v2_0": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 90,
+    "first_evidence_day": 108,
+    "correct_diagnosis_day": 109,
+    "intervention_day": 109,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 19
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null
  }
 }

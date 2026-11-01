@@ -185,7 +185,7 @@ class RLTests(unittest.TestCase):
         t = lab.train_irrigation_policy(p["plan_id"], "learn irrigation", iterations=10)
         self.assertIn(t["recommend"], ("rule", "rl_policy"))
         self.assertTrue(lab.bus.snapshot["rl_train"] and lab.bus.snapshot["rl"])
-        lab.start_season(p["plan_id"], "go", controller="rl_policy")
+        lab.start_season(p["plan_id"], "go", controller="rl_policy", accept_nutrient_risk="test")
         while lab.phase == "season":
             r = lab.advance(60)
             if r.get("anomaly"):
@@ -468,7 +468,7 @@ class HardBudgetTests(unittest.TestCase):
         farm = Farm(seed=7)
         lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
         plan = lab.plan_season("test")
-        lab.start_season(plan["plan_id"], "test", "rule")
+        lab.start_season(plan["plan_id"], "test", "rule", accept_nutrient_risk="test")
         lab.advance(40, "test")
         lab.limits.water_quota_m3 = lab.water_used + 400.0          # almost nothing left
         for _ in range(8):
@@ -747,7 +747,7 @@ class RunStatusTests(unittest.TestCase):
     def test_finish_cannot_skip_the_season(self):
         lab = Lab(Farm(seed=7), perception=SimPerception())
         plan = lab.plan_season("t")
-        lab.start_season(plan["plan_id"], "t", "rule")
+        lab.start_season(plan["plan_id"], "t", "rule", accept_nutrient_risk="test")
         lab.advance(20, "t")
         out = lab.finish("done early")
         self.assertIn("refused", out)
@@ -779,7 +779,7 @@ class RunStatusTests(unittest.TestCase):
             client = Client()
         lab = Lab(Farm(seed=7), limits=Limits(max_image_calls=400), perception=P())
         plan = lab.plan_season("t")
-        lab.start_season(plan["plan_id"], "t", "rule")
+        lab.start_season(plan["plan_id"], "t", "rule", accept_nutrient_risk="test")
         lab.advance(40, "t")
         self.assertIn("refused", lab.look_at_field("F1", "check"))
 
@@ -1123,7 +1123,7 @@ class HoldoutTests(unittest.TestCase):
         farm.schedule("sensor_bias", 61, pick=2, severity=0.07)
         lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
         plan = lab.plan_season("go")
-        lab.start_season(plan["plan_id"], "go", "rule")
+        lab.start_season(plan["plan_id"], "go", "rule", accept_nutrient_risk="test")
         seen = []
         for _ in range(4):
             r = dispatch(lab, "advance", {"days": 30, "rationale": "x"})
@@ -1372,3 +1372,43 @@ class PlanningLossTests(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertIn(("F2", "cc"), lab.muted)
         self.assertIsNone(lab.escalation_needed)
+
+
+class ScorerV21Tests(unittest.TestCase):
+    """The four scoring probes from the second review: premature claims, unsupported guesses, censored follow-up,
+    and signal attribution."""
+
+    E = staticmethod(lambda t, kind, **d: {"t": t, "kind": kind, "data": d})
+
+    def test_a_premature_claim_is_wrong(self):
+        from worldlab.benchscore import score
+        s = score([self.E(50, "model_update", finding="drip_delivery", field="F1", value=0.5)],
+                  [{"kind": "clog", "field": "F1", "day": 90}], "clog")
+        self.assertEqual((s["wrong_findings"], s["premature_claims"], s["faults_diagnosed"]), (1, 1, 0))
+
+    def test_a_correct_guess_without_evidence_earns_no_diagnosis_or_justified_action(self):
+        from worldlab.benchscore import score
+        s = score([self.E(95, "model_update", finding="drip_delivery", field="F1", value=0.5),
+                   self.E(96, "adjust", field="F1", repair={"repaired": True})], [{"kind": "clog", "field": "F1", "day": 90}], "clog")
+        self.assertEqual((s["faults_diagnosed"], s["correct_guesses"], s["faults_justified_intervention"]), (0, 1, 0))
+
+    def test_missing_follow_up_is_censored_not_a_success(self):
+        from worldlab.benchscore import score
+        E = self.E
+        L = [E(100, "anomaly", field="F1", detected_day=100, signal="sw"), E(100, "model_update", finding="drip_delivery", field="F1", value=0.5),
+             E(100, "adjust", field="F1", repair={"repaired": True}), E(110, "harvest", field="F1", day=110, crop="maize")]
+        s = score(L, [{"kind": "clog", "field": "F1", "day": 90}], "clog")
+        self.assertIsNone(s["events"][0]["no_realarm_30d"])
+        self.assertEqual(s["follow_up_censored"], 1)
+
+    def test_an_alarm_in_a_signal_the_cause_cannot_move_is_unexplained(self):
+        from worldlab.benchscore import score
+        s = score([self.E(100, "anomaly", field="F1", detected_day=100, signal="ec")], [{"kind": "sensor_bias", "field": "F1", "day": 90}], "sensor_bias")
+        self.assertEqual(s["unrelated_alarms"], 1)
+
+    def test_escalation_is_not_a_diagnosis(self):
+        from worldlab.benchscore import score
+        E = self.E
+        L = [E(120, "anomaly", field="F5", detected_day=120, signal="cc"), E(121, "review_requested", field="F5", question="?")]
+        s = score(L, [{"kind": "blight", "field": "F5", "day": 100}], "blight")
+        self.assertEqual((s["faults"], s["faults_diagnosed"], s["unidentifiable_events"], s["unidentifiable_handled"]), (0, 0, 1, [True]))

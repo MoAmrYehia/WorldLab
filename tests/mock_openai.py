@@ -89,7 +89,7 @@ class MockServer:
             ("fit_crop_models", {"rationale": "learn"}),
             ("conclude", lambda: {"hypothesis_id": last_id("H"), "verdict": "supported", "evidence": "see fits"}),
             ("plan_season", {"rationale": "calibrated plan"}),
-            ("start_season", lambda: {"plan_id": last_id("P"), "rationale": "go"}),
+            ("start_season", lambda: {"plan_id": last_id("P"), "rationale": "go", "accept_nutrient_risk": "mock: accepted for the test"}),
         ]
         if n < len(script):
             name, args = script[n]

@@ -1,6 +1,9 @@
 {
  "conditions": {
   "scripted-rl/meta": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 25,
    "completed": 25,
    "status_counts": {
@@ -15,6 +18,12 @@
    "diagnosis_recall": "15/15",
    "diagnosis_precision": "15/15",
    "justified_interventions": "15/15",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "15/15 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 15.0,
    "unrelated_alarms": 1,
    "wrong_findings_or_interventions": 0,
@@ -27,6 +36,9 @@
    "perception_attempts_mean": 16.0
   },
   "scripted-rl/sim": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 25,
    "completed": 25,
    "status_counts": {
@@ -41,6 +53,12 @@
    "diagnosis_recall": "15/15",
    "diagnosis_precision": "15/15",
    "justified_interventions": "15/15",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "15/15 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 15.0,
    "unrelated_alarms": 1,
    "wrong_findings_or_interventions": 0,
@@ -54,6 +72,8 @@
    "vs_reference": {
     "matched_pairs": 25,
     "farm_seeds": 5,
+    "pairs_with_identical_realized_events": 25,
+    "pairs_where_the_event_landed_differently": 0,
     "mean_difference": 0.0,
     "ci95_seed_bootstrap": [
      0.0,
@@ -70,6 +90,9 @@
    }
   },
   "spark/meta": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 25,
    "completed": 25,
    "status_counts": {
@@ -84,6 +107,12 @@
    "diagnosis_recall": "14/15",
    "diagnosis_precision": "14/14",
    "justified_interventions": "14/15",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "14/14 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 14.0,
    "unrelated_alarms": 18,
    "wrong_findings_or_interventions": 0,
@@ -97,6 +126,8 @@
    "vs_reference": {
     "matched_pairs": 25,
     "farm_seeds": 5,
+    "pairs_with_identical_realized_events": 23,
+    "pairs_where_the_event_landed_differently": 2,
     "mean_difference": -30.3,
     "ci95_seed_bootstrap": [
      -59.3,
@@ -113,6 +144,9 @@
    }
   },
   "spark/meta-sam": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 10,
    "completed": 10,
    "status_counts": {
@@ -127,6 +161,12 @@
    "diagnosis_recall": "9/10",
    "diagnosis_precision": "9/9",
    "justified_interventions": "9/10",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "9/9 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 14.0,
    "unrelated_alarms": 0,
    "wrong_findings_or_interventions": 0,
@@ -140,6 +180,8 @@
    "vs_reference": {
     "matched_pairs": 10,
     "farm_seeds": 5,
+    "pairs_with_identical_realized_events": 7,
+    "pairs_where_the_event_landed_differently": 3,
     "mean_difference": -27.7,
     "ci95_seed_bootstrap": [
      -51.6,
@@ -156,6 +198,9 @@
    }
   },
   "spark/meta-vision": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 10,
    "completed": 10,
    "status_counts": {
@@ -170,6 +215,12 @@
    "diagnosis_recall": "9/10",
    "diagnosis_precision": "9/9",
    "justified_interventions": "9/10",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 1,
+   "no_realarm_30d": "7/8 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 14.0,
    "unrelated_alarms": 0,
    "wrong_findings_or_interventions": 0,
@@ -183,6 +234,8 @@
    "vs_reference": {
     "matched_pairs": 10,
     "farm_seeds": 5,
+    "pairs_with_identical_realized_events": 7,
+    "pairs_where_the_event_landed_differently": 3,
     "mean_difference": -17.7,
     "ci95_seed_bootstrap": [
      -36.4,
@@ -199,6 +252,9 @@
    }
   },
   "spark/none": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 10,
    "completed": 10,
    "status_counts": {
@@ -213,6 +269,12 @@
    "diagnosis_recall": "9/10",
    "diagnosis_precision": "9/9",
    "justified_interventions": "9/10",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "9/9 observed",
+   "unidentifiable_escalated_without_false_cause": "\u2013",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
    "days_to_diagnosis_median": 14.0,
    "unrelated_alarms": 0,
    "wrong_findings_or_interventions": 0,
@@ -226,6 +288,8 @@
    "vs_reference": {
     "matched_pairs": 10,
     "farm_seeds": 5,
+    "pairs_with_identical_realized_events": 7,
+    "pairs_where_the_event_landed_differently": 3,
     "mean_difference": -23.7,
     "ci95_seed_bootstrap": [
      -45.3,

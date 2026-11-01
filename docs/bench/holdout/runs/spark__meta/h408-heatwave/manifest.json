@@ -20,7 +20,8 @@
   {
    "kind": "heatwave",
    "field": "all",
-   "day": 135
+   "day": 135,
+   "severity": null
   }
  ],
  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -40,17 +41,22 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [],
   "faults": 0,
   "faults_with_evidence": 0,
   "faults_diagnosed": 0,
+  "correct_guesses": 0,
   "faults_justified_intervention": 0,
+  "follow_up_censored": 0,
   "unrelated_alarms": 0,
   "wrong_findings": 0,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 0,
   "tests": 0,
   "appropriate_non_intervention": true,
+  "unidentifiable_events": 0,
   "unidentifiable_handled": null,
   "reviews_requested": 0
  },
@@ -81,5 +87,20 @@
    "entries": 107,
    "head": "64d5b065d2eff26e08d7d99c99efc61b2caa460ed2f4c6be1b2d8287e1aecb42"
   }
+ },
+ "score_v2_0": {
+  "events": [],
+  "faults": 0,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "faults_justified_intervention": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 0,
+  "appropriate_non_intervention": true,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
  }
 }

@@ -23,7 +23,8 @@
    {
     "kind": "blight",
     "field": "F3",
-    "day": 110
+    "day": 110,
+    "severity": 0.014
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -43,29 +44,39 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "blight",
      "field": "F3",
      "onset": 110,
+     "severity": 0.014,
      "first_evidence_day": 143,
-     "correct_diagnosis_day": 144,
+     "correct_claim_day": 144,
+     "correct_guess": false,
      "intervention_day": 144,
      "justified_intervention": true,
-     "no_realarm_30d": true,
-     "days_to_diagnosis": 34
+     "no_realarm_30d": null,
+     "follow_up_censored": true,
+     "escalated_day": 144,
+     "correct_diagnosis_day": null,
+     "days_to_diagnosis": null
     }
    ],
-   "faults": 1,
-   "faults_with_evidence": 1,
-   "faults_diagnosed": 1,
-   "faults_justified_intervention": 1,
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "correct_guesses": 0,
+   "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 2,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 1,
    "unidentifiable_handled": [
     true
    ],
@@ -95,6 +106,35 @@
     "entries": 95,
     "head": "5d7ff37fbfa113c2dc60aafac40884ede26317712e4d1834ad96f7b6a1b3ffe0"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "blight",
+     "field": "F3",
+     "onset": 110,
+     "first_evidence_day": 143,
+     "correct_diagnosis_day": 144,
+     "intervention_day": 144,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 34
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": [
+    true
+   ],
+   "reviews_requested": 1
   }
  },
  {
@@ -121,7 +161,8 @@
    {
     "kind": "clog",
     "field": "F6",
-    "day": 132
+    "day": 132,
+    "severity": 0.59
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -141,29 +182,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "clog",
      "field": "F6",
      "onset": 132,
+     "severity": 0.59,
      "first_evidence_day": null,
-     "correct_diagnosis_day": null,
+     "correct_claim_day": null,
+     "correct_guess": false,
      "intervention_day": null,
      "justified_intervention": false,
      "no_realarm_30d": null,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": null,
      "days_to_diagnosis": null
     }
    ],
    "faults": 1,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 0,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -192,6 +242,33 @@
     "entries": 59,
     "head": "dc9aa32f7ca738a0df128635950e7f65011accb440b1b032d7a99b1fb90dde2f"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F6",
+     "onset": 132,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -224,12 +301,14 @@
    {
     "kind": "clog",
     "field": "F3",
-    "day": 86
+    "day": 86,
+    "severity": 0.62
    },
    {
     "kind": "pest",
     "field": "F1",
-    "day": 137
+    "day": 137,
+    "severity": 0.015
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -249,6 +328,82 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 86,
+     "severity": 0.62,
+     "first_evidence_day": null,
+     "correct_claim_day": null,
+     "correct_guess": false,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": null,
+     "days_to_diagnosis": null
+    },
+    {
+     "kind": "pest",
+     "field": "F1",
+     "onset": 137,
+     "severity": 0.015,
+     "first_evidence_day": 151,
+     "correct_claim_day": 152,
+     "correct_guess": false,
+     "intervention_day": 152,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 152,
+     "days_to_diagnosis": 15
+    }
+   ],
+   "faults": 2,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "correct_guesses": 0,
+   "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "premature_claims": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.688,
+  "trait_error_planted": 0.494,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato"
+  ],
+  "controller": "rl_policy",
+  "plots": 10,
+  "tests": 1,
+  "looks": 1,
+  "usage": {
+   "scientist_calls": null,
+   "scientist_attempts": null,
+   "scientist_tokens": null,
+   "perception_attempts": 18,
+   "perception_calls": 18
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "9cc9713cea6f10e52cb43b878bbffb643a667e5789768d090efbb81a13303bd0",
+    "entries": 90,
+    "head": "4f80104940da2036257290962f960570f70d9a7f820caebde729040dad57fb57"
+   }
+  },
+  "score_v2_0": {
    "events": [
     {
      "kind": "clog",
@@ -285,31 +440,6 @@
    "appropriate_non_intervention": null,
    "unidentifiable_handled": null,
    "reviews_requested": 0
-  },
-  "trait_error_common": 0.688,
-  "trait_error_planted": 0.494,
-  "planted": [
-   "maize",
-   "sorghum",
-   "sweet_potato"
-  ],
-  "controller": "rl_policy",
-  "plots": 10,
-  "tests": 1,
-  "looks": 1,
-  "usage": {
-   "scientist_calls": null,
-   "scientist_attempts": null,
-   "scientist_tokens": null,
-   "perception_attempts": 18,
-   "perception_calls": 18
-  },
-  "artifacts": {
-   "ledger.jsonl.gz": {
-    "sha256": "9cc9713cea6f10e52cb43b878bbffb643a667e5789768d090efbb81a13303bd0",
-    "entries": 90,
-    "head": "4f80104940da2036257290962f960570f70d9a7f820caebde729040dad57fb57"
-   }
   }
  },
  {
@@ -335,7 +465,8 @@
    {
     "kind": "salinity",
     "field": "all",
-    "day": 78
+    "day": 78,
+    "severity": 8.5
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -355,29 +486,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "salinity",
      "field": "all",
      "onset": 78,
+     "severity": 8.5,
      "first_evidence_day": 99,
-     "correct_diagnosis_day": 100,
+     "correct_claim_day": 100,
+     "correct_guess": false,
      "intervention_day": 100,
      "justified_intervention": true,
      "no_realarm_30d": false,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 100,
      "days_to_diagnosis": 22
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 7,
    "wrong_findings": 1,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 12,
    "tests": 22,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 1
   },
@@ -406,6 +546,33 @@
     "entries": 373,
     "head": "5cf7c3342eb8513e4f9d039eb681d61f494d738a22a2be976cbfb3b41ec8a91e"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "salinity",
+     "field": "all",
+     "onset": 78,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": false,
+     "days_to_diagnosis": 22
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 7,
+   "wrong_findings": 1,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 12,
+   "tests": 22,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 1
   }
  },
  {
@@ -432,7 +599,8 @@
    {
     "kind": "sensor_bias",
     "field": "F4",
-    "day": 88
+    "day": 88,
+    "severity": -0.078
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -452,29 +620,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "sensor_bias",
      "field": "F4",
      "onset": 88,
+     "severity": -0.078,
      "first_evidence_day": 90,
-     "correct_diagnosis_day": 91,
+     "correct_claim_day": 91,
+     "correct_guess": false,
      "intervention_day": 91,
      "justified_intervention": true,
      "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 91,
      "days_to_diagnosis": 3
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 1,
    "tests": 2,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -502,6 +679,33 @@
     "entries": 93,
     "head": "7e8be334dae99a23a03ee0f6d663e04799a2a9263ee8bc1802dca3b1e7127ccb"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "field": "F4",
+     "onset": 88,
+     "first_evidence_day": 90,
+     "correct_diagnosis_day": 91,
+     "intervention_day": 91,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 3
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 1,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -528,7 +732,8 @@
    {
     "kind": "pest",
     "field": "F3",
-    "day": 88
+    "day": 88,
+    "severity": 0.023
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -548,29 +753,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "pest",
      "field": "F3",
      "onset": 88,
+     "severity": 0.023,
      "first_evidence_day": 99,
-     "correct_diagnosis_day": 100,
+     "correct_claim_day": 100,
+     "correct_guess": false,
      "intervention_day": 100,
      "justified_intervention": true,
      "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 100,
      "days_to_diagnosis": 12
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 1,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -598,6 +812,33 @@
     "entries": 87,
     "head": "99df46e796fdd7bd359acb86a1076304a44a6b25c21e5f2efdfd2c45ef274fe7"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "pest",
+     "field": "F3",
+     "onset": 88,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 12
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -631,17 +872,22 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [],
    "faults": 0,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 0,
    "appropriate_non_intervention": true,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -669,6 +915,21 @@
     "entries": 72,
     "head": "64c8f3f03920b14217e03bde5abcd36320b5997c70678d1ee87212f8de88bb4f"
    }
+  },
+  "score_v2_0": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -693,7 +954,8 @@
    {
     "kind": "heatwave",
     "field": "all",
-    "day": 135
+    "day": 135,
+    "severity": null
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -713,17 +975,22 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [],
    "faults": 0,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 0,
    "appropriate_non_intervention": true,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -752,6 +1019,21 @@
     "entries": 58,
     "head": "1f4acac4e58c2a9016f0152f5323aec31bfbed8db23961301632d11ce8efadcd"
    }
+  },
+  "score_v2_0": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -778,7 +1060,8 @@
    {
     "kind": "blight",
     "field": "F3",
-    "day": 110
+    "day": 110,
+    "severity": 0.014
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -798,29 +1081,39 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "blight",
      "field": "F3",
      "onset": 110,
+     "severity": 0.014,
      "first_evidence_day": 139,
-     "correct_diagnosis_day": 140,
+     "correct_claim_day": 140,
+     "correct_guess": false,
      "intervention_day": 140,
      "justified_intervention": true,
-     "no_realarm_30d": true,
-     "days_to_diagnosis": 30
+     "no_realarm_30d": null,
+     "follow_up_censored": true,
+     "escalated_day": 140,
+     "correct_diagnosis_day": null,
+     "days_to_diagnosis": null
     }
    ],
-   "faults": 1,
-   "faults_with_evidence": 1,
-   "faults_diagnosed": 1,
-   "faults_justified_intervention": 1,
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "correct_guesses": 0,
+   "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 4,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 1,
    "unidentifiable_handled": [
     true
    ],
@@ -854,6 +1147,35 @@
     "entries": 182,
     "head": "4504641d68998b489927d9619006c0f98c5cb2551d1463be454aee8f72f3d00f"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "blight",
+     "field": "F3",
+     "onset": 110,
+     "first_evidence_day": 139,
+     "correct_diagnosis_day": 140,
+     "intervention_day": 140,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 30
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 4,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": [
+    true
+   ],
+   "reviews_requested": 1
   }
  },
  {
@@ -880,7 +1202,8 @@
    {
     "kind": "clog",
     "field": "F3",
-    "day": 132
+    "day": 132,
+    "severity": 0.59
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -900,29 +1223,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "clog",
      "field": "F3",
      "onset": 132,
+     "severity": 0.59,
      "first_evidence_day": null,
-     "correct_diagnosis_day": null,
+     "correct_claim_day": null,
+     "correct_guess": false,
      "intervention_day": null,
      "justified_intervention": false,
      "no_realarm_30d": null,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": null,
      "days_to_diagnosis": null
     }
    ],
    "faults": 1,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 1,
    "wrong_findings": 1,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 3,
    "tests": 3,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -954,6 +1286,33 @@
     "entries": 128,
     "head": "0e4ea04f2b47105e5fd872818b8bd654226241e4b02791e759566b764e168e68"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 132,
+     "first_evidence_day": null,
+     "correct_diagnosis_day": null,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "days_to_diagnosis": null
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 1,
+   "wrong_findings": 1,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 3,
+   "tests": 3,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -986,12 +1345,14 @@
    {
     "kind": "clog",
     "field": "F3",
-    "day": 86
+    "day": 86,
+    "severity": 0.62
    },
    {
     "kind": "pest",
     "field": "F1",
-    "day": 137
+    "day": 137,
+    "severity": 0.015
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -1011,6 +1372,86 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
+   "events": [
+    {
+     "kind": "clog",
+     "field": "F3",
+     "onset": 86,
+     "severity": 0.62,
+     "first_evidence_day": null,
+     "correct_claim_day": null,
+     "correct_guess": false,
+     "intervention_day": null,
+     "justified_intervention": false,
+     "no_realarm_30d": null,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": null,
+     "days_to_diagnosis": null
+    },
+    {
+     "kind": "pest",
+     "field": "F1",
+     "onset": 137,
+     "severity": 0.015,
+     "first_evidence_day": 151,
+     "correct_claim_day": 152,
+     "correct_guess": false,
+     "intervention_day": 152,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 152,
+     "days_to_diagnosis": 15
+    }
+   ],
+   "faults": 2,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "correct_guesses": 0,
+   "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "premature_claims": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
+  },
+  "trait_error_common": 0.651,
+  "trait_error_planted": 0.337,
+  "planted": [
+   "maize",
+   "sorghum",
+   "sweet_potato",
+   "wheat"
+  ],
+  "controller": "rule",
+  "plots": 13,
+  "tests": 1,
+  "looks": 6,
+  "usage": {
+   "scientist_calls": 38,
+   "scientist_attempts": 38,
+   "scientist_tokens": {
+    "prompt_tokens": 778419,
+    "completion_tokens": 7821
+   },
+   "perception_attempts": 92,
+   "perception_calls": 92
+  },
+  "artifacts": {
+   "ledger.jsonl.gz": {
+    "sha256": "e74986021a64a9c05e6c38a6d9d80e11ab6fe6516a426a85d8f5e5f0c85536b5",
+    "entries": 152,
+    "head": "d7749865fd63da88e1904adc600da72d971a9f92b33396a8eadaa46ba08a924e"
+   }
+  },
+  "score_v2_0": {
    "events": [
     {
      "kind": "clog",
@@ -1047,35 +1488,6 @@
    "appropriate_non_intervention": null,
    "unidentifiable_handled": null,
    "reviews_requested": 0
-  },
-  "trait_error_common": 0.651,
-  "trait_error_planted": 0.337,
-  "planted": [
-   "maize",
-   "sorghum",
-   "sweet_potato",
-   "wheat"
-  ],
-  "controller": "rule",
-  "plots": 13,
-  "tests": 1,
-  "looks": 6,
-  "usage": {
-   "scientist_calls": 38,
-   "scientist_attempts": 38,
-   "scientist_tokens": {
-    "prompt_tokens": 778419,
-    "completion_tokens": 7821
-   },
-   "perception_attempts": 92,
-   "perception_calls": 92
-  },
-  "artifacts": {
-   "ledger.jsonl.gz": {
-    "sha256": "e74986021a64a9c05e6c38a6d9d80e11ab6fe6516a426a85d8f5e5f0c85536b5",
-    "entries": 152,
-    "head": "d7749865fd63da88e1904adc600da72d971a9f92b33396a8eadaa46ba08a924e"
-   }
   }
  },
  {
@@ -1101,7 +1513,8 @@
    {
     "kind": "salinity",
     "field": "all",
-    "day": 78
+    "day": 78,
+    "severity": 8.5
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -1121,29 +1534,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "salinity",
      "field": "all",
      "onset": 78,
+     "severity": 8.5,
      "first_evidence_day": 79,
-     "correct_diagnosis_day": 97,
+     "correct_claim_day": 97,
+     "correct_guess": false,
      "intervention_day": 97,
      "justified_intervention": true,
      "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 97,
      "days_to_diagnosis": 19
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 1,
    "wrong_findings": 2,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 5,
    "tests": 6,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 1
   },
@@ -1175,6 +1597,33 @@
     "entries": 230,
     "head": "35f4449dab233121a5518fd49b9f8e9c9bf04d407e8470e0146b5bb5be987c58"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "salinity",
+     "field": "all",
+     "onset": 78,
+     "first_evidence_day": 79,
+     "correct_diagnosis_day": 97,
+     "intervention_day": 97,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 19
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 1,
+   "wrong_findings": 2,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 5,
+   "tests": 6,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 1
   }
  },
  {
@@ -1201,7 +1650,8 @@
    {
     "kind": "sensor_bias",
     "field": "F4",
-    "day": 88
+    "day": 88,
+    "severity": -0.078
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -1221,29 +1671,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "sensor_bias",
      "field": "F4",
      "onset": 88,
+     "severity": -0.078,
      "first_evidence_day": 90,
-     "correct_diagnosis_day": 91,
+     "correct_claim_day": 91,
+     "correct_guess": false,
      "intervention_day": 91,
      "justified_intervention": true,
      "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 91,
      "days_to_diagnosis": 3
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 1,
    "tests": 2,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -1274,6 +1733,33 @@
     "entries": 146,
     "head": "53b34cb9fa5db960ad675bd47773c248b3ac8aae90482ea43478be6065584a9a"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "sensor_bias",
+     "field": "F4",
+     "onset": 88,
+     "first_evidence_day": 90,
+     "correct_diagnosis_day": 91,
+     "intervention_day": 91,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 3
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 1,
+   "tests": 2,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -1300,7 +1786,8 @@
    {
     "kind": "pest",
     "field": "F3",
-    "day": 88
+    "day": 88,
+    "severity": 0.023
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -1320,29 +1807,38 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [
     {
      "kind": "pest",
      "field": "F3",
      "onset": 88,
+     "severity": 0.023,
      "first_evidence_day": 99,
-     "correct_diagnosis_day": 100,
+     "correct_claim_day": 100,
+     "correct_guess": false,
      "intervention_day": 100,
      "justified_intervention": true,
      "no_realarm_30d": true,
+     "follow_up_censored": false,
+     "correct_diagnosis_day": 100,
      "days_to_diagnosis": 12
     }
    ],
    "faults": 1,
    "faults_with_evidence": 1,
    "faults_diagnosed": 1,
+   "correct_guesses": 0,
    "faults_justified_intervention": 1,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 1,
    "appropriate_non_intervention": null,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -1373,6 +1869,33 @@
     "entries": 125,
     "head": "de875bd621abf2fde7b6a4419ee066e44f156c5795d68cede3baebcab85ebd4d"
    }
+  },
+  "score_v2_0": {
+   "events": [
+    {
+     "kind": "pest",
+     "field": "F3",
+     "onset": 88,
+     "first_evidence_day": 99,
+     "correct_diagnosis_day": 100,
+     "intervention_day": 100,
+     "justified_intervention": true,
+     "no_realarm_30d": true,
+     "days_to_diagnosis": 12
+    }
+   ],
+   "faults": 1,
+   "faults_with_evidence": 1,
+   "faults_diagnosed": 1,
+   "faults_justified_intervention": 1,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 1,
+   "appropriate_non_intervention": null,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -1406,17 +1929,22 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [],
    "faults": 0,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 0,
    "appropriate_non_intervention": true,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -1447,6 +1975,21 @@
     "entries": 118,
     "head": "2ab387ef420fa187d832dfbe0ab611715ddd1b340e0bea99b8fe2df681af53b4"
    }
+  },
+  "score_v2_0": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  },
  {
@@ -1471,7 +2014,8 @@
    {
     "kind": "heatwave",
     "field": "all",
-    "day": 135
+    "day": 135,
+    "severity": null
    }
   ],
   "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -1491,17 +2035,22 @@
    "limiting": "kcal"
   },
   "score": {
+   "scorer_version": "2.1",
    "events": [],
    "faults": 0,
    "faults_with_evidence": 0,
    "faults_diagnosed": 0,
+   "correct_guesses": 0,
    "faults_justified_intervention": 0,
+   "follow_up_censored": 0,
    "unrelated_alarms": 0,
    "wrong_findings": 0,
+   "premature_claims": 0,
    "wrong_interventions": 0,
    "unnecessary_tests": 0,
    "tests": 0,
    "appropriate_non_intervention": true,
+   "unidentifiable_events": 0,
    "unidentifiable_handled": null,
    "reviews_requested": 0
   },
@@ -1532,6 +2081,21 @@
     "entries": 107,
     "head": "64d5b065d2eff26e08d7d99c99efc61b2caa460ed2f4c6be1b2d8287e1aecb42"
    }
+  },
+  "score_v2_0": {
+   "events": [],
+   "faults": 0,
+   "faults_with_evidence": 0,
+   "faults_diagnosed": 0,
+   "faults_justified_intervention": 0,
+   "unrelated_alarms": 0,
+   "wrong_findings": 0,
+   "wrong_interventions": 0,
+   "unnecessary_tests": 0,
+   "tests": 0,
+   "appropriate_non_intervention": true,
+   "unidentifiable_handled": null,
+   "reviews_requested": 0
   }
  }
 ]

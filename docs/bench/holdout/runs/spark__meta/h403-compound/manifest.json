@@ -28,12 +28,14 @@
   {
    "kind": "clog",
    "field": "F3",
-   "day": 86
+   "day": 86,
+   "severity": 0.62
   },
   {
    "kind": "pest",
    "field": "F1",
-   "day": 137
+   "day": 137,
+   "severity": 0.015
   }
  ],
  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -53,6 +55,86 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "onset": 86,
+    "severity": 0.62,
+    "first_evidence_day": null,
+    "correct_claim_day": null,
+    "correct_guess": false,
+    "intervention_day": null,
+    "justified_intervention": false,
+    "no_realarm_30d": null,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": null,
+    "days_to_diagnosis": null
+   },
+   {
+    "kind": "pest",
+    "field": "F1",
+    "onset": 137,
+    "severity": 0.015,
+    "first_evidence_day": 151,
+    "correct_claim_day": 152,
+    "correct_guess": false,
+    "intervention_day": 152,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": 152,
+    "days_to_diagnosis": 15
+   }
+  ],
+  "faults": 2,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 1,
+  "follow_up_censored": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "premature_claims": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
+ },
+ "trait_error_common": 0.651,
+ "trait_error_planted": 0.337,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 13,
+ "tests": 1,
+ "looks": 6,
+ "usage": {
+  "scientist_calls": 38,
+  "scientist_attempts": 38,
+  "scientist_tokens": {
+   "prompt_tokens": 778419,
+   "completion_tokens": 7821
+  },
+  "perception_attempts": 92,
+  "perception_calls": 92
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "e74986021a64a9c05e6c38a6d9d80e11ab6fe6516a426a85d8f5e5f0c85536b5",
+   "entries": 152,
+   "head": "d7749865fd63da88e1904adc600da72d971a9f92b33396a8eadaa46ba08a924e"
+  }
+ },
+ "score_v2_0": {
   "events": [
    {
     "kind": "clog",
@@ -89,34 +171,5 @@
   "appropriate_non_intervention": null,
   "unidentifiable_handled": null,
   "reviews_requested": 0
- },
- "trait_error_common": 0.651,
- "trait_error_planted": 0.337,
- "planted": [
-  "maize",
-  "sorghum",
-  "sweet_potato",
-  "wheat"
- ],
- "controller": "rule",
- "plots": 13,
- "tests": 1,
- "looks": 6,
- "usage": {
-  "scientist_calls": 38,
-  "scientist_attempts": 38,
-  "scientist_tokens": {
-   "prompt_tokens": 778419,
-   "completion_tokens": 7821
-  },
-  "perception_attempts": 92,
-  "perception_calls": 92
- },
- "artifacts": {
-  "ledger.jsonl.gz": {
-   "sha256": "e74986021a64a9c05e6c38a6d9d80e11ab6fe6516a426a85d8f5e5f0c85536b5",
-   "entries": 152,
-   "head": "d7749865fd63da88e1904adc600da72d971a9f92b33396a8eadaa46ba08a924e"
-  }
  }
 }
