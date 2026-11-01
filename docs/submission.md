@@ -12,10 +12,10 @@ Each item is placed in exactly one column, by the strongest check it has actuall
 | Item | Implemented | Locally tested | Deployed and tested | Owner confirmation required |
 |---|---|---|---|---|
 | Static site, judge walkthrough, limitations card, evidence download, CSP | | | ✓ Public site: the walkthrough ran with 3D on a real GPU, no CSP errors, and the evidence bundle downloaded and verified | |
-| One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | ✓ Workflow written; YAML validated | Not yet run on GitHub | |
-| Release SHA in `/api/ready` and in View settings | | ✓ Against a local server | Server not deployed | |
-| Live check: release, CORS, real progress, reconnect, cancellation, bounded Spark start | | ✓ Against local servers, with and without a model key; the Spark start made a real model call | Server not deployed | |
-| Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | | ✓ Add the `HF_TOKEN` and `MODEL_API_KEY` secrets, run the release, then `check_live.py --spark` and once `--full-spark` |
+| One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | | ✓ Release run 41320205503 (commit `c35e96d`): tests, build, browser checks, website, server live check all passed | |
+| Release SHA in `/api/ready` and in View settings | | | ✓ The Render server reports the commit it runs (`RENDER_GIT_COMMIT`); the release waits for it to match | |
+| Live check: release, CORS, real progress, reconnect, cancellation, bounded Spark start | | | ✓ Passed against Render from GitHub Actions: guest session from the website's origin, the season progressed (6 → 35 ledger entries), the stream reconnected, stop cancelled the run (88 s), Muse Spark made a tool call and the lab ran it | |
+| Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | ✓ Render free plan, `https://worldlab-4b9q.onrender.com`. A guest started a Muse Spark season on the Unknown challenge from the public site | ✓ The free plan has 0.1 CPU: a season runs about ten times slower than on a laptop, and the server sleeps after 15 idle minutes (about a minute to wake). A paid plan is the owner's choice |
 
 ## Evidence and evaluation
 
@@ -38,7 +38,7 @@ The weights below come from the hackathon page as read during the build. Confirm
 |---|---|
 | **Impact (30%)** | README *For reviewers*; [`model-card.md`](model-card.md) covers the user, what is real, the limits and the next pilot. |
 | **Use of Meta AI (25%)** | Muse Spark chooses every step through tool calls; SAM 3.1 and Spark vision read the drone photos. See [`bench/v2`](bench/v2/) and [`bench/holdout_v2`](bench/holdout_v2/). The image models showed no diagnosis gain on the tested clog and pest cases. Spark showed no measured benefit over the scripted protocol on holdout v2. Muse Glimmer: adapter only, not run. |
-| **Demo (25%)** | The recorded walkthrough is public. The live part depends on the server deploy (owner). Script: [`DEMO.md`](DEMO.md). |
+| **Demo (25%)** | The recorded walkthrough is public, and live guest seasons run on the hosted server (slowly, on a free plan). Script: [`DEMO.md`](DEMO.md). |
 | **Technical depth (20%)** | Event-level scoring with a versioned scorer; frozen holdouts with criteria written before the runs; a before/after comparison against the old code; offline-verifiable ledgers; honest run states; budgets and atomic admission. |
 
 **What we don't claim:**
@@ -51,13 +51,10 @@ The weights below come from the hackathon page as read during the build. Confirm
 
 Confirm every required field in the signed-in portal; this list is not a substitute for it.
 
-- [ ] **Live server:** add `HF_TOKEN` (a Hugging Face write token) and `MODEL_API_KEY` as GitHub Actions secrets.
-  - Run the *Release* workflow. It now fails if the token is missing, unless you set the variable `SERVER_DEPLOY=skip`.
-  - Check that `/api/ready` reports the release SHA.
-  - Run `python scripts/check_live.py https://moamryehia-worldlab.hf.space --release <sha> --spark`, then once with `--full-spark`.
-  - Record the result and the model cost.
+- [x] **Live server:** deployed on Render (free plan) from `render.yaml`; `MODEL_API_KEY` is set in Render, and the GitHub variables `SERVER_DEPLOY=render` and `WORLDLAB_SERVER` point the release at it. The release's live check passes, including the bounded Muse Spark check.
+  - Optional: a full Muse Spark season on the hosted server, with its result and model cost recorded here.
 - [ ] **History:** keep `main` as it is. Its history supports the build timeline and the holdouts' freeze-before-run provenance. Rewriting it is a separate decision, not a submission step.
-- [ ] **Video:** record it from [`DEMO.md`](DEMO.md) after the release is stable. Confirm the **actual length limit** in the portal.
+- [ ] **Video:** a 3-minute cut with burnt-in captions and a narration script is made (recorded season plus a live segment). Confirm the **actual length limit** in the portal, record the narration, and upload it.
 - [ ] **Theme and track:** *Push the Frontier* is the theme; the **track** (Indie Developer or Startup) is a separate portal choice.
 - [ ] **Owner-only declarations:** eligibility and affiliation, team, rights, final terms.
 - [ ] **Submission is done only when the portal shows a receipt.**

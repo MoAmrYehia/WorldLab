@@ -32,5 +32,13 @@ Record at 1440×900. The 3D farm needs WebGL; on a machine without it the 2D map
   enlarged photo.
 - Wake the live server a few minutes before (open the website and wait for *Live*), and check that the run header says
   Muse Spark. Guest seasons are limited to 3 per session.
+- The hosted server runs on Render's free plan (0.1 CPU), so a live season moves about ten times slower than on a laptop:
+  film its start (the guest session, the Unknown challenge, the first Muse Spark tool calls), not the whole season.
 - Say "built during the hackathon" once. Keep `worldlab/agent.py` and `worldlab/perception.py` on screen for a second,
   so judges can see what was built during the event.
+
+## The captioned cut
+
+A 3-minute cut of this script exists with burnt-in captions: the recorded season (labelled *RECORDED · simulated
+dates*), three live scenes from the public site and the hosted server (labelled *LIVE*), the benchmark and holdout
+results, and what is real. The video file is kept outside the repository; its narration follows the table above.
