@@ -66,6 +66,24 @@
    },
    "salinity_scale": 1.0,
    "hidden_events": 3
+  },
+  {
+   "id": "real_weather",
+   "title": "Real 2024\u201325 weather",
+   "difficulty": "Standard",
+   "about": "The season runs on the weather Al Ain actually had from October 2024 to June 2025 (NASA POWER daily data): hotter and drier than the simulator's usual climate. Soils, crop traits and faults stay simulated.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "mystery",
+   "title": "Unknown challenge",
+   "difficulty": "Expert",
+   "about": "A hidden challenge drawn at random when the season starts, from the same families as the frozen holdout: possibly nothing, a fault, two faults, a faulty instrument, or a cause no test can establish. Revealed after the season.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": "unknown"
   }
  ],
  "editor": {

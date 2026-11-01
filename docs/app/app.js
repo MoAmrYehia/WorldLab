@@ -2,7 +2,7 @@
 // Live mode: the Python server streams a run over server-sent events. Replay mode: a recorded run (replay.json)
 // plays with no server. Missions and achievements come from the server's ledger-based scoring ("mission" events).
 // Everything shown is read from the run: measured, predicted, inferred and hidden values are labelled as such.
-import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=161ae7d94d";
+import { api, apiJson, stream, go, PAGES, setToken } from "./client.js?v=9ac5d4508e";
 
 const $ = (id) => document.getElementById(id);
 const D = 273;
@@ -388,9 +388,10 @@ function streamItem(e) {
     case "anomaly": return ["alarm", `Alarm in ${d.field}: ${esc(d.signal_label)} ${esc(d.direction)}`, why(`Measured on ${dayLabel(d.detected_day)}; drift began around ${dayLabel(d.onset_day)}. Season paused to investigate.`)];
     case "field_test": return ["test", `${d.field}: ${esc(testText(d))}`, why(d.rationale)];
     case "look": return ["test", `Drone over ${d.field}: canopy ${fmt(d.canopy_cover_measured, 2)} measured vs ${fmt(d.canopy_cover_predicted, 2)} predicted`, why(d.diagnosis && d.diagnosis.condition ? `Image analysis (${d.source || "perception"}): ${String(d.diagnosis.condition).replace(/_/g, " ")}` : d.reason)];
-    case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
+    case "adjust": return ["decide", `${d.field}: ${[d.repair ? "repairs the drip line" : "", d.pest_control ? "applies pest control" : "", d.recalibrate_sensor ? `recalibrates the soil-moisture sensor${d.recalibrate_sensor.offset_found_m3m3 ? ` (it was off by ${d.recalibrate_sensor.offset_found_m3m3 > 0 ? "+" : ""}${d.recalibrate_sensor.offset_found_m3m3} m³/m³)` : ""}` : "", d.irr != null ? `irrigation ${Math.round(d.irr * 100)}%` : "", d.desal != null ? `desalinated water ${Math.round(d.desal * 100)}%` : ""].filter(Boolean).join(", ")}`, why(d.rationale)];
     case "rebalance": return ["decide", `Re-plans water: ${d.people_p10_before} → ${d.people_p10_after} people in a bad year`, ""];
     case "anomaly_dismissed": return ["decide", "Dismisses the alarm", why(d.rationale)];
+    case "review_requested": return ["alarm", `Asks a person to review ${d.field === "all" ? "the farm" : d.field}: cause not established`, why(`${d.question} Evidence: ${d.evidence}`)];
     case "decision_request": return ["decide", `Asks you: ${esc(d.question)}`, why(`The scientist would choose: ${(d.options.find((o) => o.id === d.default) || {}).label || d.default}`)];
     case "human_decision": return ["decide", `${d.by === "you" ? "You chose" : "No answer; the scientist's choice used"}: ${esc(d.choice.replace(/_/g, " "))}`, why(d.override ? "This overrides the scientist's own choice and is recorded as yours." : "")];
     case "curtailment": return ["alarm", `Budget reached: irrigation curtailed to ${Math.round(d.fraction_applied * 100)}% of demand`, why(d.note)];
@@ -404,6 +405,7 @@ function testText(d) {
   if (d.test === "emitter_flow") return `emitter flow test reads ${Math.round((d.delivered_vs_design || 0) * 100)}% of design`;
   if (d.test === "water_test") return `water test: groundwater ${d.groundwater_ec_dS_m} dS/m (model assumes ${d.assumed_by_model ?? 4.5})`;
   if (d.test === "soil_sample") return `soil sample: ${(d.ece_dS_m_by_layer || []).join(", ")} dS/m by layer`;
+  if (d.test === "sensor_check") return `sensor check: installed sensor ${fmt(d.sensor_m3m3, 3)} vs reference probe ${fmt(d.reference_m3m3, 3)} m³/m³ (difference ${d.sensor_minus_reference > 0 ? "+" : ""}${fmt(d.sensor_minus_reference, 3)})`;
   if (d.test === "leaf_inspection") return d.pest_damage_seen ? `leaf inspection: ${d.severity} pest damage, ${d.insects_per_leaf} insects per leaf` : "leaf inspection: no pests found";
   return String(d.test || "field test");
 }
@@ -748,7 +750,7 @@ const DRAWERS = {
   research: { title: "Research lab", tabs: [["trials", "Trial plots"], ["traits", "Crop traits"], ["rl", "Irrigation policy"]] },
   incidents: { title: "Incidents", tabs: [] },
   agent: { title: "The AI agent", tabs: [["record", "Decision record"], ["components", "AI components"], ["ledger", "Audit ledger"]] },
-  results: { title: "Results", tabs: [["report", "Harvest report"], ["compare", "Compare"], ["economics", "Costs and emissions"], ["seasons", "Your seasons"]] },
+  results: { title: "Results", tabs: [["report", "Harvest report"], ["compare", "Compare"], ["economics", "Costs and emissions"], ["limits", "What is real"], ["seasons", "Your seasons"]] },
   badges: { title: "Achievements", tabs: [] },
 };
 let drawerTab = null, drawerKey = "", hashLock = false;
@@ -794,11 +796,30 @@ function renderDrawer() {
     if (drawerTab === "seasons") { b.innerHTML = `<p class="empty">Loading…</p>`; historyHtml().then((h) => { if (drawer === "results" && drawerTab === "seasons") b.innerHTML = h; }); }
     else if (drawerTab === "compare") { b.innerHTML = `<p class="empty">Loading…</p>`; compareHtml().then((h) => { if (drawer === "results" && drawerTab === "compare") { b.innerHTML = h; wireCompare(); } }); }
     else if (drawerTab === "economics") { b.innerHTML = economicsHtml(); wireEconomics(); }
+    else if (drawerTab === "limits") b.innerHTML = limitsHtml();
     else { b.innerHTML = reportHtml(); wireReport(); }
   }
   else if (drawer === "badges") b.innerHTML = badgesHtml();
   b.scrollTop = keepScroll;
   b.querySelectorAll("[data-goto]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); goTo(a.dataset.goto); }));
+}
+
+// ------------------------------------------------------------ limitations card: what is real, what is simulated, what this is not
+function limitsHtml() {
+  const ses = S.events.find((e) => e.kind === "session"), w = ses && ses.data.weather, real = w && w.name && w.name !== "synthetic";
+  const row = (k, st, note) => `<tr><td>${k}</td><td><span class="src ${st === "Real data" ? "on" : st === "Computed" ? "num" : "rule"}">${st}</span></td><td>${note}</td></tr>`;
+  return `<p style="margin:0 0 10px">WorldLab is built for agronomy and irrigation research teams comparing strategies for water-limited farms. It is a research prototype: <b>nothing here is field-validated.</b></p>
+    <p class="note">This season's weather: ${real ? `<b>real</b>, ${esc(w.name)}, ${esc(w.period)} at ${w.point.join(", ")} (file SHA-256 ${esc(String(w.sha256).slice(0, 12))}…). ${esc(w.acknowledgement)}` : "synthetic, drawn around an approximate Al Ain climatology. Choose the <i>Real 2024–25 weather</i> scenario to run on NASA POWER data."}</p>
+    <table class="ai-table"><thead><tr><th>Input</th><th>Status</th><th>Note</th></tr></thead><tbody>
+    ${row("Season weather", real ? "Real data" : "Synthetic", real ? "Reanalysis and satellite estimates for a ~50 km grid cell, not a farm station" : "Stochastic climatology; real 2024–25 was hotter and much drier")}
+    ${row("Reference ET (ET0)", "Computed", "FAO-56 Penman-Monteith; within 3% of FAO-56 worked example 18")}
+    ${row("Trial seasons, imagined seasons", "Synthetic", "Stand for earlier seasons' data in a real deployment")}
+    ${row("Soils, true crop traits, faults", "Synthetic", "Generated per farm")}
+    ${row("Drone photos", "Synthetic", "Renders of the simulator's state; SAM 3.1 and Muse Spark analyse renders, not real fields")}
+    ${row("Crop priors", "Synthetic", "Approximate published values: FAO-29 salt tolerance, FAO-56 Kcb, AquaCrop crop files")}
+    </tbody></table>
+    <p class="note"><b>People fed</b> is a simulated index: harvested energy, protein and vitamin A divided by one person's yearly need, the smallest of the three. It is not people actually fed and not a complete diet. <b>Costs</b> use only prices you enter. <b>No practitioner has reviewed WorldLab yet.</b></p>
+    <p class="note"><a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/model-card.md" target="_blank" rel="noopener">Full model card</a>: sources, the real-weather import and its checks, limitations and a feasible pilot.</p>`;
 }
 
 // ------------------------------------------------------------ research: trials, traits, irrigation policy
@@ -1484,7 +1505,7 @@ function renderFarmSettings(saved) {
   const applyScenario = (id, keep) => {
     const x = sc.find((s) => s.id === id) || sc[0]; if (!x) return;
     sel.value = x.id;
-    $("scenarioAbout").textContent = `${x.about}${x.hidden_events ? ` ${x.hidden_events} hidden event${x.hidden_events > 1 ? "s" : ""}; the scientist isn't told when.` : ""}`;
+    $("scenarioAbout").textContent = `${x.about}${x.hidden_events === "unknown" ? " Neither you nor the scientist is told what or when until the season ends." : x.hidden_events ? ` ${x.hidden_events} hidden event${x.hidden_events > 1 ? "s" : ""}; the scientist isn't told when.` : ""}`;
     if (!keep) {
       $("edQuota").value = x.limits.water_quota_m3 ?? dflt.water_quota_m3;
       $("edEnergy").value = x.limits.energy_kwh ?? dflt.energy_kwh;
@@ -1896,7 +1917,7 @@ function showEntry(seq) { ledgerQ = `#${seq}`; ledgerN = 100; openView("agent", 
 async function loadScene() {
   try {
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not available");
-    const mod = await import("./scene.js?v=161ae7d94d");
+    const mod = await import("./scene.js?v=9ac5d4508e");
     OV = mod.OVERLAYS || {};
     if (mod.cropPortrait) { portrait = mod.cropPortrait; stageOf = mod.stageOf; }
     scene = mod.createScene($("stage"), {

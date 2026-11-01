@@ -84,7 +84,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       // planner: preview mode is declared before planning, and a draft survives a reload
       await p.click("#tryPlanBtn"); await p.waitForTimeout(500);
       check(await p.isVisible("#previewBanner"), "planner declares preview mode up front");
-      check(await p.evaluate(() => document.querySelectorAll("#scenarioSel option").length === 8 && /Baseline/.test(document.getElementById("plFarmSum").textContent)), "planner offers the scenario library and farm editor");
+      check(await p.evaluate(() => document.querySelectorAll("#scenarioSel option").length === 9 && /Baseline/.test(document.getElementById("plFarmSum").textContent)), "planner offers the scenario library and farm editor");
       await p.selectOption('#fieldRows select[data-i="5"]', "c:maize"); await p.waitForTimeout(200);
       check(await p.evaluate(() => /yield only/.test(document.getElementById("fieldRows").textContent)), "poor crop choice is explained (maize on F6)");
       await p.reload({ waitUntil: "load" }); await p.waitForTimeout(1500);
@@ -142,6 +142,11 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
     check(explained ? early : !early && seen[1] && seen[1][1] >= 116, `${explained ? "explained" : "spoiler-free"} replay: hidden change ${explained ? "shown when it happens" : `hidden until the repair (shown from day ${seen[1] && seen[1][1]})`}`);
     await p.close();
   }
+  // limitations card (P1.2): what is real and what is simulated
+  p = await page(1280, 800);
+  await p.goto(`${base}/app/?demo#results/limits`, { waitUntil: "load" }); await p.waitForTimeout(1500);
+  check(await p.evaluate(() => /nothing here is field-validated/.test(document.getElementById("drawerBody").textContent) && /People fed/.test(document.getElementById("drawerBody").textContent)), "Results › What is real shows the limitations card");
+  await p.close();
   // offline evidence (P1.4): the bundle linked from the ledger downloads
   p = await page(1280, 800);
   await p.goto(`${base}/app/?demo#agent/ledger`, { waitUntil: "load" }); await p.waitForTimeout(1500);

@@ -1,7 +1,7 @@
 // Crop portraits: small pictures of each crop rendered from the same 3D models that grow in the fields,
 // at the growth stage the field is in. One offscreen renderer, results cached as image URLs.
 import * as THREE from "three";
-import { cropGeometry, cropMaterial, CROP_INFO } from "./crops.js?v=161ae7d94d";
+import { cropGeometry, cropMaterial, CROP_INFO } from "./crops.js?v=9ac5d4508e";
 
 let R = null;
 const cache = new Map();
