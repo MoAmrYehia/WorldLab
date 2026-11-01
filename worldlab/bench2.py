@@ -209,7 +209,9 @@ def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) 
             "calm_when_nothing_was_wrong": f"{sum(1 for m in clean if m['score']['appropriate_non_intervention'])}/{len(clean)}",
             "trait_error_common_mean": round(float(np.mean([m["trait_error_common"] for m in done])), 3) if done else None,
             "wall_seconds_median": float(np.median([m["wall_seconds"] for m in ms if m.get("wall_seconds")])) if ms else None,
-            "cost_usd_list_price_mean": mean([x for x in (_cost(m) for m in ms) if x is not None]),
+            # list price: Spark scientist tokens, plus every perception call priced at SAM 3.1's per-image rate (Spark vision
+            # tokens inside perception are not metered separately); runs that made no calls count as $0
+            "cost_usd_list_price_mean": round(float(np.mean([_cost(m) or 0.0 for m in ms])), 3) if ms else None,
             "scientist_calls_mean": mean([m["usage"]["scientist_calls"] for m in ms if (m.get("usage") or {}).get("scientist_calls")]),
             "perception_attempts_mean": mean([m["usage"]["perception_attempts"] for m in ms if (m.get("usage") or {}).get("perception_attempts")]),
         }
