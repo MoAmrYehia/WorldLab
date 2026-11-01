@@ -60,20 +60,26 @@ class APIError(RuntimeError):
 class LLMClient:
     def __init__(self, cfg: LLMConfig):
         self.cfg = cfg
-        self.calls = 0
+        self.calls = 0                 # successful requests
+        self.attempts = 0              # every HTTP attempt, failed and retried ones included (budgets count these)
+        self.retry_delay = 2.0         # first backoff in seconds; doubles on each retry
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     def _post(self, path: str, body: dict, retries: int = 4) -> dict:
         url = self.cfg.base_url.rstrip("/") + path
         data = json.dumps(body).encode()
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.cfg.api_key}"}
-        delay = 2.0
+        delay = self.retry_delay
         for attempt in range(retries + 1):
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            self.attempts += 1
             try:
                 with urllib.request.urlopen(req, timeout=self.cfg.timeout) as r:
                     self.calls += 1
-                    return json.loads(r.read().decode())
+                    try:
+                        return json.loads(r.read().decode())
+                    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                        raise APIError(r.status, f"response is not JSON: {e}") from None
             except urllib.error.HTTPError as e:
                 txt = e.read().decode(errors="replace")
                 if e.code in (429, 500, 502, 503, 504) and attempt < retries:
@@ -118,9 +124,10 @@ class LLMClient:
         data = json.dumps({**body, "stream": True}).encode()
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.cfg.api_key}",
                    "Accept": "text/event-stream"}
-        delay = 2.0
+        delay = self.retry_delay
         for attempt in range(retries + 1):
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            self.attempts += 1
             try:
                 parts = []
                 with urllib.request.urlopen(req, timeout=self.cfg.timeout) as r:

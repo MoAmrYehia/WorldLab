@@ -90,6 +90,8 @@ class FarmLabTests(unittest.TestCase):
 
     def test_clog_is_detected_diagnosed_and_repaired(self):
         lab, farm, d = self.run_scripted("clog")
+        refused = [e for e in lab.ledger.entries if e["kind"] == "agent_step" and "invalid arguments" in str(e["data"])]
+        self.assertEqual(refused, [])                                   # the protocol's own calls pass validation
         self.assertTrue(lab.anomalies)
         a = lab.anomalies[0]
         self.assertEqual(a["field"], farm.events[0]["field"])
@@ -144,6 +146,7 @@ class LLMLoopTests(unittest.TestCase):
             self.assertTrue(lab.done)
             self.assertEqual(lab.plots_used, 4)
             self.assertIsNotNone(lab.result)
+            self.assertEqual(lab.run_status, "completed")                 # a normal run still completes
             self.assertEqual(srv.requests[0]["reasoning_effort"], "medium")
         finally:
             srv.stop()
@@ -548,22 +551,40 @@ class P2Tests(unittest.TestCase):
         ok, _ = verify(Path(d) / "ledger.jsonl")
         self.assertTrue(ok)
 
-    def test_recorded_experiments_are_paired_and_shipped(self):
+    def test_recorded_experiments_are_typed_and_shipped(self):
         root = Path(__file__).resolve().parents[1] / "worldlab" / "dashboard"
         x = json.loads((root / "experiments.json").read_text())
-        base = x["baseline"]
-        kinds = [e["change"]["kind"] for e in x["experiments"]]
-        self.assertIn(kinds, (["controller", "fault", "adapt", "next_season"],     # scripted recording
-                              ["agent", "fault", "adapt", "next_season"]))         # Muse Spark recording
-        self.assertIn("same", x["note"])
-        for e in x["experiments"]:
-            self.assertTrue(e["within_limits"])
-        nxt = x["experiments"][-1]
-        for a, b in zip(base["soil"], nxt["soil"]):       # season 2 starts where season 1 ended (true vs measured: close)
-            self.assertLess(abs(a["ece_top_end_measured_dS_m"] - b["ece_top_start_dS_m"]), 0.6)
+        self.assertEqual(x["schema"], 2)
+        for p in x["pairs"]:
+            self.assertIn(p["kind"], ("single_factor", "illustrative", "system"))
+            keys = p["treatment_inputs"]
+            if p["kind"] in ("single_factor", "illustrative"):
+                self.assertEqual(len(keys), 1, p["title"])
+            if p["kind"] == "single_factor":
+                self.assertTrue(p["pre_event_identical"])
+            for side in (p["baseline"], p["treatment"]):
+                r = x["runs"][side]
+                self.assertTrue(r["artifacts"]["ledger_sha256"] and r["artifacts"]["ledger_head"])
+        for c in x["soil_carryover"]:                   # like-for-like: simulated state end == next start
+            self.assertEqual(c["end_of_season_1_true"], c["start_of_season_2_true"])
         rep = json.loads((root / "replay.json").read_text())
         self.assertTrue(any(m["kind"] == "forecast" for m in rep["messages"]))
-        self.assertIn("quantities", [m for m in rep["messages"] if m["kind"] == "status"][-1]["data"]["result"])
+        self.assertNotIn("clog", rep["meta"]["note"].lower())          # the recording doesn't reveal the hidden cause up front
+
+    def test_pair_labels_are_checked(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("bx", Path(__file__).resolve().parents[1] / "scripts" / "build_experiments.py")
+        bx = importlib.util.module_from_spec(spec); spec.loader.exec_module(bx)
+        cfg = {"scientist": "scripted protocol", "irrigation_learning": "none", "investigation": "fixed protocol",
+               "perception": "direct", "hidden_fault": "clog@95", "starting_soil": "standard", "farm_seed": 7, "weather_year": "seed 7"}
+        a = {"label": "A", "config": cfg, "faults": []}
+        b = {"label": "B", "config": {**cfg, "hidden_fault": "none", "perception": "images"}, "faults": []}
+        with self.assertRaises(ValueError):                              # two treatment changes can't be "single factor"
+            bx.pair("x", "single_factor", a, b, Path("."), Path("."))
+        c = {"label": "C", "config": {**cfg, "scientist": "Muse Spark (muse-spark-1.3)", "hidden_fault": "none"}, "faults": []}
+        with self.assertRaises(ValueError):
+            bx.pair("x", "illustrative", a, c, Path("."), Path("."))
+        self.assertEqual(bx.pair("x", "system", a, b, Path("."), Path("."))["kind"], "system")
 
     def test_branch_next_season_and_share_over_http(self):
         import threading
@@ -638,3 +659,206 @@ class P2Tests(unittest.TestCase):
             self.assertEqual(s3.parent_run, r1["id"])
         finally:
             httpd.shutdown()
+
+
+class RunStatusTests(unittest.TestCase):
+    """A model failure never turns into a successful autonomous harvest (P0.2)."""
+
+    def run_mock(self, mode=None, after=0, max_turns=60, stop_after=None, limits=None):
+        srv = MockServer(mode, after).start()
+        try:
+            farm = Farm(seed=7)
+            farm.schedule("clog", 90)
+            lab = Lab(farm, limits=limits, perception=SimPerception())
+            cfg = LLMConfig(base_url=srv.base_url, api_key="test", model="muse-spark-1.3", reasoning_effort="medium", label="mock")
+            sci = LLMScientist(lab, cfg, max_turns=max_turns)
+            sci.client.retry_delay = 0.01
+            if stop_after is not None:
+                orig = sci.client.chat
+
+                def chat(*a, **k):
+                    if sci.client.calls >= stop_after:
+                        lab.stop_flag.set()
+                    return orig(*a, **k)
+                sci.client.chat = chat
+            out = sci.run()
+            return lab, out, srv
+        finally:
+            srv.stop()
+
+    def assert_stopped(self, lab, status):
+        from worldlab.progression import evaluate
+        self.assertTrue(lab.done)
+        self.assertEqual(lab.run_status, status)
+        self.assertIsNone(lab.result)                                   # no harvest the model didn't reach
+        self.assertFalse(any(e["kind"] == "season_result" for e in lab.ledger.entries))
+        ev = evaluate(lab.ledger.entries, [], None)
+        self.assertFalse(ev["complete"])
+        self.assertEqual(ev["achievements"], [])
+        self.assertIn(status, ev["outcome"])
+        end = [e for e in lab.ledger.entries if e["kind"] == "run_end"][-1]["data"]
+        self.assertEqual(end["status"], status)
+        self.assertTrue(end["reason"])
+
+    def test_auth_error_fails_without_harvest(self):
+        lab, out, _ = self.run_mock("status:401", after=3)
+        self.assert_stopped(lab, "failed")
+        self.assertIn("401", lab.run_end_reason)
+
+    def test_repeated_server_errors_fail(self):
+        lab, out, _ = self.run_mock("status:503", after=3)
+        self.assert_stopped(lab, "failed")
+        self.assertGreater(out["attempts"], out["api_calls"])                # retries are counted
+
+    def test_rate_limit_fails_after_bounded_retries(self):
+        lab, out, _ = self.run_mock("status:429", after=3)
+        self.assert_stopped(lab, "failed")
+
+    def test_malformed_responses_fail(self):
+        lab, _, _ = self.run_mock("malformed", after=3)
+        self.assert_stopped(lab, "failed")
+
+    def test_model_that_stops_calling_tools_fails(self):
+        lab, _, _ = self.run_mock("silent", after=3)
+        self.assert_stopped(lab, "failed")
+        self.assertIn("stopped calling tools", lab.run_end_reason)
+
+    def test_turn_limit_fails(self):
+        lab, _, _ = self.run_mock(max_turns=4)
+        self.assert_stopped(lab, "failed")
+        self.assertIn("turn limit", lab.run_end_reason)
+
+    def test_cancellation(self):
+        lab, _, _ = self.run_mock(stop_after=3)
+        self.assert_stopped(lab, "cancelled")
+
+    def test_invalid_and_out_of_range_arguments_are_refused(self):
+        lab, _, _ = self.run_mock("badargs", after=3, max_turns=8)
+        refused = [e for e in lab.ledger.entries if e["kind"] == "agent_step" and "invalid arguments" in str(e["data"].get("result", ""))]
+        self.assertTrue(refused)
+        self.assertTrue(lab.day < 273 and lab.run_status == "failed")   # the 100000-day advance never ran; the turn limit ended it
+        lab2, _, _ = self.run_mock("badjson", after=3, max_turns=8)
+        self.assertTrue(any("not valid JSON" in str(e["data"].get("result", "")) for e in lab2.ledger.entries if e["kind"] == "agent_step"))
+        from worldlab.agent import validate_args, TOOL_SCHEMA
+        self.assertTrue(validate_args(TOOL_SCHEMA["update_model"], {"rationale": "r", "finding": "drip_delivery", "value": float("nan"), "since_day": 3}))
+        self.assertTrue(validate_args(TOOL_SCHEMA["field_test"], {"field": "F9", "test": "water_test", "rationale": "r"}))
+        self.assertEqual(validate_args(TOOL_SCHEMA["advance"], {"days": 30, "rationale": "r"}), [])
+
+    def test_finish_cannot_skip_the_season(self):
+        lab = Lab(Farm(seed=7), perception=SimPerception())
+        plan = lab.plan_season("t")
+        lab.start_season(plan["plan_id"], "t", "rule")
+        lab.advance(20, "t")
+        out = lab.finish("done early")
+        self.assertIn("refused", out)
+        self.assertFalse(lab.done)
+        self.assertIsNone(lab.result)
+
+    def test_handover_is_recorded_as_mixed(self):
+        from worldlab.agent import ScriptedScientist
+        from worldlab.progression import evaluate
+        lab, _, _ = self.run_mock("status:503", after=13)
+        if lab.phase != "season":
+            self.skipTest("mock failed before sowing")
+        ScriptedScientist(lab).resume("failed: test")
+        self.assertEqual(lab.run_status, "degraded")
+        self.assertIsNotNone(lab.result)
+        self.assertEqual(lab.result["decided_by"], "mixed (handover)")
+        ev = evaluate(lab.ledger.entries, [], None)
+        self.assertFalse(ev["complete"])
+        self.assertEqual(ev["achievements"], [])
+        self.assertTrue(any(e["kind"] == "handover" for e in lab.ledger.entries))
+
+    def test_image_budget_counts_failed_calls(self):
+        from worldlab.lab import Limits
+
+        class Client:
+            attempts = 400
+
+        class P(SimPerception):
+            client = Client()
+        lab = Lab(Farm(seed=7), limits=Limits(max_image_calls=400), perception=P())
+        plan = lab.plan_season("t")
+        lab.start_season(plan["plan_id"], "t", "rule")
+        lab.advance(40, "t")
+        self.assertIn("refused", lab.look_at_field("F1", "check"))
+
+
+class PerceptionStatusTests(unittest.TestCase):
+    """An API failure can never read as 'no plants' or 'no salt' (P0.5)."""
+
+    class FakeClient:
+        def __init__(self, sam, diag):
+            self.sam, self.diag, self.attempts, self.calls = sam, diag, 0, 0
+
+        def responses_stream_text(self, body):
+            self.attempts += 1
+            r = self.sam(body["input"][0]["content"][0]["text"], self.attempts)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+        def chat(self, messages, **k):
+            self.attempts += 1
+            if isinstance(self.diag, Exception):
+                raise self.diag
+            return {"content": self.diag}
+
+    GOOD = json.dumps({"condition": "healthy", "pest_damage_visible": False, "salt_crust_visible": False,
+                       "wilting_or_yellowing": False, "gaps_in_stand": False, "evidence": "uniform green rows"})
+    BOX = "<0f>0<|box;x1=10;y1=10;x2=30;y2=30;w=300;h=210|><|mask;x=0;y=0;data=1,1,!|>"
+
+    def analyze(self, sam, diag=None):
+        from worldlab.farm.drone_render import render, encode
+        from worldlab.perception import MetaPerception
+        frame, mime = encode(render("maize", 0.2, 1.0, 1.0, 2.0, 0.0, False, seed=3))
+        mp = MetaPerception(self.FakeClient(sam, self.GOOD if diag is None else diag))
+        return mp.analyze(frame, mime)
+
+    def test_valid_zero_is_a_zero(self):
+        r = self.analyze(lambda phrase, n: "")
+        self.assertEqual((r["plants_counted"], r["plant_count_status"], r["salt_crust_patches"]), (0, "valid", 0))
+        self.assertEqual(r["perception_status"], "complete")
+        self.assertEqual(r["errors"], [])
+
+    def test_unavailable_is_not_zero(self):
+        from worldlab.llm import APIError
+        r = self.analyze(lambda phrase, n: APIError(503, "down"))
+        self.assertIsNone(r["plants_counted"])
+        self.assertIsNone(r["salt_crust_patches"])
+        self.assertEqual((r["plant_count_status"], r["salt_status"]), ("unavailable", "unavailable"))
+        self.assertEqual(r["perception_status"], "partial")                  # the diagnosis still arrived
+        self.assertNotIn("SAM", r["source"])
+        self.assertTrue(r["errors"])
+
+    def test_partial_tiles_are_a_lower_bound(self):
+        from worldlab.llm import APIError
+        r = self.analyze(lambda phrase, n: APIError(503, "down") if (phrase == "plant" and n % 4 == 0) else self.BOX)
+        self.assertEqual(r["plant_count_status"], "partial")
+        self.assertIn("lower bound", r["counting_note"])
+        self.assertEqual(r["perception_status"], "partial")
+
+    def test_malformed_outputs(self):
+        r = self.analyze(lambda phrase, n: "I see some plants", diag='{"condition": "great"}')
+        self.assertEqual((r["plant_count_status"], r["salt_status"], r["diagnosis_status"]), ("malformed", "malformed", "malformed"))
+        self.assertIsNone(r["diagnosis"])
+        self.assertEqual(r["perception_status"], "unavailable")
+        self.assertEqual(r["source"], "perception unavailable")
+
+    def test_errors_belong_to_this_frame(self):
+        from worldlab.llm import APIError
+        from worldlab.farm.drone_render import render, encode
+        from worldlab.perception import MetaPerception
+        frame, mime = encode(render("maize", 0.2, 1.0, 1.0, 2.0, 0.0, False, seed=3))
+        fc = self.FakeClient(lambda p, n: APIError(503, "down"), self.GOOD)
+        mp = MetaPerception(fc)
+        self.assertTrue(mp.analyze(frame, mime)["errors"])
+        fc.sam = lambda p, n: ""
+        self.assertEqual(mp.analyze(frame, mime)["errors"], [])               # yesterday's failure isn't today's status
+
+    def test_unavailable_answers_are_not_scored(self):
+        lab = Lab(Farm(seed=7), perception=SimPerception())
+        lab.perception_checks = [{"day": 100, "field": "F1", "drawn": {"crop": "maize", "plants": 150, "salt_patches": 9, "damaged_plants": 0},
+                                  "sam": {"plants": None, "salt_patches": None}, "diagnosis": None, "status": "unavailable"}]
+        ps = lab.perception_summary()
+        self.assertEqual((ps["plants_drawn"], ps["salt_frames_detected_by_sam"], ps["frames_not_complete"]), (0, "0/0", 1))
