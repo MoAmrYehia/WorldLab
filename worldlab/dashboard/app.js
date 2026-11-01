@@ -1917,11 +1917,26 @@ async function boot() {
   if (q.get("shared")) $("modeChip").textContent = "Shared season";
   else if (q.get("run")) $("modeChip").textContent = "Your past season";
   // what the server can do, with a short timeout so a missing server never blocks the page
-  try { const r = await api("api/capabilities", { timeout: 4000 }); if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) { caps = await r.json(); serverUp = true; } } catch (e) { /* no server */ }
+  const wantGuest = q.has("guest");
+  const capsOnce = async () => { try { const r = await api("api/capabilities", { timeout: 4000 }); if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) { caps = await r.json(); serverUp = true; } } catch (e) { /* no server */ } };
+  await capsOnce();
+  if (!serverUp && wantGuest) {                       // a sleeping server can take a while to start: say so, then give up clearly
+    for (let k = 1; k <= 20 && !serverUp; k++) {
+      $("modeNote").textContent = `Waking the live server… (${k * 3} s; a sleeping server can take up to a minute)`;
+      await new Promise((ok) => setTimeout(ok, 3000));
+      await capsOnce();
+    }
+    if (!serverUp) { $("modeNote").textContent = "The live server isn't reachable right now, so this is the recorded Muse Spark season. Try the live season again later."; toast("Live server unavailable", "Showing the recorded season instead."); }
+  }
   let state = null;
   if (!replay && serverUp) {
     try {
-      const r = await api("api/state", { timeout: 8000 });
+      let r = await api("api/state", { timeout: 8000 });
+      if (r.status === 401 && wantGuest) {             // a short-lived guest session: no account, strict limits
+        const g = await apiJson("api/auth/guest", { method: "POST", body: {}, timeout: 10000 }).catch(() => null);
+        if (g && g.ok && g.data.token) { setToken(g.data.token); r = await api("api/state", { timeout: 8000 }); }
+        else toast("Guest session not available", (g && g.data.error) || "Sign up instead, or watch the recorded season.");
+      }
       if (r.status === 401) { go("login", `?next=${encodeURIComponent(PAGES.app)}`); return; }
       if (r.ok && (r.headers.get("Content-Type") || "").includes("json")) state = await r.json();
     } catch (e) { /* unreachable */ }

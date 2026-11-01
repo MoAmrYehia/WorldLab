@@ -66,10 +66,10 @@ class Accounts:
         self._fails: dict[str, list[float]] = {}
 
     # ------------------------------------------------------------------ users
-    def signup(self, email: str, password: str, name: str) -> dict:
+    def signup(self, email: str, password: str, name: str, internal: bool = False) -> dict:
         email = (email or "").strip().lower()
         name = (name or "").strip()
-        if not EMAIL_RE.match(email) or len(email) > 200:
+        if not EMAIL_RE.match(email) or len(email) > 200 or (email.endswith(self.GUEST_DOMAIN) and not internal):
             raise AuthError("Enter a valid email address.")
         if not name or len(name) > 80:
             raise AuthError("Enter your name (up to 80 characters).")
@@ -104,13 +104,32 @@ class Accounts:
         self._fails.pop(key, None)
         return {"id": row["id"], "email": row["email"], "name": row["name"]}
 
+    GUEST_DOMAIN = "@guest.worldlab"
+
+    def guest(self) -> dict:
+        """A throwaway account for trying a live season without signing up (no email, random password)."""
+        tag = secrets.token_hex(6)
+        return self.signup(f"guest-{tag}{self.GUEST_DOMAIN}", secrets.token_urlsafe(24), "Guest", internal=True)
+
+    @classmethod
+    def is_guest(cls, user: dict | None) -> bool:
+        return bool(user) and str(user.get("email", "")).endswith(cls.GUEST_DOMAIN)
+
+    def count_runs(self, since: float, agent: str | None = None, user_id: int | None = None) -> int:
+        q, a = "SELECT COUNT(*) FROM runs WHERE created >= ?", [since]
+        if agent:
+            q += " AND agent = ?"; a.append(agent)
+        if user_id is not None:
+            q += " AND user_id = ?"; a.append(user_id)
+        return int(self.db.execute(q, a).fetchone()[0])
+
     # --------------------------------------------------------------- sessions
-    def new_session(self, user_id: int) -> str:
+    def new_session(self, user_id: int, seconds: float | None = None) -> str:
         token = secrets.token_urlsafe(32)
         now = time.time()
         with self._lock:
             self.db.execute("INSERT INTO sessions (token, user_id, created, expires) VALUES (?,?,?,?)",
-                            (_digest(token), user_id, now, now + SESSION_DAYS * 86400))
+                            (_digest(token), user_id, now, now + (seconds or SESSION_DAYS * 86400)))
             self.db.execute("DELETE FROM sessions WHERE expires < ?", (now,))
             self.db.commit()
         return token
