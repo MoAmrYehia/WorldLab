@@ -22,7 +22,8 @@
   {
    "kind": "clog",
    "field": "F6",
-   "day": 132
+   "day": 132,
+   "severity": 0.59
   }
  ],
  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -42,29 +43,38 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [
    {
     "kind": "clog",
     "field": "F6",
     "onset": 132,
+    "severity": 0.59,
     "first_evidence_day": null,
-    "correct_diagnosis_day": null,
+    "correct_claim_day": null,
+    "correct_guess": false,
     "intervention_day": null,
     "justified_intervention": false,
     "no_realarm_30d": null,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": null,
     "days_to_diagnosis": null
    }
   ],
   "faults": 1,
   "faults_with_evidence": 0,
   "faults_diagnosed": 0,
+  "correct_guesses": 0,
   "faults_justified_intervention": 0,
+  "follow_up_censored": 0,
   "unrelated_alarms": 0,
   "wrong_findings": 0,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 0,
   "tests": 0,
   "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
   "unidentifiable_handled": null,
   "reviews_requested": 0
  },
@@ -93,5 +103,32 @@
    "entries": 59,
    "head": "dc9aa32f7ca738a0df128635950e7f65011accb440b1b032d7a99b1fb90dde2f"
   }
+ },
+ "score_v2_0": {
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F6",
+    "onset": 132,
+    "first_evidence_day": null,
+    "correct_diagnosis_day": null,
+    "intervention_day": null,
+    "justified_intervention": false,
+    "no_realarm_30d": null,
+    "days_to_diagnosis": null
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "faults_justified_intervention": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 0,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
  }
 }

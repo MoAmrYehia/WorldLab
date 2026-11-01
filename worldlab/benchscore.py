@@ -1,29 +1,46 @@
-"""Event-level scoring of one run from its ledger and the hidden events (benchmark v2).
+"""Event-level scoring of one run from its ledger and the hidden events (benchmark v2). Scorer version 2.1.
 
-Each hidden event is an identity: cause, field (or all fields), onset day and an allowed response window.
-For each one the run is scored on four separate things, with their days:
+Each hidden event is an identity: cause, field (or all fields), onset day and an allowed response window (60 days).
 
-  first evidence          the first sign the scientist had: an alarm on that field, a test on that field that reads
-                          abnormal, or a drone look whose diagnosis names the cause
-  correct diagnosis       the scientist wrote the true cause into its model (update_model finding) for that field,
-                          or concluded a hypothesis naming it, inside the window
-  justified intervention  the matching physical action on that field after the diagnosis: repair (clog), pest control
-                          (pest), more desalinated water or a water re-plan (saltier groundwater)
-  no re-alarm             after the intervention, no new alarm on that field and signal for 30 days
+Identifiable faults (clog, pest, saltier groundwater, biased sensor) are scored on:
 
-and, across the whole run, on what it got wrong: alarms that no hidden event explains (at any time, including after
-another real fault started), findings and interventions that name a cause that wasn't there. With no hidden fault
-(or a forecast heat wave), the right answer is to stay calm: no fault findings and no interventions.
+  first evidence          the first sign the scientist had: an alarm on that field in a signal the cause can move
+                          (CAUSE_SIGNALS), a test on that field that reads abnormal for that cause, or a drone look whose
+                          diagnosis names the cause
+  supported diagnosis     the scientist wrote the true cause into its model (update_model finding) for that field, or
+                          concluded a hypothesis naming it, inside the window AND on or after the first evidence. The
+                          same claim made with no evidence yet is labelled a correct guess, and earns nothing
+  justified intervention  the matching physical action on that field on or after a supported diagnosis: repair (clog),
+                          pest control (pest), more desalinated water or a water re-plan (salinity), recalibration (sensor)
+  no re-alarm (30 days)   after the intervention, no new alarm on that field in a signal the cause can move, for 30 days.
+                          If the field was harvested or the season ended less than 30 days after the intervention, this is
+                          None (censored): too little follow-up to say. No re-alarm is not physical recovery.
+
+The unidentifiable case (blight, a root disease no available test can show) is scored separately as an escalation: a
+review request for that field inside the window, after evidence, with no false cause named or treated on that field.
+It is not counted as a diagnosis.
+
+Across the whole run it counts what went wrong: alarms that no hidden event explains (by field, window and signal),
+findings and actions that name a cause that wasn't there, including a true cause claimed BEFORE it happened (premature).
+With no hidden fault (or a forecast heat wave), the right answer is to stay calm: no fault findings and no interventions.
+
+Changes from 2.0 (archived runs keep their 2.0 score as score_v2_0): evidence must precede diagnosis credit; premature
+claims count as wrong; follow-up is censored when there is too little of it; alarms are attributed by signal;
+the unidentifiable case is an escalation, not a diagnosis.
 """
 from __future__ import annotations
 
+SCORER_VERSION = "2.1"
 FINDING = {"clog": "drip_delivery", "pest": "pest", "salinity": "groundwater_ec", "sensor_bias": None, "blight": "canopy_loss_unexplained"}
 TEST = {"clog": "emitter_flow", "pest": "leaf_inspection", "salinity": "water_test", "sensor_bias": "sensor_check", "blight": None}
-# blight (a root disease) is the unidentifiable case: no available test shows it. The right outcome is to follow the
-# decline without naming a cause, say the cause is not established and ask a person (request_review), and not to
-# treat a cause that isn't there. Its "diagnosis" day is the day of that review request.
+# which monitored signals each cause can move (sw soil moisture, cc canopy cover, ec soil salinity)
+CAUSE_SIGNALS = {"clog": {"sw", "ec", "cc"}, "pest": {"cc", "sw"}, "salinity": {"ec", "cc"}, "sensor_bias": {"sw"},
+                 "blight": {"cc", "sw"}}
 WINDOW = 60          # days after onset in which a diagnosis or intervention counts for that event
+FOLLOW_UP = 30
+D = 273
 FAULTS = tuple(FINDING)
+IDENTIFIABLE = ("clog", "pest", "salinity", "sensor_bias")
 
 
 def _abnormal(test: dict) -> str | None:
@@ -52,6 +69,10 @@ def _matches(ev: dict, field: str | None) -> bool:
     return ev["field"] in (None, "all") or field in (None, ev["field"]) or ev["kind"] == "salinity"
 
 
+def _signal_ok(ev: dict, alarm: dict) -> bool:
+    return alarm.get("signal") in CAUSE_SIGNALS.get(ev["kind"], set())
+
+
 def score(entries: list[dict], events: list[dict], scenario: str) -> dict:
     """entries: ledger entries (kind, t, data). events: the hidden events as applied ({kind, field, day})."""
     L = [e for e in entries if isinstance(e, dict)]
@@ -66,30 +87,37 @@ def score(entries: list[dict], events: list[dict], scenario: str) -> dict:
     hyps = {e["data"].get("id"): e["data"] for e in kinds("hypothesis")}
     rebalances = kinds("rebalance")
     reviews = kinds("review_requested")
+    harvest_day = {}
+    for e in kinds("harvest"):
+        harvest_day.setdefault(e["data"].get("field"), e["data"].get("day", e["t"]))
+    end_day = max([e["t"] or 0 for e in L if e.get("kind") in ("season_result", "advance", "harvest")] + [0])
 
     out_events, explained = [], set()
     for ev in faults:
         d0, cause = ev["day"], ev["kind"]
         inwin = lambda t: d0 <= (t or 0) <= d0 + WINDOW
-        evid = [e["data"].get("detected_day", e["t"]) for e in anomalies if inwin(e["data"].get("detected_day")) and _matches(ev, e["data"].get("field"))]
+        alarms_here = [e for e in anomalies if inwin(e["data"].get("detected_day")) and _matches(ev, e["data"].get("field")) and _signal_ok(ev, e["data"])]
+        for e in alarms_here:
+            explained.add(id(e))
+        evid = [e["data"].get("detected_day", e["t"]) for e in alarms_here]
         evid += [e["t"] for e in tests if inwin(e["t"]) and _matches(ev, e["data"].get("field")) and _abnormal(e["data"]) == cause]
         evid += [e["t"] for e in looks if inwin(e["t"]) and _matches(ev, e["data"].get("field")) and _diag_cause(e["data"].get("diagnosis")) == cause]
-        for e in anomalies:
-            if inwin(e["data"].get("detected_day")) and _matches(ev, e["data"].get("field")):
-                explained.add(id(e))
+        first_ev = min(evid) if evid else None
         if cause == "blight":
-            diag = [e["t"] for e in reviews if inwin(e["t"]) and _matches(ev, e["data"].get("field"))]
+            claims = [e["t"] for e in reviews if inwin(e["t"]) and _matches(ev, e["data"].get("field"))]
         else:
-            diag = [e["t"] for e in updates if inwin(e["t"]) and FINDING[cause] and e["data"]["finding"] == FINDING[cause] and _matches(ev, e["data"].get("field"))]
-        words = {"clog": ("clog", "drip", "emitter"), "pest": ("pest", "insect"), "salinity": ("saltier", "groundwater"),
-                 "sensor_bias": ("sensor", "calibrat", "probe"), "blight": ()}[cause]
-        for hid, c in concl.items():
-            if not words:
-                break
-            st = (hyps.get(hid) or {}).get("statement", "").lower()
-            if c["data"].get("verdict") == "supported" and inwin(c["t"]) and any(w in st for w in words) and (cause == "salinity" or ev["field"].lower() in st or ev["field"] in st):
-                diag.append(c["t"])
-        first_diag = min(diag) if diag else None
+            claims = [e["t"] for e in updates if inwin(e["t"]) and FINDING[cause] and e["data"]["finding"] == FINDING[cause] and _matches(ev, e["data"].get("field"))]
+            words = {"clog": ("clog", "drip", "emitter"), "pest": ("pest", "insect"), "salinity": ("saltier", "groundwater"),
+                     "sensor_bias": ("sensor", "calibrat", "probe")}[cause]
+            for hid, c in concl.items():
+                st = (hyps.get(hid) or {}).get("statement", "").lower()
+                if c["data"].get("verdict") == "supported" and inwin(c["t"]) and any(w in st for w in words) and (cause == "salinity" or ev["field"].lower() in st or ev["field"] in st):
+                    claims.append(c["t"])
+            if cause == "sensor_bias":            # recalibrating after a sensor check that showed the offset is the diagnosis
+                claims += [e["t"] for e in adjusts if inwin(e["t"]) and _matches(ev, e["data"].get("field")) and e["data"].get("recalibrate_sensor")]
+        supported = [t for t in claims if first_ev is not None and t >= first_ev]
+        first_claim = min(claims) if claims else None
+        first_diag = min(supported) if supported else None
         act = []
         for e in adjusts:
             if not inwin(e["t"]) or not _matches(ev, e["data"].get("field")):
@@ -98,31 +126,49 @@ def score(entries: list[dict], events: list[dict], scenario: str) -> dict:
                (cause == "salinity" and (e["data"].get("desal") or 0) > 0) or (cause == "sensor_bias" and e["data"].get("recalibrate_sensor")):
                 act.append(e["t"])
         if cause == "salinity":
-            act += [e["t"] for e in rebalances if inwin(e["t"]) and first_diag is not None and e["t"] >= first_diag]
+            act += [e["t"] for e in rebalances if inwin(e["t"])]
         if cause == "blight":                      # nothing to repair: the review request is the response
-            act = list(diag)
-        first_act = min(act) if act else None
-        justified = first_act is not None and first_diag is not None and first_act >= first_diag
-        if cause == "sensor_bias" and first_act is not None and first_diag is None:
-            first_diag, justified = first_act, any(e["t"] <= first_act and _matches(ev, e["data"].get("field")) and _abnormal(e["data"]) == cause for e in tests)
+            act = list(supported)
+        after = [t for t in act if first_diag is not None and t >= first_diag]
+        first_act = min(after) if after else (min(act) if act else None)
+        justified = bool(after)
         realarm = None
         if first_act is not None:
-            realarm = any(first_act < (e["data"].get("detected_day") or 0) <= first_act + 30 and _matches(ev, e["data"].get("field"))
-                          for e in anomalies)
-        out_events.append({"kind": cause, "field": ev["field"], "onset": d0,
-                           "first_evidence_day": min(evid) if evid else None,
-                           "correct_diagnosis_day": first_diag,
-                           "intervention_day": first_act, "justified_intervention": justified,
-                           "no_realarm_30d": (not realarm) if first_act is not None else None,
-                           "days_to_diagnosis": (first_diag - d0) if first_diag is not None else None})
+            f = ev["field"]
+            last_obs = min(harvest_day.get(f, D), end_day or D) if f not in (None, "all") else (end_day or D)
+            if last_obs - first_act < FOLLOW_UP:
+                realarm = None                     # censored: not enough follow-up to say
+            else:
+                realarm = any(first_act < (e["data"].get("detected_day") or 0) <= first_act + FOLLOW_UP and _matches(ev, e["data"].get("field"))
+                              and _signal_ok(ev, e["data"]) for e in anomalies)
+        no_realarm = None if (first_act is None or realarm is None) else (not realarm)
+        row = {"kind": cause, "field": ev["field"], "onset": d0, "severity": ev.get("severity"),
+               "first_evidence_day": first_ev,
+               "correct_claim_day": first_claim,
+               "correct_guess": bool(first_claim is not None and first_diag is None),
+               "intervention_day": first_act, "justified_intervention": justified,
+               "no_realarm_30d": no_realarm, "follow_up_censored": bool(first_act is not None and realarm is None)}
+        if cause == "blight":
+            row["escalated_day"] = first_diag
+            row["correct_diagnosis_day"] = None
+            row["days_to_diagnosis"] = None
+        else:
+            row["correct_diagnosis_day"] = first_diag
+            row["days_to_diagnosis"] = (first_diag - d0) if first_diag is not None else None
+        out_events.append(row)
 
     # what it got wrong, over the whole run
     unrelated = [e["data"] for e in anomalies if id(e) not in explained]
-    true_pairs = {(FINDING[ev["kind"]], ev["field"]) for ev in faults if FINDING[ev["kind"]]}
-    true_pairs |= {("canopy_loss_unexplained", ev["field"]) for ev in faults if ev["kind"] in ("pest", "blight")}   # honest, if vague
-    salty = any(ev["kind"] == "salinity" for ev in faults)
-    wrong_findings = [e["data"] for e in updates if not ((e["data"]["finding"], e["data"].get("field")) in true_pairs or
-                                                         (e["data"]["finding"] == "groundwater_ec" and salty))]
+    def true_at(finding: str, field: str | None, t: float) -> bool:
+        for ev in faults:
+            ok_field = ev["field"] in (None, "all") or field in (None, "all", ev["field"]) or ev["kind"] == "salinity"
+            if not ok_field or (t or 0) < ev["day"]:
+                continue                           # a cause claimed before it happened is a wrong claim
+            if FINDING[ev["kind"]] == finding or (finding == "canopy_loss_unexplained" and ev["kind"] in ("pest", "blight")):
+                return True
+        return False
+    wrong_findings = [{**e["data"], "t": e["t"]} for e in updates if not true_at(e["data"]["finding"], e["data"].get("field"), e["t"])]
+    premature = [w for w in wrong_findings if any(FINDING[ev["kind"]] == w["finding"] and _matches(ev, w.get("field")) and w["t"] < ev["day"] for ev in faults)]
     wrong_actions = []
     for e in adjusts:
         f, d = e["data"].get("field"), e["t"] or 0
@@ -138,16 +184,22 @@ def score(entries: list[dict], events: list[dict], scenario: str) -> dict:
     calm = None
     if not faults:                                # no fault (or a forecast heat wave): the right answer is no fault action
         calm = not wrong_findings and not wrong_actions
-    return {"events": out_events, "faults": len(faults),
-            "faults_with_evidence": sum(e["first_evidence_day"] is not None for e in out_events),
-            "faults_diagnosed": sum(e["correct_diagnosis_day"] is not None for e in out_events),
-            "faults_justified_intervention": sum(e["justified_intervention"] for e in out_events),
-            "unrelated_alarms": len(unrelated), "wrong_findings": len(wrong_findings), "wrong_interventions": len(wrong_actions),
+    ident = [e for e in out_events if e["kind"] in IDENTIFIABLE]
+    blight = [e for e in out_events if e["kind"] == "blight"]
+    return {"scorer_version": SCORER_VERSION, "events": out_events, "faults": len(ident),
+            "faults_with_evidence": sum(e["first_evidence_day"] is not None for e in ident),
+            "faults_diagnosed": sum(e["correct_diagnosis_day"] is not None for e in ident),
+            "correct_guesses": sum(e["correct_guess"] for e in ident),
+            "faults_justified_intervention": sum(e["justified_intervention"] for e in ident),
+            "follow_up_censored": sum(e["follow_up_censored"] for e in ident),
+            "unrelated_alarms": len(unrelated), "wrong_findings": len(wrong_findings), "premature_claims": len(premature),
+            "wrong_interventions": len(wrong_actions),
             "unnecessary_tests": tests_total - tests_useful if faults else tests_total, "tests": tests_total,
             "appropriate_non_intervention": calm,
-            # the unidentifiable case: asked a person, and neither named a false cause nor treated one on that field
-            "unidentifiable_handled": [bool(e["correct_diagnosis_day"] is not None and
+            # the unidentifiable case: escalated to a person after evidence, and no false cause named or treated there
+            "unidentifiable_events": len(blight),
+            "unidentifiable_handled": [bool(e["escalated_day"] is not None and
                                             not any(w["field"] == e["field"] for w in wrong_actions) and
                                             not any(x.get("field") == e["field"] for x in wrong_findings))
-                                       for e in out_events if e["kind"] == "blight"] or None,
+                                       for e in blight] or None,
             "reviews_requested": len(reviews)}

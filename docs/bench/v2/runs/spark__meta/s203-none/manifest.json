@@ -29,17 +29,24 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [],
   "faults": 0,
   "faults_with_evidence": 0,
   "faults_diagnosed": 0,
+  "correct_guesses": 0,
   "faults_justified_intervention": 0,
+  "follow_up_censored": 0,
   "unrelated_alarms": 0,
   "wrong_findings": 0,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 0,
   "tests": 0,
-  "appropriate_non_intervention": true
+  "appropriate_non_intervention": true,
+  "unidentifiable_events": 0,
+  "unidentifiable_handled": null,
+  "reviews_requested": 0
  },
  "trait_error_common": 0.779,
  "trait_error_planted": 0.354,
@@ -68,5 +75,18 @@
    "entries": 107,
    "head": "c0f7e58ba9fb0fd15a69426aff0985180b65979aa36a7aaf70e5b947865908d9"
   }
+ },
+ "score_v2_0": {
+  "events": [],
+  "faults": 0,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "faults_justified_intervention": 0,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 0,
+  "appropriate_non_intervention": true
  }
 }

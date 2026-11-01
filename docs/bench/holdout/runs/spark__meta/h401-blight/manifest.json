@@ -22,7 +22,8 @@
   {
    "kind": "blight",
    "field": "F3",
-   "day": 110
+   "day": 110,
+   "severity": 0.014
   }
  ],
  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -42,29 +43,39 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [
    {
     "kind": "blight",
     "field": "F3",
     "onset": 110,
+    "severity": 0.014,
     "first_evidence_day": 139,
-    "correct_diagnosis_day": 140,
+    "correct_claim_day": 140,
+    "correct_guess": false,
     "intervention_day": 140,
     "justified_intervention": true,
-    "no_realarm_30d": true,
-    "days_to_diagnosis": 30
+    "no_realarm_30d": null,
+    "follow_up_censored": true,
+    "escalated_day": 140,
+    "correct_diagnosis_day": null,
+    "days_to_diagnosis": null
    }
   ],
-  "faults": 1,
-  "faults_with_evidence": 1,
-  "faults_diagnosed": 1,
-  "faults_justified_intervention": 1,
+  "faults": 0,
+  "faults_with_evidence": 0,
+  "faults_diagnosed": 0,
+  "correct_guesses": 0,
+  "faults_justified_intervention": 0,
+  "follow_up_censored": 0,
   "unrelated_alarms": 0,
   "wrong_findings": 0,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 0,
   "tests": 4,
   "appropriate_non_intervention": null,
+  "unidentifiable_events": 1,
   "unidentifiable_handled": [
    true
   ],
@@ -98,5 +109,34 @@
    "entries": 182,
    "head": "4504641d68998b489927d9619006c0f98c5cb2551d1463be454aee8f72f3d00f"
   }
+ },
+ "score_v2_0": {
+  "events": [
+   {
+    "kind": "blight",
+    "field": "F3",
+    "onset": 110,
+    "first_evidence_day": 139,
+    "correct_diagnosis_day": 140,
+    "intervention_day": 140,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 30
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 4,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": [
+   true
+  ],
+  "reviews_requested": 1
  }
 }

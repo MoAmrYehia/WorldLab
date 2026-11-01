@@ -21,7 +21,8 @@
   {
    "kind": "salinity",
    "field": "all",
-   "day": 78
+   "day": 78,
+   "severity": 8.5
   }
  ],
  "source_commit": "9ab1c57c34be502fe416be3557e33d93f0ac9681",
@@ -41,29 +42,38 @@
   "limiting": "kcal"
  },
  "score": {
+  "scorer_version": "2.1",
   "events": [
    {
     "kind": "salinity",
     "field": "all",
     "onset": 78,
+    "severity": 8.5,
     "first_evidence_day": 99,
-    "correct_diagnosis_day": 100,
+    "correct_claim_day": 100,
+    "correct_guess": false,
     "intervention_day": 100,
     "justified_intervention": true,
     "no_realarm_30d": false,
+    "follow_up_censored": false,
+    "correct_diagnosis_day": 100,
     "days_to_diagnosis": 22
    }
   ],
   "faults": 1,
   "faults_with_evidence": 1,
   "faults_diagnosed": 1,
+  "correct_guesses": 0,
   "faults_justified_intervention": 1,
+  "follow_up_censored": 0,
   "unrelated_alarms": 7,
   "wrong_findings": 1,
+  "premature_claims": 0,
   "wrong_interventions": 0,
   "unnecessary_tests": 12,
   "tests": 22,
   "appropriate_non_intervention": null,
+  "unidentifiable_events": 0,
   "unidentifiable_handled": null,
   "reviews_requested": 1
  },
@@ -92,5 +102,32 @@
    "entries": 373,
    "head": "5cf7c3342eb8513e4f9d039eb681d61f494d738a22a2be976cbfb3b41ec8a91e"
   }
+ },
+ "score_v2_0": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 78,
+    "first_evidence_day": 99,
+    "correct_diagnosis_day": 100,
+    "intervention_day": 100,
+    "justified_intervention": true,
+    "no_realarm_30d": false,
+    "days_to_diagnosis": 22
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 7,
+  "wrong_findings": 1,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 12,
+  "tests": 22,
+  "appropriate_non_intervention": null,
+  "unidentifiable_handled": null,
+  "reviews_requested": 1
  }
 }

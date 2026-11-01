@@ -1,6 +1,9 @@
 {
  "conditions": {
   "scripted-rl/meta": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 8,
    "completed": 8,
    "status_counts": {
@@ -10,12 +13,18 @@
    "water_m3_mean": 57132.0,
    "energy_kwh_mean": 86132.6,
    "within_limits": "8/8",
-   "fault_events": 7,
-   "events_with_evidence": 5,
-   "diagnosis_recall": "5/7",
-   "diagnosis_precision": "5/6",
-   "justified_interventions": "5/7",
-   "days_to_diagnosis_median": 15.0,
+   "fault_events": 6,
+   "events_with_evidence": 4,
+   "diagnosis_recall": "4/6",
+   "diagnosis_precision": "4/5",
+   "justified_interventions": "4/6",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "3/4 observed",
+   "unidentifiable_escalated_without_false_cause": "1/1",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
+   "days_to_diagnosis_median": 13.5,
    "unrelated_alarms": 7,
    "wrong_findings_or_interventions": 1,
    "unnecessary_tests": 13,
@@ -27,6 +36,9 @@
    "perception_attempts_mean": 54.0
   },
   "spark/meta": {
+   "scorer_version": [
+    "2.1"
+   ],
    "attempted": 8,
    "completed": 8,
    "status_counts": {
@@ -36,12 +48,18 @@
    "water_m3_mean": 58756.4,
    "energy_kwh_mean": 85421.8,
    "within_limits": "8/8",
-   "fault_events": 7,
-   "events_with_evidence": 5,
-   "diagnosis_recall": "5/7",
-   "diagnosis_precision": "5/8",
-   "justified_interventions": "5/7",
-   "days_to_diagnosis_median": 15.0,
+   "fault_events": 6,
+   "events_with_evidence": 4,
+   "diagnosis_recall": "4/6",
+   "diagnosis_precision": "4/7",
+   "justified_interventions": "4/6",
+   "correct_guesses_without_evidence": 0,
+   "premature_claims": 0,
+   "follow_up_censored": 0,
+   "no_realarm_30d": "4/4 observed",
+   "unidentifiable_escalated_without_false_cause": "1/1",
+   "note": "outcome metrics are over completed runs; attempted includes every run",
+   "days_to_diagnosis_median": 13.5,
    "unrelated_alarms": 2,
    "wrong_findings_or_interventions": 3,
    "unnecessary_tests": 9,
@@ -54,6 +72,8 @@
    "vs_reference": {
     "matched_pairs": 8,
     "farm_seeds": 8,
+    "pairs_with_identical_realized_events": 7,
+    "pairs_where_the_event_landed_differently": 1,
     "mean_difference": -8.7,
     "ci95_seed_bootstrap": [
      -31.8,

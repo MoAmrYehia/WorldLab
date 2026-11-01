@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from .agent import LLMScientist, ScriptedScientist, SYSTEM_PROMPT, TOOLS
-from .benchscore import score
+from .benchscore import score, IDENTIFIABLE, SCORER_VERSION
 from .farm.crops import CROP_IDS, TRAIT_IDS, TRAITS
 from .farm.world import Farm, FIELDS
 from .lab import Lab
@@ -89,7 +89,7 @@ def run_case(case: dict) -> dict:
         lab.end_run("failed", f"internal error: {err[:160]}")
     wall = time.time() - t0
     entries = lab.ledger.entries
-    applied = [{"kind": e["kind"], "field": e.get("field"), "day": e.get("day")} for e in farm.events]
+    applied = [{"kind": e["kind"], "field": e.get("field"), "day": e.get("day"), "severity": e.get("severity")} for e in farm.events]
     sc = score(entries, applied, case.get("label", ""))
     res = lab.result or {}
     # trait error on a fixed common set (all ten crops, four traits), and on the crops it planted
@@ -188,12 +188,15 @@ def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) 
     mean = lambda v: round(float(np.mean(v)), 1) if v else None
     for c, ms in by.items():
         done = [m for m in ms if m.get("status") == "completed"]
-        ev = [e for m in done for e in m["score"]["events"]]
-        clean = [m for m in done if m["score"]["faults"] == 0]
+        allev = [e for m in done for e in m["score"]["events"]]
+        ev = [e for e in allev if e["kind"] in IDENTIFIABLE]               # diagnosable faults
+        unid = [e for e in allev if e["kind"] == "blight"]
+        clean = [m for m in done if m["score"]["faults"] == 0 and not m["score"].get("unidentifiable_events")]
         d2d = [e["days_to_diagnosis"] for e in ev if e["days_to_diagnosis"] is not None]
         wrong = sum(m["score"]["wrong_findings"] + m["score"]["wrong_interventions"] for m in done)
         made = sum(m["score"]["faults_diagnosed"] for m in done) + sum(m["score"]["wrong_findings"] for m in done)
         out["conditions"][c] = {
+            "scorer_version": sorted({m["score"].get("scorer_version", "2.0") for m in done}),
             "attempted": len(ms), "completed": len(done), "status_counts": {s: sum(1 for m in ms if m.get("status") == s) for s in sorted({m.get("status") for m in ms})},
             "people_fed_mean_completed": mean([m["result"]["people_fed"] for m in done]),
             "water_m3_mean": mean([m["result"]["water_m3"] for m in done]), "energy_kwh_mean": mean([m["result"]["energy_kwh"] for m in done]),
@@ -202,6 +205,12 @@ def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) 
             "diagnosis_recall": f"{sum(e['correct_diagnosis_day'] is not None for e in ev)}/{len(ev)}",
             "diagnosis_precision": f"{sum(m['score']['faults_diagnosed'] for m in done)}/{made}" if made else "–",
             "justified_interventions": f"{sum(e['justified_intervention'] for e in ev)}/{len(ev)}",
+            "correct_guesses_without_evidence": sum(1 for e in ev if e.get("correct_guess")),
+            "premature_claims": sum(m["score"].get("premature_claims", 0) for m in done),
+            "follow_up_censored": sum(1 for e in ev if e.get("follow_up_censored")),
+            "no_realarm_30d": f"{sum(1 for e in ev if e.get('no_realarm_30d') is True)}/{sum(1 for e in ev if e.get('no_realarm_30d') is not None)} observed",
+            "unidentifiable_escalated_without_false_cause": f"{sum(sum(m['score'].get('unidentifiable_handled') or []) for m in done)}/{len(unid)}" if unid else "–",
+            "note": "outcome metrics are over completed runs; attempted includes every run",
             "days_to_diagnosis_median": float(np.median(d2d)) if d2d else None,
             "unrelated_alarms": sum(m["score"]["unrelated_alarms"] for m in done),
             "wrong_findings_or_interventions": wrong,
@@ -223,6 +232,9 @@ def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) 
                 continue
             pairs = [(m["seed"], m["result"]["people_fed"] - ref[(m["seed"], m["case"])]["result"]["people_fed"])
                      for m in ms if m.get("status") == "completed" and (m["seed"], m["case"]) in ref]
+            fld = lambda m: sorted((e["kind"], str(e.get("field")), e.get("day")) for e in (m.get("applied_events") or []))
+            same_ev = sum(1 for m in ms if m.get("status") == "completed" and (m["seed"], m["case"]) in ref
+                          and fld(m) == fld(ref[(m["seed"], m["case"])]))
             if not pairs:
                 continue
             seeds = sorted({s for s, _ in pairs})
@@ -232,7 +244,9 @@ def summarize(rows: list[dict], reference: str | None = None, boot: int = 2000) 
                 pick = rng.choice(seeds, len(seeds))
                 bs.append(np.mean([d for s in pick for s2, d in pairs if s2 == s]))
             out["conditions"][c]["vs_reference"] = {
-                "matched_pairs": len(pairs), "farm_seeds": len(seeds), "mean_difference": round(float(diffs.mean()), 1),
+                "matched_pairs": len(pairs), "farm_seeds": len(seeds),
+                "pairs_with_identical_realized_events": same_ev,
+                "pairs_where_the_event_landed_differently": len(pairs) - same_ev, "mean_difference": round(float(diffs.mean()), 1),
                 "ci95_seed_bootstrap": [round(float(np.percentile(bs, 2.5)), 1), round(float(np.percentile(bs, 97.5)), 1)],
                 "ahead_in": f"{int((diffs > 0).sum())}/{len(pairs)}",
                 "by_seed": {str(s): round(float(np.mean([d for s2, d in pairs if s2 == s])), 1) for s in seeds}}
@@ -245,20 +259,25 @@ def write_summary(src: str, dst: str, reference: str | None):
     d = Path(dst)
     d.mkdir(parents=True, exist_ok=True)
     (d / "summary.json").write_text(json.dumps(S, indent=1))
-    lines = ["| condition | attempted | completed | people fed, mean | within limits | diagnosis recall | precision | justified interventions | median days to diagnosis | unrelated alarms | wrong findings/actions | calm when nothing wrong | trait error (all crops) | cost/season (list price) |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines = [f"Scorer {', '.join(sorted({x for v in S['conditions'].values() for x in v['scorer_version']}))}. Outcomes are over completed runs; 'attempted' counts every run.", "",
+             "| condition | attempted | completed | people fed, mean | within limits | diagnosed (with evidence) | precision | justified interventions | correct guesses without evidence | median days to diagnosis | no re-alarm in 30 days | unrelated alarms | wrong findings/actions (premature) | unidentifiable cause escalated | calm when nothing wrong | trait error (all crops) | cost/season (list price) |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c, v in S["conditions"].items():
         lines.append(f"| {c} | {v['attempted']} | {v['completed']} | {v['people_fed_mean_completed']} | {v['within_limits']} | {v['diagnosis_recall']} | "
-                     f"{v['diagnosis_precision']} | {v['justified_interventions']} | {v['days_to_diagnosis_median']} | {v['unrelated_alarms']} | "
-                     f"{v['wrong_findings_or_interventions']} | {v['calm_when_nothing_was_wrong']} | {v['trait_error_common_mean']} | "
+                     f"{v['diagnosis_precision']} | {v['justified_interventions']} | {v['correct_guesses_without_evidence']} | {v['days_to_diagnosis_median']} | "
+                     f"{v['no_realarm_30d']} | {v['unrelated_alarms']} | {v['wrong_findings_or_interventions']} ({v['premature_claims']}) | "
+                     f"{v['unidentifiable_escalated_without_false_cause']} | {v['calm_when_nothing_was_wrong']} | {v['trait_error_common_mean']} | "
                      f"{'$' + format(v['cost_usd_list_price_mean'], '.2f') if v['cost_usd_list_price_mean'] is not None else '–'} |")
     if reference:
         lines += ["", f"Matched differences in people fed against `{reference}` (same farm seed and hidden events; 95% interval from resampling farm seeds):", "",
-                  "| condition | pairs | farm seeds | mean difference | 95% interval | ahead in |", "|---|---|---|---|---|---|"]
+                  "| condition | pairs | farm seeds | same realized events | event landed elsewhere | mean difference | 95% interval | ahead in |", "|---|---|---|---|---|---|---|---|"]
         for c, v in S["conditions"].items():
             r = v.get("vs_reference")
             if r:
-                lines.append(f"| {c} | {r['matched_pairs']} | {r['farm_seeds']} | {r['mean_difference']:+} | {r['ci95_seed_bootstrap']} | {r['ahead_in']} |")
+                lines.append(f"| {c} | {r['matched_pairs']} | {r['farm_seeds']} | {r['pairs_with_identical_realized_events']} | {r['pairs_where_the_event_landed_differently']} | "
+                             f"{r['mean_difference']:+} | {r['ci95_seed_bootstrap']} | {r['ahead_in']} |")
+        lines += ["", "A hidden event's field is chosen from the fields growing a crop on that day, so it can depend on the scientist's plan: "
+                  "'event landed elsewhere' pairs are matched by farm, scenario and onset, not by the exact field."]
     (d / "summary.md").write_text("\n".join(lines) + "\n")
     # every run, case by case: wins, losses and unknowns all listed
     cl = ["| case | scientist | status | people fed | hidden events → outcome | wrong findings/actions | unrelated alarms | reviews asked |",
