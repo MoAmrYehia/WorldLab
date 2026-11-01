@@ -40,23 +40,26 @@ def events(specs):
     return out
 
 
-def main(dst: str):
-    rng = random.Random(GEN_SEED)
+def main(dst: str, gen_seed: int = GEN_SEED, seed0: int = 401, scientists=("spark/meta", "scripted-rl/meta"),
+         criteria: str | None = None):
+    rng = random.Random(gen_seed)
     fams = ["none", "heatwave", "clog", "pest", "salinity", "compound", "sensor_bias", "blight"]
     order = list(range(len(fams)))
     rng.shuffle(order)                                 # which farm gets which family is random too
     cases = []
     for k, fi in enumerate(order):
         fam, specs = SC.draw_challenge(rng, fams[fi])
-        cases.append({"id": f"h{401 + k}-{fam}", "seed": 401 + k, "label": fam, "specs": specs, "events": events(specs)})
+        cases.append({"id": f"h{seed0 + k}-{fam}", "seed": seed0 + k, "label": fam, "specs": specs, "events": events(specs)})
     cases.sort(key=lambda c: c["seed"])
     body = json.dumps(cases, sort_keys=True).encode()
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
-    doc = {"schema": "worldlab.holdout/1", "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "generator_seed": GEN_SEED,
+    doc = {"schema": "worldlab.holdout/1", "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "generator_seed": gen_seed,
            "generated_from_commit": commit, "prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
            "tool_schema_sha256": hashlib.sha256(json.dumps(TOOLS, sort_keys=True).encode()).hexdigest(),
            "rules": __doc__.split("Selection rules (written before the runs):", 1)[1].strip(),
-           "scientists": ["spark/meta", "scripted-rl/meta"], "cases_sha256": hashlib.sha256(body).hexdigest(), "cases": cases}
+           "scientists": list(scientists), "cases_sha256": hashlib.sha256(body).hexdigest(), "cases": cases}
+    if criteria:
+        doc["criteria"] = criteria
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     Path(dst).write_text(json.dumps(doc, indent=1))
     for c in cases:
@@ -65,4 +68,12 @@ def main(dst: str):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "docs/bench/holdout/holdout_v1.json")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("dst", nargs="?", default="docs/bench/holdout/holdout_v1.json")
+    ap.add_argument("--gen-seed", type=int, default=GEN_SEED)
+    ap.add_argument("--seed0", type=int, default=401)
+    ap.add_argument("--scientists", default="spark/meta,scripted-rl/meta")
+    ap.add_argument("--criteria-file", default=None, help="pre-registered evaluation criteria (text), stored in the frozen file")
+    a = ap.parse_args()
+    main(a.dst, a.gen_seed, a.seed0, a.scientists.split(","), Path(a.criteria_file).read_text() if a.criteria_file else None)

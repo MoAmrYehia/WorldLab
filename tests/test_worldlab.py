@@ -103,10 +103,16 @@ class FarmLabTests(unittest.TestCase):
         ok, _ = verify(d / "ledger.jsonl")
         self.assertTrue(ok)
 
-    def test_adapting_beats_ignoring_a_fault(self):
-        lab1, _, _ = self.run_scripted("clog")
-        lab2, _, _ = self.run_scripted("clog", adapt=False)
-        self.assertGreater(lab1.result["people_fed"], lab2.result["people_fed"])
+    def test_adapting_repairs_a_fault_that_ignoring_leaves(self):
+        # Adapting finds and repairs the clog; ignoring leaves it, and must still state the repeated alarms as a loss.
+        # (Which feeds more is not guaranteed: on this farm, after the nutrient-risk change put sweet potato on the
+        # clogged field late in the season, ignoring fed 450.5 against 437.8, because the water re-plan after the
+        # repair cost the other fields more than the clog cost F4. The benchmarks report such cases.)
+        lab1, f1, _ = self.run_scripted("clog")
+        lab2, f2, _ = self.run_scripted("clog", adapt=False)
+        self.assertTrue(f1.repairs and f1.repairs[0]["was_faulty"])
+        self.assertFalse(f2.repairs)
+        self.assertIn("escalation", [e["kind"] for e in lab2.ledger.entries])
 
     def test_ledger_detects_tampering(self):
         farm = Farm(seed=3)
