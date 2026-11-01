@@ -60,7 +60,7 @@ const check = (ok, msg) => { if (!ok) fail.push(msg); console.log(`${ok ? "ok  "
       await p.click("#reportBtn"); await p.waitForTimeout(300);
       check(await p.evaluate(() => /Soil salinity, start and end/.test(document.getElementById("drawerBody").textContent)), "report shows start and end soil salinity");
       await p.click('#drawerTabs [data-t="compare"]'); await p.waitForTimeout(800);
-      check(await p.evaluate(() => document.querySelectorAll("#drawerBody .inc-card table").length === 4 && /Scripted scientist/.test(document.getElementById("drawerBody").textContent)), "compare shows four paired experiments, including the scripted scientist");
+      check(await p.evaluate(() => document.querySelectorAll('#drawerBody .inc-card .pill[class*="kind-"]').length >= 4 && /Single factor/.test(document.getElementById("drawerBody").textContent) && /Input that differs/.test(document.getElementById("drawerBody").textContent)), "compare labels each pair and lists what differs");
       await p.click('#drawerTabs [data-t="economics"]'); await p.waitForTimeout(300);
       check(await p.evaluate(() => /no price/.test(document.getElementById("drawerBody").textContent)), "costs start unpriced (no invented prices)");
       await p.fill('#drawerBody [data-k="kwh"]', "0.1"); await p.dispatchEvent('#drawerBody [data-k="kwh"]', "change"); await p.waitForTimeout(300);

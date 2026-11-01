@@ -103,6 +103,8 @@ function apply(m, live = true) {
     case "rl_train": if (d.reset) S.rl_train = []; else S.rl_train.push(d); break;
     case "rl": S.rl = d; break;
     case "forecast": S.forecasts.push(d); if (S.forecasts.length > 60) S.forecasts.shift(); break;
+    case "run_end": return d.status && d.status !== "completed" ? ["alarm", `Run stopped (${esc(d.status)}): ${esc(d.reason || "")}`, why("No harvest was recorded; the farm was not advanced past this point.")] : null;
+    case "handover": return ["decide", `Handed over to the ${esc(d.to)}`, why(`After: ${esc(d.reason || "")}. The result is labelled as mixed.`)];
     case "decision_request": S.decision = d; if (live) showDecision(); break;
     case "decision_answer": S.decision = null; if (live) showDecision(); break;
     case "mission": S.mission = d; if (live) badgeToasts(d); break;
@@ -163,8 +165,14 @@ function renderTransport() {
   let state;
   if (mode === "replay") state = `Recorded · ${R.playing ? "playing" : R.pos >= R.total - 0.01 ? "finished" : R.pos > 0 ? "paused" : "ready to play"}`;
   else state = `Live · ${streamState === "connected" ? (info.running ? "running" : res ? "season finished" : "idle") : streamState || "connecting"}`;
+  const rs = S.status && S.status.run_status, stopped = ["failed", "timeout", "cancelled"].includes(rs);
+  if (stopped) state = `${mode === "replay" ? "Recorded" : "Live"} · stopped (${rs})`;
+  else if (rs === "degraded") state += " · mixed: handed over";
   if ($("runState").textContent !== state) $("runState").textContent = state;
-  $("runState").className = `run-state ${mode} ${R.playing || info.running ? "on" : ""}`;
+  $("runState").className = `run-state ${mode} ${R.playing || info.running ? "on" : ""} ${stopped ? "stopped" : ""}`;
+  $("runState").title = stopped ? `The run stopped: ${S.status.run_end_reason || rs}. No harvest was recorded.` : "";
+  const hb = $("handoverBtn");
+  if (hb) hb.hidden = !(mode === "live" && ["failed", "timeout"].includes(rs) && S.status.phase === "season" && !info.running);
   $("provChip").textContent = `${deciderName()} · ${perceptionName()} · ${controllerName()}`;
   const d = curDay();
   const date = d == null ? (S.trials.length || S.plan ? "Before sowing: trials and planning" : "Before sowing") : `${dayLabel(d)} · day ${d + 1} of ${D}`;
@@ -438,15 +446,19 @@ function renderInspector() {
     document.querySelector('[data-dv="sam"]').hidden = !(sc.objects && sc.objects.length);
     droneView(sc);
     const ev = sc.diagnosis && sc.diagnosis.evidence ? ` “${esc(sc.diagnosis.evidence)}”` : "";
-    const isSam = String(sc.source || "").startsWith("SAM");
+    const isSam = /SAM/.test(String(sc.source || ""));
     const cereal = ["wheat", "rice", "millet"].includes(sc.crop);
-    const counts = !isSam ? "" : cereal || sc.plants_counted == null
-      ? ` SAM 3.1 found ${sc.salt_crust_patches} salt-crust patches (a drilled cereal isn't counted plant by plant).`
-      : ` SAM 3.1 counted ${sc.plants_counted} plants and ${sc.salt_crust_patches} salt-crust patches.`;
-    const diag = (sc.diagnosis && sc.diagnosis.condition ? ` Analysis: ${String(sc.diagnosis.condition).replace(/_/g, " ")}.` : "") + counts + ev;
+    const plantsTxt = sc.plant_count_status === "partial" ? `at least ${sc.plants_counted} plants (some image tiles got no answer)`
+      : sc.plants_counted != null ? `${sc.plants_counted} plants` : null;
+    const saltTxt = sc.salt_crust_patches != null ? `${sc.salt_crust_patches} salt-crust patches` : null;
+    const counts = !isSam ? "" : [plantsTxt && !cereal ? `SAM 3.1 counted ${plantsTxt}` : null, saltTxt ? `SAM 3.1 found ${saltTxt}` : null].filter(Boolean).join("; ") + "." +
+      (cereal ? " A drilled cereal isn't counted plant by plant." : "");
+    const warn = sc.perception_status && sc.perception_status !== "complete"
+      ? ` <b class="miss">Image analysis ${sc.perception_status === "partial" ? "incomplete" : "unavailable"}:</b> ${esc([sc.plant_count_status, sc.salt_status, sc.diagnosis_status].some((x) => x === "malformed") ? "an answer could not be read" : "a model did not answer")}; missing values are unknown, not zero.` : "";
+    const diag = (sc.diagnosis && sc.diagnosis.condition ? ` Analysis: ${String(sc.diagnosis.condition).replace(/_/g, " ")}.` : "") + (counts ? " " + counts : "") + ev + warn;
     const age = ld ? ld.day - sc.day : 0;
     const old = age > 8 || (w && w.done);
-    $("droneCap").innerHTML = `${old ? "<b>Historical evidence.</b> " : ""}Drone image captured ${dayLabel(sc.day)}${age > 0 ? `, ${age} days before the date shown` : ""}; analysed by ${esc(sc.source || "perception")}.${diag}${old ? " It may not reflect the field now." : ""}`;
+    $("droneCap").innerHTML = `${old ? "<b>Historical evidence.</b> " : ""}Synthetic drone image (a render of the simulator's state, not a camera photo) captured ${dayLabel(sc.day)}${age > 0 ? `, ${age} days before the date shown` : ""}; analysed by ${esc(sc.source || "perception")}.${diag}${old ? " It may not reflect the field now." : ""}`;
   }
   $("perturb").hidden = !(mode === "live" && S.status.phase === "season");
 }
@@ -469,7 +481,11 @@ function droneBig(on) {
 function markersFor(i) {
   const id = FIELD_IDS[i], m = [];
   S.perturbations.forEach((p) => { if (p.field === id || p.field === "all") m.push({ day: p.day, cls: "change" }); });
-  S.events.forEach((e) => { if (e.kind === "anomaly" && e.data.field === id) m.push({ day: e.data.detected_day, cls: "alarm" }); if (e.kind === "adjust" && e.data.field === id) m.push({ day: e.t, cls: "fix" }); });
+  S.events.forEach((e) => {
+    if (e.kind === "anomaly" && e.data.field === id) m.push({ day: e.data.detected_day, cls: "alarm" });
+    if (e.kind === "adjust" && e.data.field === id) m.push({ day: e.t, cls: "fix" });
+    if (e.kind === "model_update" && e.data.finding && (!e.data.field || e.data.field === id)) m.push({ day: e.t, cls: "model" });
+  });
   return m;
 }
 function bandChart(svg, fi, key, opts) {
@@ -491,7 +507,7 @@ function bandChart(svg, fi, key, opts) {
   let line = ""; rows.forEach((r, k) => { if (pr[k] != null) line += `${line ? "L" : "M"}${X(r.day).toFixed(1)},${Y(pr[k]).toFixed(1)}`; });
   svgEl("path", { d: line, fill: "none", stroke: css("--model"), "stroke-width": 1.6, "vector-effect": "non-scaling-stroke" }, svg);
   if (opts.thr && opts.thr > y0 && opts.thr < y1) svgEl("line", { x1: 0, x2: W, y1: Y(opts.thr), y2: Y(opts.thr), stroke: css("--alarm"), "stroke-width": 1, "stroke-dasharray": "2 3", opacity: 0.8, "vector-effect": "non-scaling-stroke" }, svg);
-  (opts.marks || []).forEach((m) => { if (m.day >= d0 && m.day <= d1) svgEl("line", { x1: X(m.day), x2: X(m.day), y1: 0, y2: H, stroke: m.cls === "alarm" ? css("--alarm") : m.cls === "fix" ? css("--emerald") : css("--ink-2"), "stroke-width": 1.4, "stroke-dasharray": m.cls === "alarm" ? "" : "3 3", "vector-effect": "non-scaling-stroke" }, svg); });
+  (opts.marks || []).forEach((m) => { if (m.day >= d0 && m.day <= d1) svgEl("line", { x1: X(m.day), x2: X(m.day), y1: 0, y2: H, stroke: m.cls === "alarm" ? css("--alarm") : m.cls === "fix" ? css("--emerald") : m.cls === "model" ? css("--cyan") : css("--ink-2"), "stroke-width": 1.4, "stroke-dasharray": m.cls === "alarm" ? "" : m.cls === "model" ? "1 3" : "3 3", "vector-effect": "non-scaling-stroke" }, svg); });
   let dots = ""; rows.forEach((r, k) => { if (ob[k] != null) dots += `M${X(r.day).toFixed(1)},${Y(ob[k]).toFixed(1)}h0`; });
   svgEl("path", { d: dots, stroke: css("--measured"), "stroke-width": opts.sparse ? 4.5 : 3, "stroke-linecap": "round", fill: "none", "vector-effect": "non-scaling-stroke" }, svg);
   svgEl("text", { x: W - 2, y: 10, "text-anchor": "end", "font-size": 10, fill: css("--ink-3") }, svg).textContent = opts.fmt(y1);
@@ -554,22 +570,42 @@ function incidentList() {
 }
 function incidentFacts(inc) {
   const { a, seg } = inc, d = a.data, fi = d.field_index;
-  const tests = seg.filter((e) => e.kind === "field_test" || e.kind === "look");
+  const tests = seg.filter((e) => (e.kind === "field_test" || e.kind === "look") && (!e.data.field || e.data.field === d.field) && e.t <= d.detected_day + 30);
   const hyps = seg.filter((e) => e.kind === "hypothesis").map((e) => e.data);
   const concl = {}; seg.filter((e) => e.kind === "conclusion").forEach((e) => (concl[e.data.hypothesis_id] = e.data));
   const fixes = seg.filter((e) => e.kind === "adjust" || (e.kind === "model_update" && e.data.finding) || e.kind === "rebalance" || e.kind === "anomaly_dismissed" || e.kind === "controller");
   const identified = Object.values(concl).some((c) => c.verdict === "supported") || seg.some((e) => e.kind === "model_update" && e.data.finding);
   const actDay = fixes.length ? fixes[0].t : null;
-  // recovery: does the measured signal return inside the model's band after the action?
+  // three different things, never conflated:
+  // 1. model reconciled: after a model update, measurements sit inside the (updated) model's band again
+  // 2. repair accepted: a physical action was taken and the farm confirmed it (e.g. clogged emitters found and repaired)
+  // 3. physical recovery observed: fresh measurements after the action moved back toward the original expectation
+  //    by at least 70% of the gap at detection, for 3 consecutive readings (measurements only, no model)
+  const update = seg.find((e) => e.kind === "model_update" && e.data.finding);
+  const repair = seg.find((e) => e.kind === "adjust" && ((e.data.repair && e.data.repair.repaired) || e.data.pest_control));
+  const sig = d.signal, val = (x) => { const f = x.fields[fi]; return f && f[sig + "_obs"] != null ? f[sig + "_obs"] : null; };
+  let reconciled = null;
+  if (update) {
+    const inBand = S.days.find((x) => x.day > update.t && x.day <= update.t + 45 && (() => { const f = x.fields[fi]; return f && f[sig + "_obs"] != null && f[sig + "_obs"] >= f[sig + "_lo"] && f[sig + "_obs"] <= f[sig + "_hi"]; })());
+    reconciled = inBand ? { day: inBand.day } : null;
+  }
   let recovery = null;
-  if (actDay != null) {
-    const sig = d.signal, after = S.days.filter((x) => x.day >= actDay && x.day <= actDay + 45);
-    const back = after.find((x) => { const f = x.fields[fi]; return f && f[sig + "_obs"] != null && f[sig + "_obs"] >= f[sig + "_lo"] && f[sig + "_obs"] <= f[sig + "_hi"]; });
+  if (repair) {
+    const det = S.days.find((x) => x.day === d.detected_day), f0 = det && det.fields[fi];
+    const gap = f0 && f0[sig + "_pred"] != null && f0[sig + "_obs"] != null ? f0[sig + "_pred"] - f0[sig + "_obs"] : null;   // signed: + means measured below expectation
+    const after = S.days.filter((x) => x.day > repair.t + 2 && x.day <= repair.t + 60 && val(x) != null);
+    let run = 0, hit = null;
+    if (gap) for (const x of after) {
+      const moved = (val(x) - f0[sig + "_obs"]) * Math.sign(gap);
+      run = moved >= 0.7 * Math.abs(gap) ? run + 1 : 0;
+      if (run >= 3) { hit = x; break; }
+    }
     const seen = after.length ? after[after.length - 1].day : null;
-    recovery = back ? { ok: true, day: back.day, lag: back.day - actDay } : { ok: false, until: seen };
+    recovery = hit ? { ok: true, day: hit.day, lag: hit.day - repair.t, crit: `measured ${d.signal_label} moved back by at least 70% of the gap at detection, for 3 readings` }
+      : { ok: false, until: seen, pending: !seen || seen < repair.t + 14 };
   }
   const open = !!(S.status && S.status.anomaly && S.status.anomaly.detected_day === d.detected_day && S.status.anomaly.field === d.field);
-  return { d, fi, tests, hyps, concl, fixes, identified, actDay, recovery, open };
+  return { d, fi, tests, hyps, concl, fixes, identified, actDay, recovery, open, reconciled, repair, update };
 }
 function currentIncident() {
   const list = incidentList(); if (!list.length) return null;
@@ -586,7 +622,7 @@ function renderIncident() {
 }
 function incidentHtml(inc, full) {
   const F = incidentFacts(inc), { d } = F;
-  const steps = [["Detect the divergence", true], ["Gather evidence", F.tests.length > 0], ["Identify the cause", F.identified], ["Repair or correct", F.fixes.length > 0], ["Recovery observed", !!(F.recovery && F.recovery.ok)]];
+  const steps = [["Detect the divergence", true], ["Gather evidence", F.tests.length > 0], ["Identify the cause", F.identified], ["Repair or correct", F.fixes.length > 0], ["Physical recovery observed", !!(F.recovery && F.recovery.ok)]];
   const nowStep = steps.findIndex((s) => !s[1]);
   const day = S.days.find((x) => x.day === d.detected_day);
   const f = day && day.fields[F.fi];
@@ -596,7 +632,12 @@ function incidentHtml(inc, full) {
   const pert = S.perturbations.find((p) => p.field === d.field || p.field === "all");
   const done = S.status && S.status.result;
   const rec = F.recovery;
-  const recText = F.actDay == null ? "No repair or correction yet." : rec.ok ? `Measured ${d.signal_label} was back inside the model's band on ${dayLabel(rec.day)}, ${rec.lag} days after the first action (${dayLabel(F.actDay)}).` : `Not back inside the band by ${dayLabel(rec.until)}. A repair command was issued on ${dayLabel(F.actDay)}; recovery has not been observed yet.`;
+  const recParts = [];
+  if (F.repair) recParts.push(`Repair accepted ${dayLabel(F.repair.t)}${F.repair.data.repair && F.repair.data.repair.found_clogged_emitters ? " (clogged emitters found and repaired)" : ""}.`);
+  if (F.update) recParts.push(F.reconciled ? `Model reconciled: after the update on ${dayLabel(F.update.t)}, measurements sit inside the corrected model's band (from ${dayLabel(F.reconciled.day)}). That shows the model now explains the data, not that the field recovered.` : `Model updated ${dayLabel(F.update.t)}.`);
+  if (rec) recParts.push(rec.ok ? `<b>Physical recovery observed</b> ${dayLabel(rec.day)}, ${rec.lag} days after the repair: ${rec.crit}.` : rec.pending ? "Physical recovery: not yet observed (waiting for fresh measurements after the repair)." : `Physical recovery: not observed by ${dayLabel(rec.until)}.`);
+  else if (F.actDay != null) recParts.push("No physical repair was made, so physical recovery isn't assessed.");
+  const recText = F.actDay == null ? "No repair or correction yet." : recParts.join(" ");
   return `
     <p class="eyebrow" style="color:var(--alarm)">Field ${esc(d.field)} ${esc(crop(d.crop))}</p>
     <h3 class="inc-t">${esc(cap(d.signal_label))} ${esc(d.direction)}</h3>
@@ -1251,13 +1292,32 @@ function pairTable(A, B, la, lb) {
 async function compareHtml() {
   if (mode !== "live" && !recorded) return `<p class="empty">Paired comparisons are stored with the recorded demo season and with your own seasons on the WorldLab server.</p>`;
   if (mode !== "live") {
-    if (!EXPS) { try { EXPS = await (await fetch("experiments.json")).json(); } catch (e) { return `<p class="empty">The paired experiments for the recorded season couldn't be loaded.</p>`; } }
-    const B0 = EXPS.baseline;
-    return `<p style="margin:0 0 10px">${esc(EXPS.note)}</p>${EXPS.experiments.map((x) => `<section class="inc-card"><div class="inc-head"><b>${esc(x.label)}</b><span class="pill">${esc(x.change.label)}</span></div>
-      ${pairTable(B0, x, "Recorded season", x.label)}
-      ${x.change.kind === "next_season" ? soilCompare(B0, x) : ""}
-      ${x.change.kind === "fault" ? `<p class="note">The clog cost ${fmt(x.people_fed - B0.people_fed, 1)} person-years in this paired comparison, after the scientist detected and repaired it. This is a controlled counterfactual on the same farm and weather, not an estimate.</p>` : ""}</section>`).join("")}
-      <p class="note">Recorded on simulated farms with the scripted decision protocol. Run your own experiments on the hosted server: any finished season can be rerun with one change.</p>`;
+    if (!EXPS) { try { EXPS = await (await fetch("experiments.json")).json(); } catch (e) { return `<p class="empty">The comparisons for the recorded season couldn't be loaded.</p>`; } }
+    if (!EXPS.pairs) return `<p class="empty">These comparisons were built in an older format.</p>`;
+    const KIND = { single_factor: ["Single factor", "one input differs; runs verified identical until it takes effect"],
+                   illustrative: ["Illustrative", "one input differs; the scientist's choices vary between runs"],
+                   system: ["System comparison", "several inputs differ at once"] };
+    const short = (h) => (h ? h.slice(0, 12) : "–");
+    const realised = (a, b) => {
+      const R = [["Crops", (x) => FIELD_IDS.map((f) => (x.realised.crops[f] ? crop(x.realised.crops[f]) : "fallow")).join(", ")],
+                 ["Irrigation control", (x) => x.realised.controller.map((c) => (c === "rl_policy" ? "learned policy" : "fixed rule")).join(" → ")],
+                 ["Trial plots", (x) => x.realised.trial_plots], ["Field tests", (x) => x.realised.field_tests],
+                 ["Repairs", (x) => x.realised.repairs], ["Drone looks", (x) => x.realised.drone_looks], ["Alarms", (x) => x.realised.alarms]];
+      const rows = R.filter(([, f]) => String(f(a)) !== String(f(b)));
+      return rows.length ? `<table class="cfg"><thead><tr><th>What the scientist did differently</th><th>${esc(a.label)}</th><th>${esc(b.label)}</th></tr></thead><tbody>${rows.map(([l, f]) => `<tr><td>${l}</td><td>${esc(String(f(a) ?? "–"))}</td><td>${esc(String(f(b) ?? "–"))}</td></tr>`).join("")}</tbody></table>` : `<p class="note">Same crops, controller, tests and repairs in both runs.</p>`;
+    };
+    return `<p style="margin:0 0 10px">${esc(EXPS.note)}</p>${EXPS.pairs.map((p) => {
+      const A = EXPS.runs[p.baseline], B = EXPS.runs[p.treatment], [kl, kd] = KIND[p.kind];
+      return `<section class="inc-card"><div class="inc-head"><b>${esc(p.title)}</b><span class="pill kind-${p.kind}" title="${esc(kd)}">${kl}</span></div>
+        ${pairTable(A, B, A.label, B.label)}
+        <table class="cfg"><thead><tr><th>Input that differs</th><th>${esc(A.label)}</th><th>${esc(B.label)}</th></tr></thead><tbody>${Object.entries(p.config_diff).map(([k, [x, y]]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td>${esc(String(x))}</td><td>${esc(String(y))}</td></tr>`).join("")}</tbody></table>
+        ${realised(A, B)}
+        <p class="note"><b>What this shows:</b> ${esc(p.can_infer)}${p.pre_event_identical ? " Checked: the two ledgers match until the treatment takes effect." : ""}</p>
+        <p class="note prov">Runs ${esc(A.run)} and ${esc(B.run)}${B.parent_run ? ` (parent ${esc(B.parent_run)})` : ""}; ledger heads ${short(A.artifacts.ledger_head)}… and ${short(B.artifacts.ledger_head)}…; ledger SHA-256 ${short(A.artifacts.ledger_sha256)}… and ${short(B.artifacts.ledger_sha256)}…</p></section>`;
+    }).join("")}
+    ${EXPS.soil_carryover ? `<section class="inc-card"><div class="inc-head"><b>Soil carried into season 2</b><span class="pill">state check</span></div>
+      <table class="cfg"><thead><tr><th>Field</th><th class="n">End of season 1, simulated state</th><th class="n">Start of season 2, simulated state</th><th class="n">End of season 1, sensor reading</th></tr></thead><tbody>${EXPS.soil_carryover.map((c) => `<tr><td>${c.field}</td><td class="n">${fmt(c.end_of_season_1_true, 2)}</td><td class="n">${fmt(c.start_of_season_2_true, 2)}</td><td class="n">${fmt(c.end_of_season_1_measured, 2)}</td></tr>`).join("")}</tbody></table>
+      <p class="note">Topsoil salinity, dS/m (top two layers). The simulated soil state at the end of season 1 is the state season 2 starts from. The sensor reading is a noisy measurement of it, so it can differ slightly; that difference is measurement noise, not lost salt. Soil water and nitrogen start fresh each season.</p></section>` : ""}`;
   }
   let d;
   try { d = (await apiJson("api/runs", { timeout: 10000 })).data; } catch (e) { return `<p class="empty">Couldn't load your seasons.</p>`; }
@@ -1321,7 +1381,7 @@ function reportDocument() {
 <h2>Outcome</h2><div class="k"><div><b>${r(fmt(res.people_fed))}</b>people fed (person-years, scarcest of calories, protein, vitamin A)</div><div><b>${r(fmt(res.water_used_m3))}</b>m³ groundwater of ${r(fmt(S.status.water_quota_m3))}</div><div><b>${r(fmt(res.energy_used_kwh))}</b>kWh of ${r(fmt(S.status.energy_kwh))}</div><div><b>${r(NUTRIENT[res.limiting])}</b>limiting need</div></div>
 <p>${esc(m && m.outcome ? m.outcome : "")} Plan before the season: ${r(plan && fmt(plan.people_p10))} people in a bad year (10th percentile), ${r(plan && fmt(plan.people_p50))} in a typical year.</p>
 <h2>Fields</h2>${T((plan ? plan.fields : []).map((f) => { const h = (S.status.harvest || {})[f.field]; return [f.field, f.crop ? crop(f.crop) : "fallow", f.crop ? dayLabel(f.mgmt.sow) : "", f.crop ? f.yield_t_ha_p10_p50_p90.map(yfmt).join(" / ") : "", h ? yfmt(h.yield_t_ha) : "–"]; }), ["Field", "Crop", "Sown", "Plan yield t/ha (bad / typical / good)", "Harvested t/ha"])}
-<h2>Incidents</h2>${inc.length ? inc.map(({ f, a }) => `<p><b>${esc(a.field)}: ${esc(a.signal_label)} ${esc(a.direction)}</b>, measured ${dayLabel(a.detected_day)} (drift from about ${dayLabel(a.onset_day)}).</p><ul>${f.hyps.map((h) => `<li>Hypothesis: ${esc(h.statement)} — ${esc((f.concl[h.id] || {}).verdict || "open")}${(f.concl[h.id] || {}).evidence ? ` (${esc(f.concl[h.id].evidence)})` : ""}</li>`).join("")}${f.fixes.map((e) => `<li>${dayLabel(e.t)}: ${(streamItem(e) || ["", e.kind])[1]}</li>`).join("")}<li>Recovery: ${f.recovery ? (f.recovery.ok ? `back inside the model's band on ${dayLabel(f.recovery.day)} (${f.recovery.lag ? `${f.recovery.lag} days after the first action` : "the same day as the first action"})` : "not observed") : "no action"}</li></ul>`).join("") : "<p>None.</p>"}
+<h2>Incidents</h2>${inc.length ? inc.map(({ f, a }) => `<p><b>${esc(a.field)}: ${esc(a.signal_label)} ${esc(a.direction)}</b>, measured ${dayLabel(a.detected_day)} (drift from about ${dayLabel(a.onset_day)}).</p><ul>${f.hyps.map((h) => `<li>Hypothesis: ${esc(h.statement)} — ${esc((f.concl[h.id] || {}).verdict || "open")}${(f.concl[h.id] || {}).evidence ? ` (${esc(f.concl[h.id].evidence)})` : ""}</li>`).join("")}${f.fixes.map((e) => `<li>${dayLabel(e.t)}: ${(streamItem(e) || ["", e.kind])[1]}</li>`).join("")}<li>Physical recovery: ${f.recovery ? (f.recovery.ok ? `observed ${dayLabel(f.recovery.day)}, ${f.recovery.lag} days after the repair (${esc(f.recovery.crit)})` : "not observed") : "no physical repair"}${f.reconciled ? `; model reconciled from ${dayLabel(f.reconciled.day)} (the corrected model explains the data; not a recovery claim)` : ""}</li></ul>`).join("") : "<p>None.</p>"}
 ${rl ? `<h2>Irrigation policy</h2><p>${esc(rlStatus())}. On held-out imagined seasons: people fed in a bad year ${signed(rl.people_p10_change_pct)}%, water ${signed(rl.water_change_pct)}%, energy ${signed(rl.energy_change_pct)}% against the fixed rule. ${S.rl.deployment_criterion ? `Deployment criterion: ${esc(S.rl.deployment_criterion)}.` : ""} Imagined seasons come from the scientist's calibrated model, not the realised harvest.</p>` : ""}
 ${res.soil ? `<h2>Soil salinity</h2>${T(res.soil.map((s) => [s.field, fmt(s.ece_top_start_dS_m, 1), fmt(s.ece_top_end_measured_dS_m, 1)]), ["Field", "Start dS/m", "End dS/m (measured)"])}` : ""}
 <h2>Assumptions and limits</h2><ul><li>Simulated 12 ha farm near Al Ain: six 2 ha fields, drip irrigation from brackish groundwater (4.5 dS/m); desalinated water is made from the same groundwater and counts against the quota.</li><li>Crop parameters are approximate published values; local-variety traits are hidden and learned from trial plots.</li><li>"People fed" is a model metric across calories, protein and vitamin A; it is not a full diet or a validated real-world impact estimate.</li><li>${esc(x.budget_mode === "hard" ? "Hard budget: no day's irrigation may exceed what remains of the water quota or energy budget." : "Soft budget: use could exceed the limits.")}</li></ul>
@@ -1569,6 +1629,11 @@ async function startLive(state) {
   setRunning(info.running);
   loadProgress();
   $("planBtn").onclick = openPlanner;
+  $("handoverBtn").onclick = async () => {
+    const r = await apiJson("api/handover", { method: "POST", body: {}, timeout: 10000 }).catch(() => null);
+    if (!r || !r.ok) { toast("Not handed over", (r && r.data.error) || "Try again."); return; }
+    toast("Handed over", "The scripted protocol continues this season. The result will be labelled as mixed, not as the model's own.");
+  };
   $("stopBtn").onclick = () => post("api/stop");
   $("speed").oninput = () => post("api/speed", { speed: Number($("speed").value) });
   document.querySelectorAll("#perturb button").forEach((b) => (b.onclick = async () => {

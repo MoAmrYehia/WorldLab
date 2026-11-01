@@ -1,7 +1,38 @@
 {
+ "schema": 2,
  "baseline": {
   "label": "Recorded season",
-  "settings": {},
+  "run": "20261031-201618-spark",
+  "parent_run": null,
+  "config": {
+   "scientist": "Muse Spark (muse-spark-1.3)",
+   "irrigation_learning": "chosen by the scientist",
+   "investigation": "chosen by the scientist",
+   "perception": "SAM 3.1 + Muse Spark vision on drone images",
+   "hidden_fault": "clog@95",
+   "starting_soil": "standard farm x1.0",
+   "farm_seed": 7,
+   "weather_year": "seed 7"
+  },
+  "settings": {
+   "agent": "spark",
+   "seed": 7,
+   "speed": 0,
+   "perturb": [
+    "clog@95"
+   ],
+   "perception": "meta",
+   "runs_dir": "/home/claude/worldlab/runs/experiments",
+   "limits": {},
+   "choices": [],
+   "scenario": "drip_fault",
+   "salinity_scale": 1.0,
+   "soil": null,
+   "human": false,
+   "parent_run": null,
+   "change": null
+  },
+  "status": "completed",
   "people_fed": 506.4,
   "limiting": "kcal",
   "by_nutrient": {
@@ -25,32 +56,38 @@
   "soil": [
    {
     "field": "F1",
-    "ece_top_start_dS_m": 2.25,
+    "ece_top_start_true_dS_m": 2.25,
+    "ece_top_end_true_dS_m": 3.51,
     "ece_top_end_measured_dS_m": 3.7
    },
    {
     "field": "F2",
-    "ece_top_start_dS_m": 1.75,
+    "ece_top_start_true_dS_m": 1.75,
+    "ece_top_end_true_dS_m": 4.29,
     "ece_top_end_measured_dS_m": 4.28
    },
    {
     "field": "F3",
-    "ece_top_start_dS_m": 1.25,
+    "ece_top_start_true_dS_m": 1.25,
+    "ece_top_end_true_dS_m": 3.23,
     "ece_top_end_measured_dS_m": 3.4
    },
    {
     "field": "F4",
-    "ece_top_start_dS_m": 5.5,
+    "ece_top_start_true_dS_m": 5.5,
+    "ece_top_end_true_dS_m": 5.86,
     "ece_top_end_measured_dS_m": 5.5
    },
    {
     "field": "F5",
-    "ece_top_start_dS_m": 3.25,
+    "ece_top_start_true_dS_m": 3.25,
+    "ece_top_end_true_dS_m": 4.15,
     "ece_top_end_measured_dS_m": 4.33
    },
    {
     "field": "F6",
-    "ece_top_start_dS_m": 7.5,
+    "ece_top_start_true_dS_m": 7.5,
+    "ece_top_end_true_dS_m": 1.65,
     "ece_top_end_measured_dS_m": 1.68
    }
   ],
@@ -80,17 +117,41 @@
     "yield_t_ha": 32.76
    }
   },
-  "controller": "rule",
+  "realised": {
+   "crops": {
+    "F1": "maize",
+    "F2": "maize",
+    "F3": "maize",
+    "F4": "wheat",
+    "F5": "maize",
+    "F6": "sweet_potato"
+   },
+   "controller": [
+    "rl_policy",
+    "rule"
+   ],
+   "trial_plots": 12,
+   "field_tests": 2,
+   "repairs": 1,
+   "drone_looks": 3,
+   "alarms": 1
+  },
   "faults": [
    {
     "kind": "clog",
-    "field": "F4",
     "day": 95,
     "detected_day": 115
    }
   ],
-  "seconds": 197,
-  "agent": "spark",
+  "model_usage": {
+   "scientist_model": "muse-spark-1.3",
+   "scientist_calls": 34,
+   "scientist_tokens": {
+    "prompt_tokens": 595360,
+    "completion_tokens": 6565
+   },
+   "perception_calls": 54
+  },
   "perception_check": {
    "frames": 3,
    "frames_with_separate_plants": 0,
@@ -101,15 +162,218 @@
    "salt_false_alarms_by_sam": "0/2",
    "pest_frames_flagged_by_spark": "0/0",
    "pest_false_alarms_by_spark": "0/3"
+  },
+  "artifacts": {
+   "ledger_sha256": "a612f25720d46172e96c384f035f53c9e2ef0b36f2266cbe58bb50f7cc7b2853",
+   "events_sha256": "8b5badbc1a195722d11cb7d22b32287a75d2b536fc5d030d5451894b555253b3",
+   "settings_sha256": "cced541e7feddf547bbeb6f799df9a1a58254a16f51ac347b57c5955d9332728",
+   "ledger_head": "bebff05dda831edf8401386aaa3b423fd5ad294255af442f125c16a2acc9255e"
   }
  },
- "experiments": [
-  {
+ "runs": {
+  "Recorded season": {
+   "label": "Recorded season",
+   "run": "20261031-201618-spark",
+   "parent_run": null,
+   "config": {
+    "scientist": "Muse Spark (muse-spark-1.3)",
+    "irrigation_learning": "chosen by the scientist",
+    "investigation": "chosen by the scientist",
+    "perception": "SAM 3.1 + Muse Spark vision on drone images",
+    "hidden_fault": "clog@95",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
+   "settings": {
+    "agent": "spark",
+    "seed": 7,
+    "speed": 0,
+    "perturb": [
+     "clog@95"
+    ],
+    "perception": "meta",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "drip_fault",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
+   },
+   "status": "completed",
+   "people_fed": 506.4,
+   "limiting": "kcal",
+   "by_nutrient": {
+    "kcal": 506.4,
+    "protein_g": 540.0,
+    "vitA_ug": 2163.7
+   },
+   "water_used_m3": 57650,
+   "energy_used_kwh": 87888,
+   "within_limits": true,
+   "quantities": {
+    "desal_m3": 15228,
+    "energy_pumping_kwh": 34590,
+    "energy_desal_kwh": 53298,
+    "nitrogen_kg": 2140,
+    "area_sown_ha": 12.0,
+    "trial_plots": 12,
+    "field_tests": 2,
+    "repairs": 1
+   },
+   "soil": [
+    {
+     "field": "F1",
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 3.51,
+     "ece_top_end_measured_dS_m": 3.7
+    },
+    {
+     "field": "F2",
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 4.29,
+     "ece_top_end_measured_dS_m": 4.28
+    },
+    {
+     "field": "F3",
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 3.23,
+     "ece_top_end_measured_dS_m": 3.4
+    },
+    {
+     "field": "F4",
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 5.86,
+     "ece_top_end_measured_dS_m": 5.5
+    },
+    {
+     "field": "F5",
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 4.15,
+     "ece_top_end_measured_dS_m": 4.33
+    },
+    {
+     "field": "F6",
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 1.65,
+     "ece_top_end_measured_dS_m": 1.68
+    }
+   ],
+   "harvest": {
+    "F5": {
+     "crop": "maize",
+     "yield_t_ha": 9.13
+    },
+    "F4": {
+     "crop": "wheat",
+     "yield_t_ha": 3.4
+    },
+    "F1": {
+     "crop": "maize",
+     "yield_t_ha": 10.76
+    },
+    "F2": {
+     "crop": "maize",
+     "yield_t_ha": 10.54
+    },
+    "F3": {
+     "crop": "maize",
+     "yield_t_ha": 11.86
+    },
+    "F6": {
+     "crop": "sweet_potato",
+     "yield_t_ha": 32.76
+    }
+   },
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "maize",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "sweet_potato"
+    },
+    "controller": [
+     "rl_policy",
+     "rule"
+    ],
+    "trial_plots": 12,
+    "field_tests": 2,
+    "repairs": 1,
+    "drone_looks": 3,
+    "alarms": 1
+   },
+   "faults": [
+    {
+     "kind": "clog",
+     "day": 95,
+     "detected_day": 115
+    }
+   ],
+   "model_usage": {
+    "scientist_model": "muse-spark-1.3",
+    "scientist_calls": 34,
+    "scientist_tokens": {
+     "prompt_tokens": 595360,
+     "completion_tokens": 6565
+    },
+    "perception_calls": 54
+   },
+   "perception_check": {
+    "frames": 3,
+    "frames_with_separate_plants": 0,
+    "plants_drawn": 0,
+    "plants_found_by_sam": 0,
+    "plant_count_ratio_pct": null,
+    "salt_frames_detected_by_sam": "1/1",
+    "salt_false_alarms_by_sam": "0/2",
+    "pest_frames_flagged_by_spark": "0/0",
+    "pest_false_alarms_by_spark": "0/3"
+   },
+   "artifacts": {
+    "ledger_sha256": "a612f25720d46172e96c384f035f53c9e2ef0b36f2266cbe58bb50f7cc7b2853",
+    "events_sha256": "8b5badbc1a195722d11cb7d22b32287a75d2b536fc5d030d5451894b555253b3",
+    "settings_sha256": "cced541e7feddf547bbeb6f799df9a1a58254a16f51ac347b57c5955d9332728",
+    "ledger_head": "bebff05dda831edf8401386aaa3b423fd5ad294255af442f125c16a2acc9255e"
+   }
+  },
+  "Scripted scientist": {
    "label": "Scripted scientist",
+   "run": "20261101-103633-scripted-rl",
+   "parent_run": null,
+   "config": {
+    "scientist": "scripted protocol",
+    "irrigation_learning": "trained, used if it wins",
+    "investigation": "fixed protocol",
+    "perception": "direct simulator state (no image model)",
+    "hidden_fault": "clog@95",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
    "settings": {
     "agent": "scripted-rl",
-    "perception": "sim"
+    "seed": 7,
+    "speed": 0,
+    "perturb": [
+     "clog@95"
+    ],
+    "perception": "sim",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "drip_fault",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
    },
+   "status": "completed",
    "people_fed": 485.1,
    "limiting": "kcal",
    "by_nutrient": {
@@ -133,32 +397,38 @@
    "soil": [
     {
      "field": "F1",
-     "ece_top_start_dS_m": 2.25,
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 3.63,
      "ece_top_end_measured_dS_m": 3.59
     },
     {
      "field": "F2",
-     "ece_top_start_dS_m": 1.75,
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 4.8,
      "ece_top_end_measured_dS_m": 4.84
     },
     {
      "field": "F3",
-     "ece_top_start_dS_m": 1.25,
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 2.79,
      "ece_top_end_measured_dS_m": 2.8
     },
     {
      "field": "F4",
-     "ece_top_start_dS_m": 5.5,
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 3.97,
      "ece_top_end_measured_dS_m": 4.31
     },
     {
      "field": "F5",
-     "ece_top_start_dS_m": 3.25,
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 2.9,
      "ece_top_end_measured_dS_m": 2.76
     },
     {
      "field": "F6",
-     "ece_top_start_dS_m": 7.5,
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 2.66,
      "ece_top_end_measured_dS_m": 2.45
     }
    ],
@@ -188,29 +458,71 @@
      "yield_t_ha": 52.15
     }
    },
-   "controller": "rl_policy",
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "sweet_potato",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "wheat"
+    },
+    "controller": [
+     "rl_policy"
+    ],
+    "trial_plots": 10,
+    "field_tests": 2,
+    "repairs": 1,
+    "drone_looks": 1,
+    "alarms": 1
+   },
    "faults": [
     {
      "kind": "clog",
-     "field": "F4",
      "day": 95,
      "detected_day": 113
     }
    ],
-   "seconds": 102,
-   "agent": "scripted-rl",
+   "model_usage": null,
    "perception_check": null,
-   "change": {
-    "kind": "agent",
-    "label": "the scripted protocol with a learned irrigation policy instead of Muse Spark"
+   "artifacts": {
+    "ledger_sha256": "a203d8e6d8d4b5ab90dbb41a4ff25363286cd4e78a6aa01d2971f98217e571c7",
+    "events_sha256": "37d03715e338d5dddbe99e43deffb1e1eefa72c2a083ba8d67416389cc596119",
+    "settings_sha256": "cade92562475820b5b4f912645ceda533e3833c9267f9b119e81ce24b8bfa7a5",
+    "ledger_head": "f15cc6f24de3121c94ae88af1b7d109b19e77c25fc4dcbb4f03de2fdf80bf580"
    }
   },
-  {
-   "label": "No hidden fault",
-   "settings": {
-    "scenario": "baseline",
-    "perturb": []
+  "Muse Spark, no hidden fault": {
+   "label": "Muse Spark, no hidden fault",
+   "run": "20261031-202117-spark",
+   "parent_run": null,
+   "config": {
+    "scientist": "Muse Spark (muse-spark-1.3)",
+    "irrigation_learning": "chosen by the scientist",
+    "investigation": "chosen by the scientist",
+    "perception": "SAM 3.1 + Muse Spark vision on drone images",
+    "hidden_fault": "none",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
    },
+   "settings": {
+    "agent": "spark",
+    "seed": 7,
+    "speed": 0,
+    "perturb": [],
+    "perception": "meta",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "baseline",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
+   },
+   "status": "completed",
    "people_fed": 535.5,
    "limiting": "kcal",
    "by_nutrient": {
@@ -234,32 +546,38 @@
    "soil": [
     {
      "field": "F1",
-     "ece_top_start_dS_m": 2.25,
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 1.55,
      "ece_top_end_measured_dS_m": 1.5
     },
     {
      "field": "F2",
-     "ece_top_start_dS_m": 1.75,
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 2.84,
      "ece_top_end_measured_dS_m": 2.76
     },
     {
      "field": "F3",
-     "ece_top_start_dS_m": 1.25,
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 1.75,
      "ece_top_end_measured_dS_m": 1.9
     },
     {
      "field": "F4",
-     "ece_top_start_dS_m": 5.5,
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 6.67,
      "ece_top_end_measured_dS_m": 6.3
     },
     {
      "field": "F5",
-     "ece_top_start_dS_m": 3.25,
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 4.56,
      "ece_top_end_measured_dS_m": 4.78
     },
     {
      "field": "F6",
-     "ece_top_start_dS_m": 7.5,
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 1.31,
      "ece_top_end_measured_dS_m": 1.23
     }
    ],
@@ -289,10 +607,34 @@
      "yield_t_ha": 34.01
     }
    },
-   "controller": "rl_policy",
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "maize",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "sweet_potato"
+    },
+    "controller": [
+     "rl_policy"
+    ],
+    "trial_plots": 14,
+    "field_tests": 0,
+    "repairs": 0,
+    "drone_looks": 4,
+    "alarms": 0
+   },
    "faults": [],
-   "seconds": 194,
-   "agent": "spark",
+   "model_usage": {
+    "scientist_model": "muse-spark-1.3",
+    "scientist_calls": 23,
+    "scientist_tokens": {
+     "prompt_tokens": 408186,
+     "completion_tokens": 6088
+    },
+    "perception_calls": 72
+   },
    "perception_check": {
     "frames": 4,
     "frames_with_separate_plants": 0,
@@ -304,17 +646,340 @@
     "pest_frames_flagged_by_spark": "0/0",
     "pest_false_alarms_by_spark": "0/4"
    },
-   "change": {
-    "kind": "fault",
-    "label": "the drip line is never clogged"
+   "artifacts": {
+    "ledger_sha256": "197f22fef04f155eb0edcd470d252944f96dfda5a043f3b53b611ec7cb495dda",
+    "events_sha256": "f301ed7afb30ea800d4a22d572e8e8c25f6f5b624c92b5795ba0454b7717402b",
+    "settings_sha256": "dff5b5ca32141c4f9bb354e7f2b33c11eba18c478e06c7eee053abae1acdff2e",
+    "ledger_head": "1afd1f7e7646322667e1b73f450e1429666da4688318d4f8652605a63c116e21"
    }
   },
-  {
-   "label": "Ignore alarms",
+  "Scripted, no hidden fault": {
+   "label": "Scripted, no hidden fault",
+   "run": "20261101-103820-scripted-rl",
+   "parent_run": null,
+   "config": {
+    "scientist": "scripted protocol",
+    "irrigation_learning": "trained, used if it wins",
+    "investigation": "fixed protocol",
+    "perception": "direct simulator state (no image model)",
+    "hidden_fault": "none",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
+   "settings": {
+    "agent": "scripted-rl",
+    "seed": 7,
+    "speed": 0,
+    "perturb": [],
+    "perception": "sim",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "baseline",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
+   },
+   "status": "completed",
+   "people_fed": 492.0,
+   "limiting": "kcal",
+   "by_nutrient": {
+    "kcal": 492.0,
+    "protein_g": 528.4,
+    "vitA_ug": 3376.4
+   },
+   "water_used_m3": 59110,
+   "energy_used_kwh": 90000,
+   "within_limits": true,
+   "quantities": {
+    "desal_m3": 15581,
+    "energy_pumping_kwh": 35466,
+    "energy_desal_kwh": 54534,
+    "nitrogen_kg": 2100,
+    "area_sown_ha": 12.0,
+    "trial_plots": 10,
+    "field_tests": 0,
+    "repairs": 0
+   },
+   "soil": [
+    {
+     "field": "F1",
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 3.22,
+     "ece_top_end_measured_dS_m": 3.19
+    },
+    {
+     "field": "F2",
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 4.24,
+     "ece_top_end_measured_dS_m": 4.15
+    },
+    {
+     "field": "F3",
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 1.56,
+     "ece_top_end_measured_dS_m": 1.58
+    },
+    {
+     "field": "F4",
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 3.39,
+     "ece_top_end_measured_dS_m": 3.38
+    },
+    {
+     "field": "F5",
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 2.71,
+     "ece_top_end_measured_dS_m": 2.94
+    },
+    {
+     "field": "F6",
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 3.12,
+     "ece_top_end_measured_dS_m": 2.97
+    }
+   ],
+   "harvest": {
+    "F5": {
+     "crop": "maize",
+     "yield_t_ha": 10.72
+    },
+    "F4": {
+     "crop": "wheat",
+     "yield_t_ha": 4.13
+    },
+    "F6": {
+     "crop": "wheat",
+     "yield_t_ha": 3.22
+    },
+    "F1": {
+     "crop": "maize",
+     "yield_t_ha": 11.14
+    },
+    "F2": {
+     "crop": "maize",
+     "yield_t_ha": 10.79
+    },
+    "F3": {
+     "crop": "sweet_potato",
+     "yield_t_ha": 51.64
+    }
+   },
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "sweet_potato",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "wheat"
+    },
+    "controller": [
+     "rl_policy"
+    ],
+    "trial_plots": 10,
+    "field_tests": 0,
+    "repairs": 0,
+    "drone_looks": 0,
+    "alarms": 0
+   },
+   "faults": [],
+   "model_usage": null,
+   "perception_check": null,
+   "artifacts": {
+    "ledger_sha256": "c9b8797966d6a5e650a6efc6034d41c9ea536506dd095802a9625471528413c4",
+    "events_sha256": "f63cced6c732ce80ff4bd934bd143f31d847a09e4693b0c68915dc61016f04fd",
+    "settings_sha256": "e9b0d30d1a8d25dfa2b071c0938b46c592b4e1753ebbed96a6c68153fd93fcb8",
+    "ledger_head": "671f30d893a150fa6b364a4d75daf855e970b491573bc7e2f7f160d76cdb4e58"
+   }
+  },
+  "Scripted, fixed rule": {
+   "label": "Scripted, fixed rule",
+   "run": "20261101-104000-scripted",
+   "parent_run": null,
+   "config": {
+    "scientist": "scripted protocol",
+    "irrigation_learning": "none (fixed rule)",
+    "investigation": "fixed protocol",
+    "perception": "direct simulator state (no image model)",
+    "hidden_fault": "clog@95",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
+   "settings": {
+    "agent": "scripted",
+    "seed": 7,
+    "speed": 0,
+    "perturb": [
+     "clog@95"
+    ],
+    "perception": "sim",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "drip_fault",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
+   },
+   "status": "completed",
+   "people_fed": 464.9,
+   "limiting": "kcal",
+   "by_nutrient": {
+    "kcal": 464.9,
+    "protein_g": 498.2,
+    "vitA_ug": 3338.4
+   },
+   "water_used_m3": 58279,
+   "energy_used_kwh": 87875,
+   "within_limits": true,
+   "quantities": {
+    "desal_m3": 15116,
+    "energy_pumping_kwh": 34967,
+    "energy_desal_kwh": 52907,
+    "nitrogen_kg": 2100,
+    "area_sown_ha": 12.0,
+    "trial_plots": 10,
+    "field_tests": 2,
+    "repairs": 1
+   },
+   "soil": [
+    {
+     "field": "F1",
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 3.41,
+     "ece_top_end_measured_dS_m": 3.39
+    },
+    {
+     "field": "F2",
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 4.5,
+     "ece_top_end_measured_dS_m": 4.55
+    },
+    {
+     "field": "F3",
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 1.25,
+     "ece_top_end_measured_dS_m": 1.25
+    },
+    {
+     "field": "F4",
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 4.38,
+     "ece_top_end_measured_dS_m": 4.77
+    },
+    {
+     "field": "F5",
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 3.23,
+     "ece_top_end_measured_dS_m": 3.07
+    },
+    {
+     "field": "F6",
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 2.96,
+     "ece_top_end_measured_dS_m": 2.74
+    }
+   ],
+   "harvest": {
+    "F5": {
+     "crop": "maize",
+     "yield_t_ha": 10.29
+    },
+    "F4": {
+     "crop": "wheat",
+     "yield_t_ha": 3.85
+    },
+    "F6": {
+     "crop": "wheat",
+     "yield_t_ha": 3.21
+    },
+    "F1": {
+     "crop": "maize",
+     "yield_t_ha": 10.01
+    },
+    "F2": {
+     "crop": "maize",
+     "yield_t_ha": 9.9
+    },
+    "F3": {
+     "crop": "sweet_potato",
+     "yield_t_ha": 51.09
+    }
+   },
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "sweet_potato",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "wheat"
+    },
+    "controller": [
+     "rule"
+    ],
+    "trial_plots": 10,
+    "field_tests": 2,
+    "repairs": 1,
+    "drone_looks": 1,
+    "alarms": 1
+   },
+   "faults": [
+    {
+     "kind": "clog",
+     "day": 95,
+     "detected_day": 116
+    }
+   ],
+   "model_usage": null,
+   "perception_check": null,
+   "artifacts": {
+    "ledger_sha256": "a5e740ee3723fdd22fadef8fd58126ea34b51a82cd2c579d4f758abe43c824f3",
+    "events_sha256": "52c58756991c12f4dec19f020cdc21b610ccb55968f4df0ecfb951846b15ad63",
+    "settings_sha256": "dfc9b2538db6ad610807e1a8e993244473543d06ff3d29d244e3f8166e71ab66",
+    "ledger_head": "f38f3bda924ac81c1e36b7ca7c22a3b147f61b8f18f6399f3273f93f6dd48469"
+   }
+  },
+  "Scripted, ignores alarms": {
+   "label": "Scripted, ignores alarms",
+   "run": "20261101-104053-scripted-noadapt",
+   "parent_run": null,
+   "config": {
+    "scientist": "scripted protocol",
+    "irrigation_learning": "none (fixed rule)",
+    "investigation": "ignores alarms",
+    "perception": "direct simulator state (no image model)",
+    "hidden_fault": "clog@95",
+    "starting_soil": "standard farm x1.0",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
    "settings": {
     "agent": "scripted-noadapt",
-    "perception": "sim"
+    "seed": 7,
+    "speed": 0,
+    "perturb": [
+     "clog@95"
+    ],
+    "perception": "sim",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "drip_fault",
+    "salinity_scale": 1.0,
+    "soil": null,
+    "human": false,
+    "parent_run": null,
+    "change": null
    },
+   "status": "completed",
    "people_fed": 457.3,
    "limiting": "kcal",
    "by_nutrient": {
@@ -338,32 +1003,38 @@
    "soil": [
     {
      "field": "F1",
-     "ece_top_start_dS_m": 2.25,
+     "ece_top_start_true_dS_m": 2.25,
+     "ece_top_end_true_dS_m": 3.54,
      "ece_top_end_measured_dS_m": 3.52
     },
     {
      "field": "F2",
-     "ece_top_start_dS_m": 1.75,
+     "ece_top_start_true_dS_m": 1.75,
+     "ece_top_end_true_dS_m": 4.79,
      "ece_top_end_measured_dS_m": 4.69
     },
     {
      "field": "F3",
-     "ece_top_start_dS_m": 1.25,
+     "ece_top_start_true_dS_m": 1.25,
+     "ece_top_end_true_dS_m": 2.34,
      "ece_top_end_measured_dS_m": 2.37
     },
     {
      "field": "F4",
-     "ece_top_start_dS_m": 5.5,
+     "ece_top_start_true_dS_m": 5.5,
+     "ece_top_end_true_dS_m": 6.65,
      "ece_top_end_measured_dS_m": 6.6
     },
     {
      "field": "F5",
-     "ece_top_start_dS_m": 3.25,
+     "ece_top_start_true_dS_m": 3.25,
+     "ece_top_end_true_dS_m": 3.0,
      "ece_top_end_measured_dS_m": 3.26
     },
     {
      "field": "F6",
-     "ece_top_start_dS_m": 7.5,
+     "ece_top_start_true_dS_m": 7.5,
+     "ece_top_end_true_dS_m": 3.51,
      "ece_top_end_measured_dS_m": 3.35
     }
    ],
@@ -393,26 +1064,65 @@
      "yield_t_ha": 49.75
     }
    },
-   "controller": "rule",
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "maize",
+     "F3": "sweet_potato",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "wheat"
+    },
+    "controller": [
+     "rule"
+    ],
+    "trial_plots": 10,
+    "field_tests": 0,
+    "repairs": 0,
+    "drone_looks": 0,
+    "alarms": 5
+   },
    "faults": [
     {
      "kind": "clog",
-     "field": "F4",
      "day": 95,
      "detected_day": 116
     }
    ],
-   "seconds": 49,
-   "agent": "scripted-noadapt",
+   "model_usage": null,
    "perception_check": null,
-   "change": {
-    "kind": "adapt",
-    "label": "a scientist that ignores its alarms (no investigation or repair), fixed rule"
+   "artifacts": {
+    "ledger_sha256": "4d441c982dff388e285ddc7ce075863def2344449b180a0dc31c404f647cf746",
+    "events_sha256": "45aa19484807712bb5bfdcf80cef8b95ae2d2e6daf43d196b1e8017b1f2e44e7",
+    "settings_sha256": "fb0b017d80b0089cff8850d83dcb409f8c98d13981334c3fbc043a0e2a0f15fc",
+    "ledger_head": "fe6a7e4e20a98f926040c74aefda908802bdfcb295a3d3f10407e47b16345aef"
    }
   },
-  {
+  "Next season, same soil": {
    "label": "Next season, same soil",
+   "run": "20261031-202520-spark",
+   "parent_run": "20261031-201618-spark",
+   "config": {
+    "scientist": "Muse Spark (muse-spark-1.3)",
+    "irrigation_learning": "chosen by the scientist",
+    "investigation": "chosen by the scientist",
+    "perception": "SAM 3.1 + Muse Spark vision on drone images",
+    "hidden_fault": "none",
+    "starting_soil": "carried over from 20261031-201618-spark",
+    "farm_seed": 7,
+    "weather_year": "seed 7"
+   },
    "settings": {
+    "agent": "spark",
+    "seed": 7,
+    "speed": 0,
+    "perturb": [],
+    "perception": "meta",
+    "runs_dir": "/home/claude/worldlab/runs/experiments",
+    "limits": {},
+    "choices": [],
+    "scenario": "baseline",
+    "salinity_scale": 1.0,
     "soil": [
      [
       4.03,
@@ -445,9 +1155,11 @@
       7.86
      ]
     ],
-    "scenario": "baseline",
-    "perturb": []
+    "human": false,
+    "parent_run": null,
+    "change": null
    },
+   "status": "completed",
    "people_fed": 475.2,
    "limiting": "kcal",
    "by_nutrient": {
@@ -471,32 +1183,38 @@
    "soil": [
     {
      "field": "F1",
-     "ece_top_start_dS_m": 3.51,
+     "ece_top_start_true_dS_m": 3.51,
+     "ece_top_end_true_dS_m": 1.25,
      "ece_top_end_measured_dS_m": 1.19
     },
     {
      "field": "F2",
-     "ece_top_start_dS_m": 4.29,
+     "ece_top_start_true_dS_m": 4.29,
+     "ece_top_end_true_dS_m": 2.54,
      "ece_top_end_measured_dS_m": 2.42
     },
     {
      "field": "F3",
-     "ece_top_start_dS_m": 3.23,
+     "ece_top_start_true_dS_m": 3.23,
+     "ece_top_end_true_dS_m": 1.6,
      "ece_top_end_measured_dS_m": 1.69
     },
     {
      "field": "F4",
-     "ece_top_start_dS_m": 5.86,
+     "ece_top_start_true_dS_m": 5.86,
+     "ece_top_end_true_dS_m": 4.61,
      "ece_top_end_measured_dS_m": 4.56
     },
     {
      "field": "F5",
-     "ece_top_start_dS_m": 4.15,
+     "ece_top_start_true_dS_m": 4.15,
+     "ece_top_end_true_dS_m": 3.61,
      "ece_top_end_measured_dS_m": 3.58
     },
     {
      "field": "F6",
-     "ece_top_start_dS_m": 1.65,
+     "ece_top_start_true_dS_m": 1.65,
+     "ece_top_end_true_dS_m": 1.14,
      "ece_top_end_measured_dS_m": 1.07
     }
    ],
@@ -526,10 +1244,34 @@
      "yield_t_ha": 33.25
     }
    },
-   "controller": "rl_policy",
+   "realised": {
+    "crops": {
+     "F1": "maize",
+     "F2": "sweet_potato",
+     "F3": "maize",
+     "F4": "wheat",
+     "F5": "maize",
+     "F6": "maize"
+    },
+    "controller": [
+     "rl_policy"
+    ],
+    "trial_plots": 9,
+    "field_tests": 0,
+    "repairs": 0,
+    "drone_looks": 3,
+    "alarms": 0
+   },
    "faults": [],
-   "seconds": 187,
-   "agent": "spark",
+   "model_usage": {
+    "scientist_model": "muse-spark-1.3",
+    "scientist_calls": 23,
+    "scientist_tokens": {
+     "prompt_tokens": 341157,
+     "completion_tokens": 5420
+    },
+    "perception_calls": 54
+   },
    "perception_check": {
     "frames": 3,
     "frames_with_separate_plants": 1,
@@ -541,13 +1283,160 @@
     "pest_frames_flagged_by_spark": "0/0",
     "pest_false_alarms_by_spark": "0/3"
    },
-   "change": {
-    "kind": "next_season",
-    "label": "a second season starting from the salt the first one left, no hidden fault"
+   "artifacts": {
+    "ledger_sha256": "b68ea2ad1e640c1ec5730dd2c57b36cc1cb486517842f4cdf87ee412bd3a96c8",
+    "events_sha256": "8cd2bd7521e74ac756be2bb3c827697ed1870abe848b48ec515f5a43aec54edd",
+    "settings_sha256": "236da6a9a06c6c1d2c292ed9599b9c5a973e83e07d0dd419589059ecae403a51",
+    "ledger_head": "0cbfbd0b71edc758ae0616fbae55b3287f813481b666b800fc8a32c6942faac6"
    }
   }
+ },
+ "pairs": [
+  {
+   "title": "Muse Spark against the scripted scientist",
+   "kind": "system",
+   "baseline": "Recorded season",
+   "treatment": "Scripted scientist",
+   "config_diff": {
+    "scientist": [
+     "Muse Spark (muse-spark-1.3)",
+     "scripted protocol"
+    ],
+    "irrigation_learning": [
+     "chosen by the scientist",
+     "trained, used if it wins"
+    ],
+    "investigation": [
+     "chosen by the scientist",
+     "fixed protocol"
+    ],
+    "perception": [
+     "SAM 3.1 + Muse Spark vision on drone images",
+     "direct simulator state (no image model)"
+    ]
+   },
+   "treatment_inputs": [
+    "scientist",
+    "irrigation_learning",
+    "investigation",
+    "perception"
+   ],
+   "pre_event_identical": null,
+   "can_infer": "Several inputs differ at once (scientist, irrigation learning, investigation, perception), so this compares two complete systems on the same farm, weather and hidden fault. It does not say which input made the difference."
+  },
+  {
+   "title": "Muse Spark with and without the hidden fault",
+   "kind": "illustrative",
+   "baseline": "Recorded season",
+   "treatment": "Muse Spark, no hidden fault",
+   "config_diff": {
+    "hidden_fault": [
+     "clog@95",
+     "none"
+    ]
+   },
+   "treatment_inputs": [
+    "hidden_fault"
+   ],
+   "pre_event_identical": null,
+   "can_infer": "Only one input differs, but Muse Spark's choices vary between runs (it is a language model), so the difference mixes that input's effect with run-to-run variation. One run each: illustrative, not a measured effect."
+  },
+  {
+   "title": "Effect of the hidden clog (scripted scientist)",
+   "kind": "single_factor",
+   "baseline": "Scripted scientist",
+   "treatment": "Scripted, no hidden fault",
+   "config_diff": {
+    "hidden_fault": [
+     "clog@95",
+     "none"
+    ]
+   },
+   "treatment_inputs": [
+    "hidden_fault"
+   ],
+   "pre_event_identical": true,
+   "can_infer": "Only one input differs, and the scripted scientist is deterministic: both runs were checked to be identical until the treatment takes effect. The difference is that input's total effect on this farm, including how the scientist responded. One farm and one weather year: not an average."
+  },
+  {
+   "title": "Effect of investigating alarms (scripted scientist, fixed rule)",
+   "kind": "single_factor",
+   "baseline": "Scripted, fixed rule",
+   "treatment": "Scripted, ignores alarms",
+   "config_diff": {
+    "investigation": [
+     "fixed protocol",
+     "ignores alarms"
+    ]
+   },
+   "treatment_inputs": [
+    "investigation"
+   ],
+   "pre_event_identical": true,
+   "can_infer": "Only one input differs, and the scripted scientist is deterministic: both runs were checked to be identical until the treatment takes effect. The difference is that input's total effect on this farm, including how the scientist responded. One farm and one weather year: not an average."
+  },
+  {
+   "title": "A second season on the soil the first left",
+   "kind": "system",
+   "baseline": "Recorded season",
+   "treatment": "Next season, same soil",
+   "config_diff": {
+    "hidden_fault": [
+     "clog@95",
+     "none"
+    ],
+    "starting_soil": [
+     "standard farm x1.0",
+     "carried over from 20261031-201618-spark"
+    ]
+   },
+   "treatment_inputs": [
+    "hidden_fault",
+    "starting_soil"
+   ],
+   "pre_event_identical": null,
+   "can_infer": "Several inputs differ at once (hidden fault, starting soil), so this compares two complete systems on the same farm, weather and hidden fault. It does not say which input made the difference."
+  }
  ],
- "note": "Paired experiments: each reruns the recorded season from the start with one input changed; farm seed, weather year and hidden faults are the same. Exact mid-season checkpoints are not stored, so every branch is a full rerun. Muse Spark's choices can differ between runs (it is a language model), so a Muse Spark rerun shows one outcome, not an average.",
+ "soil_carryover": [
+  {
+   "field": "F1",
+   "end_of_season_1_true": 3.51,
+   "start_of_season_2_true": 3.51,
+   "end_of_season_1_measured": 3.7
+  },
+  {
+   "field": "F2",
+   "end_of_season_1_true": 4.29,
+   "start_of_season_2_true": 4.29,
+   "end_of_season_1_measured": 4.28
+  },
+  {
+   "field": "F3",
+   "end_of_season_1_true": 3.23,
+   "start_of_season_2_true": 3.23,
+   "end_of_season_1_measured": 3.4
+  },
+  {
+   "field": "F4",
+   "end_of_season_1_true": 5.86,
+   "start_of_season_2_true": 5.86,
+   "end_of_season_1_measured": 5.5
+  },
+  {
+   "field": "F5",
+   "end_of_season_1_true": 4.15,
+   "start_of_season_2_true": 4.15,
+   "end_of_season_1_measured": 4.33
+  },
+  {
+   "field": "F6",
+   "end_of_season_1_true": 1.65,
+   "start_of_season_2_true": 1.65,
+   "end_of_season_1_measured": 1.68
+  }
+ ],
+ "note": "Every pair lists what differs between its two runs and what can and cannot be inferred from it. Runs are full reruns from 1 October; exact mid-season checkpoints are not stored. Drone images are synthetic renders of the simulator's state.",
  "fields": [
   "F1",
   "F2",
@@ -555,5 +1444,6 @@
   "F4",
   "F5",
   "F6"
- ]
+ ],
+ "built": "2026-11-01 06:42 UTC"
 }

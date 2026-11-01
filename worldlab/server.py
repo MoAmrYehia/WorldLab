@@ -225,14 +225,16 @@ class App:
         """Score the season from its ledger and apply it to the player's progress (once per scenario)."""
         from .progression import evaluate, award, scenario_key
         ev = evaluate(sess.lab.ledger.entries, list(sess.farm.events), sess.lab.result)
+        ev["run_status"] = sess.lab.run_status
         out = None
-        if ev["complete"]:
+        if ev["complete"] and sess.lab.run_status == "completed":       # failed, stopped or mixed seasons earn nothing
             key = scenario_key(sess.settings.seed, sess.lab.choices_summary())
             out = award(self.accounts.progress(user["id"]), ev, key)
             self.accounts.save_progress(user["id"], out["progress"])
             out = {k: v for k, v in out.items() if k != "progress"}
             sess.bus.publish("award", {**out, "run_id": run_id, "evaluation": ev})
-        self.accounts.finish_run(run_id, sess.lab.result, {"evaluation": ev, **(out or {})})
+        self.accounts.finish_run(run_id, sess.lab.result, {"evaluation": ev, "run_status": sess.lab.run_status,
+                                                           "run_end_reason": sess.lab.run_end_reason, **(out or {})})
 
     def progress(self, user: dict) -> dict:
         from .progression import level_for, ACHIEVEMENTS
@@ -523,6 +525,11 @@ def make_handler(app: App):
                 except ValueError as e:
                     return self._json({"ok": False, "error": str(e)}, 400)
                 return self._json({"ok": True, **info})
+            if path == "/api/handover":                    # continue a failed model-run season with the scripted protocol
+                sess = slot.session
+                if not sess or not sess.handover():
+                    return self._json({"ok": False, "error": "Only a failed or timed-out season that is still in progress can be handed over."}, 409)
+                return self._json({"ok": True})
             if path == "/api/stop":
                 if s:
                     s.stop()

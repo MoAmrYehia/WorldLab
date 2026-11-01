@@ -44,6 +44,9 @@ class Limits:
     energy_kwh: float = 90000.0
     max_advance_days: int = 60
     hard_budget: bool = True        # cap every day's irrigation at what remains of the quota and energy budget
+    max_run_seconds: float = 3600.0 # wall-clock deadline for a model-driven run
+    max_model_calls: int = 220      # scientist model requests, retries and failures included
+    max_image_calls: int = 400      # perception requests (SAM tiles, salt masks, vision), retries and failures included
 
 
 # ---------------------------------------------------------------------- bus
@@ -135,6 +138,9 @@ class Lab:
         self.farm = farm
         self.human = False                        # human decision mode: pause at selected decisions
         self.perception_checks: list[dict] = []   # SAM 3.1 counts against what each drone frame shows
+        self.run_status = "running"               # running | completed | failed | timeout | cancelled | degraded
+        self.run_end_reason = None
+        self.handovers: list[dict] = []
         self._decision = None
         self._decision_n = 0
         self.fields = farm.fields                 # this farm's soils (standard, scenario or carried over)
@@ -262,6 +268,7 @@ class Lab:
             "harvest": self.harvest, "result": self.result, "controller": self.controller,
             "budget_mode": "hard" if self.limits.hard_budget else "soft", "curtailed_m3": round(self.curtailed_m3),
             "human_mode": self.human, "decision": self._decision["req"] if self._decision else None,
+            "run_status": self.run_status, "run_end_reason": self.run_end_reason, "handovers": self.handovers,
         })
 
     def _publish_beliefs(self):
@@ -882,6 +889,7 @@ class Lab:
         soil = [{"field": FIELDS[i]["id"], "ece_top_start_dS_m": round(float(np.mean(self.fields[i]["ece"][:2])), 2),
                  "ece_top_end_measured_dS_m": ec_end[FIELDS[i]["id"]]} for i in range(NF)]
         self.result = {"people_fed": round(pf["people"], 1), "limiting": pf["limiting"],
+                       "decided_by": "mixed (handover)" if self.handovers else "one scientist",
                        "quantities": quantities, "soil": soil, "perception_check": self.perception_summary(),
                        "by_nutrient": {n: round(pf[n], 1) for n in NUTRIENTS},
                        "water_used_m3": round(self.water_used), "energy_used_kwh": round(self.energy_used),
@@ -975,17 +983,21 @@ class Lab:
         pc = self.perception_checks
         if not pc:
             return None
-        countable = [c for c in pc if c["drawn"].get("crop") not in ("wheat", "rice", "millet") and c["drawn"].get("plants", 0)]
+        countable = [c for c in pc if c["drawn"].get("crop") not in ("wheat", "rice", "millet") and c["drawn"].get("plants", 0)
+                     and c["sam"]["plants"] is not None]
         drawn_p = sum(c["drawn"]["plants"] for c in countable)
         sam_p = sum(c["sam"]["plants"] for c in countable)
-        salt = [c for c in pc if c["drawn"].get("salt_patches", 0) >= 5]
-        clean = [c for c in pc if c["drawn"].get("salt_patches", 0) == 0]
-        dmg = [c for c in pc if c["drawn"].get("damaged_plants", 0) > 0]
-        nodmg = [c for c in pc if c["drawn"].get("damaged_plants", 0) == 0 and c["drawn"].get("plants", 0)]
-        flag = lambda c: bool((c.get("diagnosis") or {}).get("pest_damage_visible"))
-        return {"frames": len(pc), "plant_frames": [{"field": c["field"], "day": c["day"], "crop": c["drawn"].get("crop"),
-                                                    "drawn": c["drawn"]["plants"], "sam": c["sam"]["plants"],
-                                                    "canopy_closed": not c["drawn"].get("separate_plants")} for c in countable],
+        salt_ok = [c for c in pc if c["sam"]["salt_patches"] is not None]
+        salt = [c for c in salt_ok if c["drawn"].get("salt_patches", 0) >= 5]
+        clean = [c for c in salt_ok if c["drawn"].get("salt_patches", 0) == 0]
+        diag_ok = [c for c in pc if c.get("diagnosis")]
+        dmg = [c for c in diag_ok if c["drawn"].get("damaged_plants", 0) > 0]
+        nodmg = [c for c in diag_ok if c["drawn"].get("damaged_plants", 0) == 0 and c["drawn"].get("plants", 0)]
+        flag = lambda c: bool(c["diagnosis"].get("pest_damage_visible"))
+        return {"frames": len(pc), "frames_not_complete": sum(1 for c in pc if c.get("status") != "complete"),
+                "plant_frames": [{"field": c["field"], "day": c["day"], "crop": c["drawn"].get("crop"),
+                                  "drawn": c["drawn"]["plants"], "sam": c["sam"]["plants"],
+                                  "canopy_closed": not c["drawn"].get("separate_plants")} for c in countable],
                 "plants_drawn": drawn_p, "plants_found_by_sam": sam_p,
                 "plant_count_ratio_pct": round(100 * sam_p / drawn_p, 1) if drawn_p else None,
                 "salt_frames_detected_by_sam": f"{sum(c['sam']['salt_patches'] > 0 for c in salt)}/{len(salt)}",
@@ -1000,16 +1012,22 @@ class Lab:
             return {"error": f"unknown field {field}"}
         if self.phase not in ("season", "harvested"):
             return {"error": "nothing is growing yet"}
+        pc = getattr(self.perception, "client", None)
+        if pc is not None and getattr(pc, "attempts", 0) >= self.limits.max_image_calls:
+            return {"refused": f"image analysis budget used up ({self.limits.max_image_calls} perception calls); use field tests"}
         drawn = {}                                  # what the frame really shows; never given to the agent
         img = self.farm.image(i, truth=drawn)
         ccp = self.ens.cc.reshape(NF, self.S_mon)[i]
         ece_model = float(self.ens.ece_layers().reshape(NF, self.S_mon, 3)[i, :, 0].mean())
         ref = self.farm.expected_image(i, float(ccp.mean()), ece_model)   # what the scientist's model expects to see
         res = self.perception.analyze(img, self.farm.image_mime, self.farm, i, reference=ref) if self.perception else {"source": "none"}
-        if str(res.get("source", "")).startswith("SAM"):
+        if "perception_status" in res and not str(res.get("source", "")).startswith("simulated"):
+            # only answers that arrived are scored; an unavailable model is not a zero
             self.perception_checks.append({"day": self.day, "field": FIELDS[i]["id"], "drawn": drawn,
-                                           "sam": {"plants": res.get("plants_counted") or 0, "salt_patches": res.get("salt_crust_patches", 0)},
-                                           "diagnosis": (res.get("diagnosis") or {})})
+                                           "sam": {"plants": res.get("plants_counted") if res.get("plant_count_status") == "valid" else None,
+                                                   "salt_patches": res.get("salt_crust_patches")},
+                                           "diagnosis": res.get("diagnosis") if res.get("diagnosis_status") == "valid" else None,
+                                           "status": res.get("perception_status")})
         fname = None
         if self.run_dir:
             fname = f"images/{FIELDS[i]['id']}_day{self.day:03d}.{'jpg' if 'jpeg' in self.farm.image_mime else 'png'}"
@@ -1263,15 +1281,37 @@ class Lab:
         self.project()
         return out
 
-    def finish(self, summary: str) -> dict:
-        if self.phase == "season":
-            while self.day < D and not self.stop_flag.is_set():
-                self._one_day()
-                self.anomaly = None
-            if self.phase == "season":
-                self._season_end()
+    def end_run(self, status: str, reason: str, decided_by: str | None = None) -> dict:
+        """Stop a run that did not finish normally. The farm is not advanced: there is no harvest the scientist
+        didn't reach, and the record says why it stopped and where."""
+        if self.done:
+            return {"status": self.run_status}
         self.done = True
-        out = {"summary": summary, "result": self.result, "anomalies": len(self.anomalies),
+        self.run_status, self.run_end_reason = status, reason
+        out = {"status": status, "reason": reason, "decided_by": decided_by, "phase": self.phase, "day": self.day,
+               "open_anomaly": self.anomaly, "result": self.result, "plots_used": self.plots_used, "tests_used": self.tests_used,
+               "hypotheses": {h["id"]: h["status"] for h in self.hyps.values()}}
+        self._log("run_end", out)
+        self._status()
+        return out
+
+    def handover(self, to: str, reason: str):
+        """Reopen a stopped run so another controller can continue it; recorded, and the run is marked degraded."""
+        self.handovers.append({"day": self.day, "to": to, "reason": reason, "from_status": self.run_status})
+        self._log("handover", self.handovers[-1])
+        self.done, self.run_status = False, "degraded"
+        self._status()
+
+    def finish(self, summary: str) -> dict:
+        if self.phase == "season" and self.day < D:
+            return {"refused": "The season is not over. Keep advancing to 30 June (and resolve any open anomaly) before finishing.",
+                    "day": self.day, "open_anomaly": bool(self.anomaly)}
+        if self.phase == "season":
+            self._season_end()
+        if self.run_status == "running":
+            self.run_status = "completed"
+        self.done = True
+        out = {"status": self.run_status, "summary": summary, "result": self.result, "anomalies": len(self.anomalies),
                "plots_used": self.plots_used, "tests_used": self.tests_used,
                "hypotheses": {h["id"]: h["status"] for h in self.hyps.values()}}
         self._log("run_end", out)

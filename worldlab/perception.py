@@ -52,6 +52,36 @@ def image_size(data: bytes):
     return None
 
 
+class MalformedOutput(ValueError):
+    """The model answered, but not in the format we can read; never treated as 'nothing found'."""
+
+
+def parse_sam_strict(text: str) -> list[dict]:
+    """Like parse_sam_boxes, but an answer with content and no readable box is malformed, not a valid zero."""
+    boxes = parse_sam_boxes(text or "")
+    if (text or "").strip() and not boxes:
+        raise MalformedOutput(f"unreadable segmentation output: {text.strip()[:80]!r}")
+    return boxes
+
+
+def check_diagnosis(d) -> dict:
+    """Validate a structured diagnosis locally against DIAG_SCHEMA; raises MalformedOutput."""
+    if not isinstance(d, dict):
+        raise MalformedOutput("diagnosis is not an object")
+    props = DIAG_SCHEMA["properties"]
+    for k in DIAG_SCHEMA["required"]:
+        if k not in d:
+            raise MalformedOutput(f"diagnosis lacks {k}")
+    if d["condition"] not in props["condition"]["enum"]:
+        raise MalformedOutput(f"unknown condition {d['condition']!r}")
+    for k, sp in props.items():
+        if sp["type"] == "boolean" and not isinstance(d[k], bool):
+            raise MalformedOutput(f"{k} must be true or false")
+    if not isinstance(d["evidence"], str) or not d["evidence"].strip():
+        raise MalformedOutput("diagnosis has no evidence")
+    return {k: d[k] for k in props}
+
+
 def parse_sam_boxes(text: str) -> list[dict]:
     """SAM 3.1 special-token output -> boxes (masks are not needed here).
     <Nf>id<|box;x1=..;y1=..;x2=..;y2=..;w=..;h=..[;c=..]|><|mask;...|>,..."""
@@ -82,7 +112,7 @@ class MetaPerception:
                 {"type": "input_text", "text": phrase}, {"type": "input_image", "image_url": url}]}],
             "metadata": {"include_confidence": "true", "mask_encoding": "one_bit"},
         })
-        return parse_sam_boxes(text)
+        return parse_sam_strict(text)
 
     def _diagnose(self, url: str, crop: str | None, ref_url: str | None = None) -> dict | None:
         cues = ("Healthy: leaves as broad and deep-green as expected for this crop. Water stress: leaves rolled into "
@@ -103,7 +133,10 @@ class MetaPerception:
                        {"type": "image_url", "image_url": {"url": url}}]
         msg = self.client.chat([{"role": "user", "content": content}],
                                response_format={"type": "json_schema", "json_schema": {"name": "FieldDiagnosis", "schema": DIAG_SCHEMA}})
-        return json.loads(msg.get("content") or "{}")
+        try:
+            return check_diagnosis(json.loads(msg.get("content") or ""))
+        except json.JSONDecodeError as e:
+            raise MalformedOutput(f"diagnosis is not JSON ({e.msg})") from None
 
     def _tiles(self, frame: bytes):
         """Overlapping tiles of the frame as data URLs, with the core region each one owns."""
@@ -127,48 +160,80 @@ class MetaPerception:
         ref_url = f"data:{mime};base64,{base64.b64encode(reference).decode()}" if reference else None
         size = image_size(frame) or (960, 600)
         from concurrent.futures import ThreadPoolExecutor
+        errors: list[str] = []                         # this frame's problems only
+        a0 = self.client.attempts
 
         def sam(args):
             phrase, u = args
             try:
-                return self._sam(u, phrase)
+                return "ok", self._sam(u, phrase)
+            except MalformedOutput as e:
+                errors.append(f"SAM 3.1 '{phrase}': {e}")
+                return "malformed", []
             except APIError as e:
-                self.errors.append(f"sam {phrase}: {e}")
-                return []
+                errors.append(f"SAM 3.1 '{phrase}': {str(e)[:120]}")
+                return "unavailable", []
         crop = farm.plan[i]["crop"] if farm is not None and farm.plan and i is not None else None
         cereal = crop in ("wheat", "rice", "millet")       # drilled cereals form rows, not countable plants
         try:
             tiles = [] if cereal else self._tiles(frame)
         except Exception as e:                              # undecodable frame: whole-frame counting only
-            self.errors.append(f"tiling: {e}")
+            errors.append(f"tiling: {e}")
             tiles = [(url, (0, 0, size[0], size[1]), (0, 0, size[0], size[1]))]
         jobs = [(CONCEPTS["plant"], t[0]) for t in tiles] + [(CONCEPTS["salt"], url)]
         with ThreadPoolExecutor(8) as ex:
             found = list(ex.map(sam, jobs))
         objects = []
-        for (turl, (ox, oy, _, _), (cx0, cy0, cx1, cy1)), boxes in zip(tiles, found[:len(tiles)]):
+        tiles_ok = 0
+        for (turl, (ox, oy, _, _), (cx0, cy0, cx1, cy1)), (st, boxes) in zip(tiles, found[:len(tiles)]):
+            tiles_ok += st == "ok"
             for b in boxes:
                 x0, y0, x1, y1 = b["box"][0] + ox, b["box"][1] + oy, b["box"][2] + ox, b["box"][3] + oy
                 mx, my = (x0 + x1) / 2, (y0 + y1) / 2
                 if cx0 <= mx < cx1 and cy0 <= my < cy1 and (x1 - x0) * (y1 - y0) < 0.5 * TILE_W * TILE_H:
                     objects.append({"label": "plant", "box": [round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)], "score": b["score"]})
-        salt = found[-1]
+        salt_st, salt = found[-1]
         objects += [{"label": "salt", "box": [round(v, 1) for v in b["box"]], "score": b["score"]} for b in salt]
         n_plants = sum(o["label"] == "plant" for o in objects)
         area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "plant")
         salt_area = sum((o["box"][2] - o["box"][0]) * (o["box"][3] - o["box"][1]) for o in objects if o["label"] == "salt")
-        diag = None
+        # plant count: valid (every tile answered), partial (a lower bound), unavailable, or not counted (cereal)
+        if cereal:
+            plant_status, plants = "not_counted", None
+        elif tiles_ok == len(tiles):
+            plant_status, plants = "valid", n_plants
+        elif tiles_ok:
+            plant_status, plants = "partial", n_plants
+        else:
+            plant_status, plants = ("malformed" if any(st == "malformed" for st, _ in found[:len(tiles)]) else "unavailable"), None
+        salt_status = "valid" if salt_st == "ok" else salt_st
+        diag, diag_status = None, "unavailable"
         try:
-            diag = self._diagnose(url, crop, ref_url)
-        except (APIError, json.JSONDecodeError) as e:
-            self.errors.append(f"diagnosis: {e}")
-        return {"source": "SAM 3.1 + Muse Spark", "plants_counted": None if cereal else n_plants,
-                "salt_crust_patches": len(salt), "salt_box_cover_pct": round(100 * salt_area / (size[0] * size[1]), 1),
-                "plant_box_cover_pct": round(100 * area / (size[0] * size[1]), 1),
+            diag, diag_status = self._diagnose(url, crop, ref_url), "valid"
+        except MalformedOutput as e:
+            diag_status = "malformed"
+            errors.append(f"Muse Spark diagnosis: {e}")
+        except (APIError, KeyError, IndexError, TypeError) as e:
+            errors.append(f"Muse Spark diagnosis: {str(e)[:120]}")
+        parts = [plant_status if plant_status != "not_counted" else "valid", salt_status, diag_status]
+        overall = "complete" if all(p == "valid" for p in parts) else "unavailable" if all(p != "valid" and p != "partial" for p in parts) else "partial"
+        self.errors += errors
+        models = [m for m, ok in (("SAM 3.1", plant_status in ("valid", "partial") or salt_status == "valid"), ("Muse Spark", diag_status == "valid")) if ok]
+        return {"source": " + ".join(models) if models else "perception unavailable", "perception_status": overall,
+                "image_provenance": "synthetic render of the simulator's state (not a real camera)",
+                "plants_counted": plants, "plant_count_status": plant_status,
+                "plant_tiles_answered": f"{tiles_ok}/{len(tiles)}" if tiles else None,
+                "salt_crust_patches": len(salt) if salt_status == "valid" else None, "salt_status": salt_status,
+                "salt_box_cover_pct": round(100 * salt_area / (size[0] * size[1]), 1) if salt_status == "valid" else None,
+                "plant_box_cover_pct": round(100 * area / (size[0] * size[1]), 1) if plant_status in ("valid", "partial") else None,
                 "sam_prompts": {"plant": f"'{CONCEPTS['plant']}' on {len(tiles)} tiles" if tiles else "not counted", "salt": f"'{CONCEPTS['salt']}' on the frame"},
-                "counting_note": "drilled cereal: plants are not counted one by one" if cereal else "SAM counts separate plants well; a closed canopy is undercounted",
+                "counting_note": ("drilled cereal: plants are not counted one by one" if cereal else
+                                  "a lower bound: some image tiles got no answer" if plant_status == "partial" else
+                                  "SAM counts separate plants well; a closed canopy is undercounted"),
                 "diagnosis_method": "Muse Spark compares the photo with the model's expected view" if reference else "Muse Spark, photo only",
-                "diagnosis": diag, "objects": objects, "errors": self.errors[-3:]}
+                "diagnosis": diag, "diagnosis_status": diag_status,
+                "usage": {"perception_calls": self.client.attempts - a0},
+                "objects": objects, "errors": errors[:4]}
 
 
 class SimPerception:
@@ -189,7 +254,9 @@ class SimPerception:
         cond = "harvested_or_bare" if plants == 0 else ("healthy" if n_true == 0 else "mixed" if n_true > 1 else
                 {"pest_damage_visible": "pest_damage", "salt_crust_visible": "salt_damage",
                  "wilting_or_yellowing": "water_stress", "gaps_in_stand": "sparse_stand"}[next(k for k, v in flags.items() if v)])
-        return {"source": "simulated perception (no API key)", "plants_counted": plants,
+        return {"source": "simulated perception (no API key)", "perception_status": "complete",
+                "image_provenance": "synthetic render of the simulator's state (not a real camera)",
+                "plants_counted": plants,
                 "salt_crust_patches": int(max(0, ece - 5) * 2), "damaged_leaf_spots": int(pest * 3000),
                 "diagnosis": {"condition": cond, **flags,
                               "evidence": "read from the simulator state, standing in for SAM 3.1 and Muse Spark"},

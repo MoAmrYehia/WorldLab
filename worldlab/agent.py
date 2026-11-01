@@ -45,11 +45,13 @@ Style: keep messages to one or two sentences. Put reasoning in each tool's ratio
 CROP_ENUM = ["wheat", "rice", "maize", "potato", "cassava", "soybean", "sorghum", "millet", "beans", "sweet_potato"]
 TRIAL_SPEC = {"type": "object", "properties": {
     "crop": {"type": "string", "enum": CROP_ENUM},
-    "sow": {"type": "integer", "description": "sowing day, 0 = 1 October, up to 200"},
+    "sow": {"type": "integer", "minimum": 0, "maximum": 200, "description": "sowing day, 0 = 1 October, up to 200"},
     "plot": {"type": "string", "enum": ["normal", "saline"]},
-    "irr": {"type": "number", "description": "irrigation as a fraction of crop water demand, 0.4-1.3"},
-    "desal": {"type": "number", "description": "fraction of desalinated water, 0-1"},
-    "nfert": {"type": "number", "description": "nitrogen, kg/ha"}},
+    "irr": {"type": "number", "minimum": 0.4, "maximum": 1.3, "description": "irrigation as a fraction of crop water demand, 0.4-1.3"},
+    "desal": {"type": "number", "minimum": 0, "maximum": 1, "description": "fraction of desalinated water, 0-1"},
+    "nfert": {"type": "number", "minimum": 0, "maximum": 400, "description": "nitrogen, kg/ha"},
+    "density": {"type": "number", "minimum": 0.5, "maximum": 1.5, "description": "plant density relative to standard, default 1"},
+    "mulch": {"type": "number", "minimum": 0, "maximum": 1, "description": "mulch cover fraction, default 1"}},
     "required": ["crop", "sow", "plot"]}
 
 
@@ -58,6 +60,7 @@ def _obj(props: dict, required: list[str]) -> dict:
 
 
 S = {"type": "string"}
+FIELD = {"type": "string", "enum": ["F1", "F2", "F3", "F4", "F5", "F6"]}
 TOOLS = [
     {"name": "observe", "description": "Phase, date, fields, budgets, forecast, latest projection of people fed, and any open anomaly.",
      "parameters": _obj({}, [])},
@@ -78,7 +81,7 @@ TOOLS = [
     {"name": "plan_season", "description": "Choose crop, sowing day, irrigation level, desal blend and nitrogen for each field to maximise people fed in a bad year within the water quota and energy budget.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
     {"name": "train_irrigation_policy", "description": "Reinforcement learning: train a daily irrigation and desal-blend policy for a plan by evolution strategies inside your calibrated model (crop traits from your beliefs, weather from the climate). Takes about a minute. Returns the policy against the plan's fixed rule on held-out imagined seasons, and a recommendation.",
-     "parameters": _obj({"plan_id": S, "rationale": S, "iterations": {"type": "integer", "description": "10-120, default 50"}},
+     "parameters": _obj({"plan_id": S, "rationale": S, "iterations": {"type": "integer", "minimum": 10, "maximum": 120, "description": "10-120, default 50"}},
                         ["plan_id", "rationale"])},
     {"name": "start_season", "description": "Sow according to a plan. No more trials after this. controller: rule (the plan's fixed irrigation levels) or rl_policy (the trained policy for this plan).",
      "parameters": _obj({"plan_id": S, "rationale": S, "controller": {"type": "string", "enum": ["rule", "rl_policy"]}},
@@ -86,18 +89,19 @@ TOOLS = [
     {"name": "set_irrigation_controller", "description": "Switch daily irrigation between the plan's rule and the trained RL policy from today.",
      "parameters": _obj({"controller": {"type": "string", "enum": ["rule", "rl_policy"]}, "rationale": S}, ["controller", "rationale"])},
     {"name": "advance", "description": "Run the season forward up to 60 days. Stops early if measurements leave the model's predicted band.",
-     "parameters": _obj({"days": {"type": "integer"}, "rationale": S}, ["days", "rationale"])},
+     "parameters": _obj({"days": {"type": "integer", "minimum": 1, "maximum": 60}, "rationale": S}, ["days", "rationale"])},
     {"name": "look_at_field", "description": "Fly the drone over a field. SAM 3.1 counts plants (on image tiles) and segments white salt crust; Muse Spark compares the photo with the view your model expects and diagnoses stress, pests or salt; also measured vs predicted canopy cover.",
-     "parameters": _obj({"field": S, "reason": S}, ["field", "reason"])},
+     "parameters": _obj({"field": FIELD, "reason": S}, ["field", "reason"])},
     {"name": "field_test", "description": "Run a field test: emitter_flow (drip delivery vs design), soil_sample (salinity by layer vs model), water_test (groundwater salinity vs model), leaf_inspection (pests).",
-     "parameters": _obj({"field": S, "test": {"type": "string", "enum": ["emitter_flow", "soil_sample", "water_test", "leaf_inspection"]},
+     "parameters": _obj({"field": FIELD, "test": {"type": "string", "enum": ["emitter_flow", "soil_sample", "water_test", "leaf_inspection"]},
                          "rationale": S}, ["field", "test", "rationale"])},
     {"name": "adjust_field", "description": "Change a field from today: irrigation level, desal blend, repair the drip line, or apply pest control.",
-     "parameters": _obj({"field": S, "rationale": S, "irr": {"type": "number"}, "desal": {"type": "number"},
+     "parameters": _obj({"field": FIELD, "rationale": S, "irr": {"type": "number", "minimum": 0, "maximum": 1.5},
+                         "desal": {"type": "number", "minimum": 0, "maximum": 1},
                          "repair_drip": {"type": "boolean"}, "pest_control": {"type": "boolean"}}, ["field", "rationale"])},
     {"name": "update_model", "description": "Teach the model a diagnosed fact so its predictions match reality again: drip_delivery (measured delivered fraction), pest (daily canopy loss fraction, e.g. 0.03) or groundwater_ec (dS/m), from since_day.",
      "parameters": _obj({"rationale": S, "finding": {"type": "string", "enum": ["drip_delivery", "pest", "groundwater_ec"]},
-                         "value": {"type": "number"}, "since_day": {"type": "integer"}, "field": S},
+                         "value": {"type": "number", "minimum": 0, "maximum": 30}, "since_day": {"type": "integer", "minimum": 0, "maximum": 272}, "field": FIELD},
                         ["rationale", "finding", "value", "since_day"])},
     {"name": "dismiss_anomaly", "description": "Close an anomaly when tests show nothing physical changed.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
@@ -108,7 +112,59 @@ TOOLS = [
 ]
 
 
+TOOL_SCHEMA = {t["name"]: t["parameters"] for t in TOOLS}
+
+
+def validate_args(schema: dict, v, path: str = "") -> list[str]:
+    """Check tool arguments against the subset of JSON Schema the tools use: types, required and allowed
+    fields, enums, finite numbers and ranges. Returns a list of problems (empty when valid)."""
+    import math
+    t, errs, where = schema.get("type"), [], path or "arguments"
+    if t == "object":
+        if not isinstance(v, dict):
+            return [f"{where} must be an object"]
+        props = schema.get("properties", {})
+        errs += [f"{where}.{k} is required" for k in schema.get("required", []) if k not in v]
+        errs += [f"{where}.{k} is not an allowed field" for k in v if k not in props]
+        for k, sub in props.items():
+            if k in v and v[k] is not None:
+                errs += validate_args(sub, v[k], f"{path}.{k}" if path else k)
+        return errs
+    if t == "array":
+        if not isinstance(v, list):
+            return [f"{where} must be a list"]
+        for i, x in enumerate(v[:200]):
+            errs += validate_args(schema.get("items", {}), x, f"{where}[{i}]")
+        return errs
+    if t == "string":
+        if not isinstance(v, str):
+            return [f"{where} must be text"]
+        if len(v) > 4000:
+            return [f"{where} is too long"]
+    elif t == "boolean":
+        if not isinstance(v, bool):
+            return [f"{where} must be true or false"]
+    elif t in ("number", "integer"):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+            return [f"{where} must be a finite number"]
+        if t == "integer" and not float(v).is_integer():
+            return [f"{where} must be a whole number"]
+        if "minimum" in schema and v < schema["minimum"]:
+            errs.append(f"{where} must be at least {schema['minimum']}")
+        if "maximum" in schema and v > schema["maximum"]:
+            errs.append(f"{where} must be at most {schema['maximum']}")
+    if "enum" in schema and v not in schema["enum"]:
+        errs.append(f"{where} must be one of {schema['enum']}")
+    return errs
+
+
 def dispatch(lab: Lab, name: str, a: dict):
+    if name not in TOOL_SCHEMA:
+        return {"error": f"unknown tool {name}"}
+    problems = validate_args(TOOL_SCHEMA[name], a)
+    if problems:                                    # refused before anything touches the farm
+        lab.agent_note("system", f"{name} refused: invalid arguments", {"problems": problems[:6]})
+        return {"error": "invalid arguments", "problems": problems[:6]}
     if name == "observe":
         return lab.observe()
     if name == "get_beliefs":
@@ -171,7 +227,11 @@ def _brief(name: str, r) -> dict:
         "train_irrigation_policy": ["recommend", "trained_seconds", "best_checkpoint_iter", "held_out_comparison", "refused"],
         "record_hypothesis": ["hypothesis_id"], "update_model": ["ok", "error"],
     }.get(name, list(r)[:5])
-    return dict(r) if keep is None else {k: r[k] for k in keep if k in r}
+    if keep is None:
+        return dict(r)
+    out = {k: r[k] for k in keep if k in r}
+    out.update({k: r[k] for k in ("error", "problems", "refused") if k in r})     # refusals always stay visible
+    return out
 
 
 class LLMScientist:
@@ -181,23 +241,48 @@ class LLMScientist:
         self.max_turns = max_turns
 
     def run(self) -> dict:
+        """Drive the farm by function calling. Ends with a status, never with a harvest the model didn't reach:
+        completed (the scientist finished after the season), failed (API error, no tool calls, turn limit or
+        budget), timeout (wall-clock deadline) or cancelled (stopped by the operator)."""
         lab = self.lab
         tools = [{"type": "function", "function": t} for t in TOOLS]
         messages = [{"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": "Begin. Current state:\n" + _short(lab.observe())}]
         lab.agent_note("system", f"agent: {self.cfg.label} · model {self.cfg.model}")
-        nudges = 0
+        lim = lab.limits
+        t0 = time.time()
+        nudges = errors = 0
         turn = 0
+        status, reason = None, ""
         for turn in range(self.max_turns):
-            if lab.done or lab.stop_flag.is_set():
+            if lab.done:
+                break
+            if lab.stop_flag.is_set():
+                status, reason = "cancelled", "stopped by the operator"
+                break
+            if time.time() - t0 > lim.max_run_seconds:
+                status, reason = "timeout", f"run deadline of {lim.max_run_seconds / 60:.0f} minutes reached"
+                break
+            if self.client.attempts >= lim.max_model_calls:
+                status, reason = "failed", f"scientist call budget used up ({lim.max_model_calls} calls)"
                 break
             try:
-                msg = self.client.chat(messages, tools=tools)
+                msg = self.client.chat(messages, tools=tools)          # the client retries 429/5xx with backoff
+                errors = 0
             except APIError as e:
+                errors += 1
                 lab.agent_note("error", f"model API error: {e}")
-                if e.status in (400, 401, 403, 404):
+                if e.status in (400, 401, 403, 404) or errors >= 3:
+                    status, reason = "failed", f"model API error ({e.status or 'network'}): {str(e)[:160]}"
                     break
-                time.sleep(5)
+                time.sleep(self.client.retry_delay)
+                continue
+            except (KeyError, IndexError, TypeError, ValueError) as e:  # a response without the expected shape
+                errors += 1
+                lab.agent_note("error", f"malformed model response: {e}")
+                if errors >= 3:
+                    status, reason = "failed", "malformed model responses"
+                    break
                 continue
             text = (msg.get("content") or "").strip()
             calls = msg.get("tool_calls") or []
@@ -207,6 +292,7 @@ class LLMScientist:
                 messages.append({"role": "assistant", "content": text})
                 nudges += 1
                 if nudges > 3:
+                    status, reason = "failed", "the model stopped calling tools before the season ended"
                     break
                 messages.append({"role": "user", "content": "Continue by calling a tool. When the season is over, call finish."})
                 continue
@@ -217,21 +303,28 @@ class LLMScientist:
                 name = c["function"]["name"]
                 try:
                     args = json.loads(c["function"].get("arguments") or "{}")
-                except json.JSONDecodeError:
-                    args = {}
+                    bad = None if isinstance(args, dict) else "arguments must be a JSON object"
+                except json.JSONDecodeError as e:
+                    args, bad = {}, f"arguments are not valid JSON ({e.msg})"
                 lab.agent_note("tool_call", name, {"args": args})
-                try:
-                    result = dispatch(lab, name, args)
-                except StopRequested:
-                    raise
-                except Exception as e:
-                    result = {"error": f"{type(e).__name__}: {e}"}
-                    lab.agent_note("error", traceback.format_exc(limit=2))
+                if bad:
+                    result = {"error": "invalid arguments", "problems": [bad]}
+                else:
+                    try:
+                        result = dispatch(lab, name, args)
+                    except StopRequested:
+                        raise
+                    except Exception as e:
+                        result = {"error": f"{type(e).__name__}: {e}"}
+                        lab.agent_note("error", traceback.format_exc(limit=2))
                 lab.agent_note("tool_result", name, {"result": _brief(name, result)})
                 messages.append({"role": "tool", "tool_call_id": c["id"], "content": _short(result)})
         if not lab.done:
-            lab.finish("Run ended without the agent calling finish (turn limit, stop, or API error).")
-        return {"turns": turn + 1, "api_calls": self.client.calls, "usage": self.client.usage}
+            if status is None:
+                status, reason = "failed", f"turn limit of {self.max_turns} reached before the season ended"
+            lab.end_run(status, reason, decided_by=self.cfg.label)
+        return {"turns": turn + 1, "api_calls": self.client.calls, "attempts": self.client.attempts, "usage": self.client.usage,
+                "status": lab.run_status, "reason": lab.run_end_reason}
 
 
 # ------------------------------------------------------------ scripted baseline
@@ -326,6 +419,33 @@ class ScriptedScientist:
                     self.call("dismiss_anomaly", {"rationale": "baseline ignores anomalies"})
         res = lab.result or {}
         return self.call("finish", {"summary": f"Scripted protocol finished: {res.get('people_fed')} people fed."})
+
+    def resume(self, reason: str) -> dict | None:
+        """Take over a season the model-driven scientist stopped in, when the person chooses to. The handover
+        is recorded and the result is labelled as mixed (degraded), never as the model's own season."""
+        lab = self.lab
+        if lab.phase != "season":
+            return None
+        lab.handover("scripted protocol", reason)
+        for _ in range(40):
+            if lab.anomaly:
+                if self.adapt:
+                    self.investigate(lab.anomaly)
+                    if lab.anomaly:
+                        self.call("dismiss_anomaly", {"rationale": "unresolved after tests"})
+                else:
+                    self.call("dismiss_anomaly", {"rationale": "baseline ignores anomalies"})
+            if lab.phase != "season":
+                break
+            r = self.call("advance", {"days": 60, "rationale": "continue the season after the handover"})
+            if lab.phase != "season":
+                break
+            if r.get("anomaly") and self.adapt:
+                self.investigate(r["anomaly"])
+                if lab.anomaly:
+                    self.call("dismiss_anomaly", {"rationale": "unresolved after tests"})
+        res = lab.result or {}
+        return self.call("finish", {"summary": f"Season completed by the scripted protocol after a handover ({reason}): {res.get('people_fed')} people fed."})
 
     # ------------------------------------------------ human decision mode: the person may pick tests and approve actions
     TEST_OPTIONS = [("water_test", "Water test", "groundwater salinity against the model's assumption"),
