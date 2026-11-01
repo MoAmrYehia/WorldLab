@@ -74,6 +74,9 @@ COOKIE = "wl_session"
 
 def release_info() -> dict:
     """Which source this server runs: worldlab/release.json written by the release workflow, else git, else unknown."""
+    for var in ("WORLDLAB_RELEASE_SHA", "RENDER_GIT_COMMIT"):          # set by the host when it builds from git
+        if os.environ.get(var):
+            return {"sha": os.environ[var], "source": var}
     f = Path(__file__).resolve().parent / "release.json"
     if f.is_file():
         try:
