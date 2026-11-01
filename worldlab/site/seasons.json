@@ -66,6 +66,15 @@
    },
    "salinity_scale": 1.0,
    "hidden_events": 3
+  },
+  {
+   "id": "mystery",
+   "title": "Unknown challenge",
+   "difficulty": "Expert",
+   "about": "A hidden challenge drawn at random when the season starts, from the same families as the frozen holdout: possibly nothing, a fault, two faults, a faulty instrument, or a cause no test can establish. Revealed after the season.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": "unknown"
   }
  ],
  "editor": {

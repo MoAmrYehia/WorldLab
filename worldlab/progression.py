@@ -13,8 +13,9 @@ import json
 TARGET_PEOPLE = 500            # the farm's food-security goal for the season
 WATER_TARGET_M3_PER_PERSON = 125.0
 SEASON_DAYS = 273
-FAULT_FINDING = {"clog": "drip_delivery", "pest": "pest", "salinity": "groundwater_ec"}
-FAULT_LABEL = {"clog": "clogged drip line", "pest": "pest outbreak", "salinity": "saltier groundwater", "heatwave": "heat wave"}
+FAULT_FINDING = {"clog": "drip_delivery", "pest": "pest", "salinity": "groundwater_ec", "sensor_bias": None, "blight": None}
+FAULT_LABEL = {"clog": "clogged drip line", "pest": "pest outbreak", "salinity": "saltier groundwater", "heatwave": "heat wave",
+               "sensor_bias": "faulty soil-moisture sensor", "blight": "root disease (no available test shows it)"}
 
 ACHIEVEMENTS = {
     "first_sprout": ("First Sprout", "Grow a round of trial plots and compare every harvest with its prediction."),
@@ -89,9 +90,17 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
         day = p.get("day", 0)
         det = [a for a in anomalies if (a["data"].get("detected_day", 0) >= day) and
                (p.get("field") in (None, "all") or a["data"].get("field") == p.get("field") or k == "salinity")]
-        found = [u for u in updates if u["data"]["finding"] == FAULT_FINDING[k] and (u["t"] or 0) >= day and
-                 (k == "salinity" or u["data"].get("field") == p.get("field"))]
-        fixed = bool(found) or any((r["t"] or 0) >= day and r["data"].get("field") == p.get("field") for r in repairs)
+        here = lambda e: (e["t"] or 0) >= day and e["data"].get("field") == p.get("field")
+        if k == "sensor_bias":                    # identified and corrected by recalibrating that field's sensor
+            found = [e for e in kinds("adjust") if here(e) and e["data"].get("recalibrate_sensor")]
+            fixed = bool(found)
+        elif k == "blight":                       # the honest answer: cause not established, a person asked to look
+            found = [e for e in kinds("review_requested") if here(e)]
+            fixed = bool(found) or any(here(u) and u["data"]["finding"] == "canopy_loss_unexplained" for u in updates)
+        else:
+            found = [u for u in updates if u["data"]["finding"] == FAULT_FINDING[k] and (u["t"] or 0) >= day and
+                     (k == "salinity" or u["data"].get("field") == p.get("field"))]
+            fixed = bool(found) or any((r["t"] or 0) >= day and r["data"].get("field") == p.get("field") for r in repairs)
         faults.append({"kind": k, "label": FAULT_LABEL[k], "field": p.get("field"), "day": day,
                        "detected": bool(det), "detected_day": det[0]["data"]["detected_day"] if det else None,
                        "diagnosed": bool(found), "recovered": fixed})
