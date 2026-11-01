@@ -125,7 +125,9 @@ def evaluate(events: list[dict], perturbations: list[dict] | None = None, result
         obj("Detect every hidden fault", all(f["detected"] for f in faults), f"{sum(f['detected'] for f in faults)} of {len(faults)}", go="incidents"),
         obj("Identify the true cause", all(f["diagnosed"] for f in faults), go="incidents"),
         obj("Repair or correct the model", all(f["recovered"] for f in faults), go="incidents")] if faults else [
-        obj("No hidden faults this season", False, "nothing to recover from", kind="na")]
+        # during the season the farm's hidden changes are unknown until they happen, so claim nothing definite before the end
+        obj("No hidden faults this season" if result else "No fault has shown up so far", False,
+            "nothing to recover from" if result else "faults are hidden until they happen", kind="na")]
     chapters = [
         {"id": "discover", "title": "Discover", "about": "Study the farm and run crop experiments.", "objectives": [
             obj("Grow trial plots", plots > 0, f"{plots} plots", go="trials"),
