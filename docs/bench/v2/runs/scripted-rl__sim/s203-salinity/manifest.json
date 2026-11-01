@@ -1,0 +1,89 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s203-salinity",
+ "label": "salinity",
+ "seed": 203,
+ "agent": "scripted-rl",
+ "scientist_model": null,
+ "perception": "sim",
+ "perception_models": [],
+ "hidden_events": [
+  {
+   "kind": "salinity",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "salinity",
+   "field": "all",
+   "day": 90
+  }
+ ],
+ "source_commit": "53e41d7d024af1dc7c228dc4f6a473f9d1186d87",
+ "source_dirty": false,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 327.9,
+ "finished_at": "2026-11-01T08:50:20Z",
+ "result": {
+  "people_fed": 333.8,
+  "water_m3": 56198,
+  "energy_kwh": 83781,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "salinity",
+    "field": "all",
+    "onset": 90,
+    "first_evidence_day": 104,
+    "correct_diagnosis_day": 105,
+    "intervention_day": 105,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 15
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 0,
+  "tests": 1,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.826,
+ "trait_error_planted": 0.389,
+ "planted": [
+  "maize",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 10,
+ "tests": 1,
+ "looks": 1,
+ "usage": {
+  "scientist_calls": null,
+  "scientist_attempts": null,
+  "scientist_tokens": null,
+  "perception_attempts": null,
+  "perception_calls": null
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "68ff6da710ff568ff5766023d0f57737ad5b3c0f9200c69e8e19fafeaec7a021",
+   "entries": 80,
+   "head": "3dee5afb730a27dc28855f571f66ed62fc574d59c2d0a44646135005dbeafea1"
+  }
+ }
+}

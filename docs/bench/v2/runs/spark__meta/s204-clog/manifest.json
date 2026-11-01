@@ -1,0 +1,96 @@
+{
+ "schema": "worldlab.bench/2",
+ "case": "s204-clog",
+ "label": "clog",
+ "seed": 204,
+ "agent": "spark",
+ "scientist_model": "muse-spark-1.3",
+ "perception": "meta",
+ "perception_models": [
+  "sam-3.1",
+  "muse-spark-1.3"
+ ],
+ "hidden_events": [
+  {
+   "kind": "clog",
+   "day": 90
+  }
+ ],
+ "applied_events": [
+  {
+   "kind": "clog",
+   "field": "F3",
+   "day": 90
+  }
+ ],
+ "source_commit": "5498e84a1eabb6fb3793b8f8d96689597e5b498d",
+ "source_dirty": true,
+ "prompt_sha256": "3cbd15032c487e9a9fdd2048d0537dd6e0fc7b1f29aaec342032a364134d1d05",
+ "tool_schema_sha256": "c2604653e5d6955a318fb4f9abc19ff74a6d61d0975d1c637679d186ac16d303",
+ "status": "completed",
+ "status_reason": null,
+ "error": null,
+ "wall_seconds": 688.4,
+ "finished_at": "2026-11-01T07:10:27Z",
+ "result": {
+  "people_fed": 395.4,
+  "water_m3": 60000,
+  "energy_kwh": 88214,
+  "within_limits": true,
+  "limiting": "kcal"
+ },
+ "score": {
+  "events": [
+   {
+    "kind": "clog",
+    "field": "F3",
+    "onset": 90,
+    "first_evidence_day": 117,
+    "correct_diagnosis_day": 118,
+    "intervention_day": 118,
+    "justified_intervention": true,
+    "no_realarm_30d": true,
+    "days_to_diagnosis": 28
+   }
+  ],
+  "faults": 1,
+  "faults_with_evidence": 1,
+  "faults_diagnosed": 1,
+  "faults_justified_intervention": 1,
+  "unrelated_alarms": 0,
+  "wrong_findings": 0,
+  "wrong_interventions": 0,
+  "unnecessary_tests": 1,
+  "tests": 2,
+  "appropriate_non_intervention": null
+ },
+ "trait_error_common": 0.571,
+ "trait_error_planted": 0.201,
+ "planted": [
+  "maize",
+  "sorghum",
+  "sweet_potato",
+  "wheat"
+ ],
+ "controller": "rule",
+ "plots": 16,
+ "tests": 2,
+ "looks": 5,
+ "usage": {
+  "scientist_calls": 35,
+  "scientist_attempts": 35,
+  "scientist_tokens": {
+   "prompt_tokens": 735704,
+   "completion_tokens": 7211
+  },
+  "perception_attempts": 90,
+  "perception_calls": 90
+ },
+ "artifacts": {
+  "ledger.jsonl.gz": {
+   "sha256": "ef89b8a15833ec77344dd835c68d714b0d5da5e3cdb3bd2e47e4ce5c58c0fdfa",
+   "entries": 137,
+   "head": "cd161a9411d0fe688b9f094a26a795c2ba81a646b7e9d5daa570ca892e66d4ff"
+  }
+ }
+}
