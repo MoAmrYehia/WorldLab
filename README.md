@@ -148,7 +148,7 @@ Built for the Meta Global AI Developer Hackathon, theme **Push the Frontier** (a
 | **Muse Spark** (`muse-spark-1.3`, Meta Model API) | The scientist. It drives everything through **tool calling**: it records hypotheses, designs trials, decides when beliefs are good enough to plan, chooses which field test to run, interprets results, acts and concludes. Every call carries a written rationale that lands in the ledger. |
 | **SAM 3.1** (`sam-3.1`, Meta Model API) | Reads the drone photos. It counts plants by segmenting "plant" on 16 overlapping tiles of each frame (a plant counts once, in the tile that holds its centre) and segments white salt crust ("white patch") on the whole frame. Each count is scored afterwards against what the frame really shows: in testing it counted 120 of 120, 165 of 167 and 158 of 159 separate plants; a closed maize canopy is undercounted. |
 | **Muse Spark** vision + **structured output** | Compares the drone photo with a view rendered from the scientist's own model (same plant positions, the predicted canopy, no faults) and returns a structured diagnosis with evidence: healthy, water stress, pest damage, salt damage or a sparse stand. Given only the photo it confused narrow maize leaves with drought; with the expected view it got 12 of 12 test frames right. |
-| **Muse Glimmer** (open weights, Apache 2.0) | A drop-in scientist running on your own GPU or any OpenAI-compatible host. It gets the same tools and prompt, so the two can be benchmarked head to head. |
+| **Muse Glimmer** (open weights, Apache 2.0) | An adapter for running the same scientist on your own GPU or any OpenAI-compatible host, with the same tools and prompt. **Not run or benchmarked in this project**: no result here comes from Glimmer. |
 
 The language model never acts on the farm directly. It decides, numerical code does the agronomy, and budgets bound every action: trial plots, field tests, the groundwater quota and the energy budget.
 
@@ -227,7 +227,7 @@ Crop and nutrition values are approximate published figures (AquaCrop-style para
 
 ## Built during the hackathon
 
-Everything in this repository was written during the Meta Global AI Developer Hackathon build period (first commit 29 October 2026): the farm and crop simulator, the scientist's tools and protocol, the Muse Spark, SAM 3.1 and Muse Glimmer integrations, the experiment design, calibration, planning and reinforcement-learning code, the photoreal drone renderer, the audit ledger, the server and accounts, the 3D web app and the website. The commit history shows the order it was built in. Third-party code is used only as libraries: NumPy, SciPy and Pillow on the server, Three.js in the browser.
+Everything in this repository was written during the Meta Global AI Developer Hackathon build period (first commit 29 October 2026): the farm and crop simulator, the scientist's tools and protocol, the Muse Spark and SAM 3.1 integrations (and an unbenchmarked Muse Glimmer adapter), the experiment design, calibration, planning and reinforcement-learning code, the photoreal drone renderer, the audit ledger, the server and accounts, the 3D web app and the website. The commit history shows the order it was built in. Third-party code is used only as libraries: NumPy, SciPy and Pillow on the server, Three.js in the browser.
 
 ## Quick start
 
@@ -391,7 +391,48 @@ After the hard water and energy budget was added, the two headline agents were r
 
 No run exceeded a limit. Trained and compared under the same cap, the policy learned to use more of the allowance (about 3% more water and energy) and fed 12% more people on average; the policy was deployed in all 25 farm-scenarios. The oracle (true traits, fixed rule, no faults) averages 441 people, so the policy's gain comes from irrigation timing, not from knowing the traits. These remain scripted-agent results on simulated farms; the soft-budget table above is kept as the historical record.
 
-### Muse Spark on the same 25 farm-scenarios
+### Benchmark v2: event-level scoring, every run kept
+
+The same 25 farm-scenarios, rerun with complete ledgers and manifests and scored event by event. The score records first evidence, correct diagnosis, a justified action after the diagnosis, and re-alarms, plus every alarm, finding or action that no hidden event explains. Full results, the perception ablation and the failure analysis are in [`docs/bench/v2/`](docs/bench/v2/). There were 105 runs, and all of them completed.
+
+| scientist (25 runs each) | people fed, mean | faults diagnosed | wrong findings or actions | unexplained alarms | calm when nothing was wrong | cost per season |
+|---|---|---|---|---|---|---|
+| Muse Spark + SAM 3.1 + Muse Spark vision | 441.1 | 14/15 | 0 | 18 | 10/10 | $1.11 |
+| scripted protocol + learned irrigation policy | 471.3 | 15/15 | 0 | 1 | 10/10 | $0.02 |
+
+**Matched difference (Spark minus scripted): −30.3 people fed**, 95% interval −59.3 to −1.9 (resampling farm seeds). Spark was ahead in 9 of 25 pairs.
+
+- **Diagnosis:** Muse Spark diagnoses as accurately as the protocol, a day sooner (median 14 days from onset against 15), with no wrong calls.
+- **Harvest:** the loss is in its crop plans. On one farm, its only vitamin-A crop failed on the saltiest field and the index fell to 26 people. That farm also produced 16 of its 18 unexplained alarms.
+- **Perception ablation:** removing SAM 3.1, Spark vision or both changed neither diagnosis nor harvest in the clog and pest cases.
+- **Scripted protocol and perception:** its results are identical with Meta perception and with the simulator's truth.
+
+### Frozen holdout: eight unfamiliar farms
+
+Eight cases were generated from a fixed seed and committed before any run. They use new farms and random onset days, severities and fields, and cover:
+
+- a clean control;
+- a forecast heat wave;
+- a clog;
+- pests;
+- saltier groundwater;
+- a compound fault;
+- a biased soil-moisture sensor;
+- a root disease no available test can detect.
+
+Details are in [`docs/bench/holdout/`](docs/bench/holdout/).
+
+| | Muse Spark | scripted protocol + RL |
+|---|---|---|
+| hidden faults diagnosed | 5/7 | 5/7 |
+| wrong findings or actions | 3 | 1 |
+| unidentifiable cause escalated to a person, nothing treated | yes | yes |
+| calm on the control and heat-wave farms | 2/2 | 2/2 |
+| people fed, mean | 474.4 | 483.1 |
+
+The matched difference is −8.7 (95% interval −31.8 to +11.2): inconclusive with eight cases. Neither scientist caught a clog on a generously watered sandy field. There, the clog moved soil moisture by less than the monitor's threshold before harvest: a detection limit, written up as one.
+
+### Benchmark v1: Muse Spark on the same 25 farm-scenarios (earlier, run-level scoring)
 
 Muse Spark (`muse-spark-1.3`) ran the same 5 farm seeds × 5 scenarios under the hard budget, with SAM 3.1 and Muse Spark vision reading its drone photos (`WORLDLAB_BENCH_PERCEPTION=meta python -m worldlab bench --farms 5 --agents spark`; raw runs in `docs/bench/spark/runs.json`, table in `docs/bench/spark/summary.md`). Each pair below shares the farm seed, weather year and hidden change.
 

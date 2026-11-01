@@ -144,24 +144,23 @@
 
 <section class="band" id="results">
   <div class="wrap">
-    <h2>Benchmarked on 25 farm-scenarios with hidden faults</h2>
-    <p class="intro">5 random farm seeds × 5 scenarios per agent (none, clogged drip line, pests, saltier groundwater, forecast heat wave), 25 runs per agent. Each farm seed has its own hidden crop traits, drip systems and weather year; the change arrives on day 90 without telling the scientist. All runs use the hard water and energy budget. Muse Spark ran with SAM 3.1 and Muse Spark vision reading its drone photos; the scripted agents follow a fixed protocol over the same tools.</p>
+    <h2>Benchmarked on 25 farm-scenarios and a frozen holdout</h2>
+    <p class="intro">Benchmark v2: 5 farm seeds × 5 scenarios (none, clogged drip line, pests, saltier groundwater, forecast heat wave), the same 25 cases for each scientist, every run kept with its full ledger. Each farm has its own hidden crop traits, drip systems and weather year; the change arrives on day 90 without telling the scientist. Hard water and energy budget throughout. Scored event by event: evidence, diagnosis, justified action, re-alarms, and anything it got wrong.</p>
     <div class="results">
       <table>
-        <caption class="sr-only">Average over 25 farm-scenarios per agent, hard water and energy budget</caption>
-        <thead><tr><th>Scientist, hard budget (25 runs each)</th><th class="n">People fed, mean</th><th class="n">Groundwater, m³, mean</th><th class="n">Energy, kWh, mean</th><th class="n">Runs within both limits</th></tr></thead>
+        <caption class="sr-only">Benchmark v2: 25 farm-scenarios per scientist, hard water and energy budget</caption>
+        <thead><tr><th>Scientist (25 runs each)</th><th class="n">People fed, mean</th><th class="n">Faults diagnosed</th><th class="n">Wrong findings or actions</th><th class="n">Median days to diagnosis</th></tr></thead>
         <tbody>
-          <tr><td>Muse Spark, with SAM 3.1 and Muse Spark vision</td><td class="n">456</td><td class="n">57,411</td><td class="n">86,635</td><td class="n">25 of 25</td></tr>
-          <tr><td>Scripted protocol with the learned irrigation policy</td><td class="n"><b>471</b></td><td class="n">57,580</td><td class="n">85,501</td><td class="n">25 of 25</td></tr>
-          <tr><td>Scripted protocol with the fixed irrigation rule</td><td class="n">422</td><td class="n">56,108</td><td class="n">83,284</td><td class="n">25 of 25</td></tr>
+          <tr><td>Muse Spark, with SAM 3.1 and Muse Spark vision</td><td class="n">441</td><td class="n">14 of 15</td><td class="n">0</td><td class="n">14</td></tr>
+          <tr><td>Scripted protocol with the learned irrigation policy</td><td class="n"><b>471</b></td><td class="n">15 of 15</td><td class="n">0</td><td class="n">15</td></tr>
         </tbody>
       </table>
       <ul class="facts">
-        <li>Muse Spark identified the cause of all 15 hidden faults (clog, pests, salty groundwater on 5 farm seeds), with no false alarms; once it found a pest outbreak on a routine drone look before any sensor alarm. It learned the hidden crop traits more accurately than the scripted protocol (0.3 against 0.4 prior standard deviations).</li>
-        <li>The hand-written protocol with its learned irrigation policy still fed 3% more people on average; Muse Spark fed more in 10 of the 25 paired runs and in the salty-groundwater scenario on average.</li>
-        <li>Under the hard budget, the learned policy used about 3% more of the water and energy allowance than the fixed rule to feed 12% more people, and no run went over a limit.</li>
-        <li>Earlier soft-budget ablations: skipping the trial plots fed about 50 fewer people; ignoring alarms lowered the harvest in every fault scenario.</li>
-        <li><a href="https://github.com/MoAmrYehia/WorldLab#benchmark">Method</a> and raw runs: <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/spark/runs.json">Muse Spark</a>, <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/bench/hard/runs.json">scripted</a>.</li>
+        <li>Muse Spark diagnoses as well as the hand-written protocol and makes no wrong calls, but it fed 30 fewer people on average (95% interval −59 to −2; ahead in 9 of 25 pairs). The gap is in its crop plans: on one farm its only vitamin-A crop failed on the saltiest field.</li>
+        <li>Frozen holdout, 8 unfamiliar farms including a faulty sensor and a disease no test can identify: both scientists diagnosed 5 of 7 faults, escalated the unidentifiable cause to a person and stayed calm when nothing was wrong; neither caught clogs on generously watered sandy fields.</li>
+        <li>Removing SAM 3.1, Spark vision or both did not change diagnosis or harvest in the clog and pest cases: the field test that separates the hypotheses decides, the photo shapes them.</li>
+        <li>An earlier run of the same 25 cases (benchmark v1, run-level scoring) gave Muse Spark 455.9 against 471.3, and the fixed irrigation rule 421.6.</li>
+        <li>Raw runs, method and failure analysis: <a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/v2">benchmark v2</a>, <a href="https://github.com/MoAmrYehia/WorldLab/tree/main/docs/bench/holdout">frozen holdout</a>, <a href="https://github.com/MoAmrYehia/WorldLab/blob/main/docs/model-card.md">what is real and what is simulated</a>.</li>
       </ul>
     </div>
   </div>
