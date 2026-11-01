@@ -1277,3 +1277,98 @@ class BenchScoreTests(unittest.TestCase):
         s = score(L, ev, "pest")
         self.assertFalse(s["events"][0]["no_realarm_30d"])
         self.assertEqual(s["unrelated_alarms"], 1)
+
+
+class PlanningLossTests(unittest.TestCase):
+    """The v2 farm-204 heat-wave loss (26.4 people): calibration, nutrient risk and alarm escalation (second review)."""
+
+    @classmethod
+    def setUpClass(cls):
+        # the same trial plots Muse Spark grew on farm 204 (docs/bench/v2/runs/spark__meta/s204-heatwave)
+        import gzip
+        led = Path(__file__).resolve().parents[1] / "docs/bench/v2/runs/spark__meta/s204-heatwave/ledger.jsonl.gz"
+        cls.L = [json.loads(x) for x in gzip.decompress(led.read_bytes()).decode().splitlines()]
+        farm = Farm(seed=204)
+        lab = Lab(farm, run_dir=tempfile.mkdtemp())
+        h = lab.record_hypothesis("a", "b", "c")["hypothesis_id"]
+        for st in [e["data"] for e in cls.L if e["kind"] == "trial_start"]:
+            specs = [{k: p[k] for k in ("crop", "sow", "plot", "irr", "desal", "nfert", "density", "mulch") if k in p} for p in st["plots"]]
+            ev = lab.evaluate_trials(specs)
+            lab.run_trials([o["candidate_id"] for o in ev["options"]][:len(specs)], h, "x")
+            lab.fit_crop_models("x")
+        cls.lab, cls.farm = lab, farm
+
+    def test_recorded_failure_is_what_the_old_code_logged(self):
+        # the archived run: after the heat plots, a single-start fit put sweet potato's salt shift at +0.26 dS/m
+        fits = [c for e in self.L if e["kind"] == "model_update" and e["data"].get("crops") for c in e["data"]["crops"] if c["crop"] == "sweet_potato"]
+        self.assertAlmostEqual(fits[-1]["traits"]["salt"]["mean"], 0.262, places=3)
+        self.assertEqual([e["data"]["people_fed"] for e in self.L if e["kind"] == "season_result"], [26.4])
+
+    def test_multistart_calibration_recovers_the_salt_trait(self):
+        b = self.lab.beliefs["sweet_potato"]
+        true = self.farm.traits["sweet_potato"]["salt"]                      # -1.42
+        self.assertLess(abs(b.mean[3] - true), 0.5)
+        self.assertLess(b.mean[3], -0.8)                                   # not the +0.26 the single-start fit found
+
+    def test_nutrient_risk_flags_the_bad_plan_and_offers_a_backup(self):
+        # rebuild the beliefs the old run planned with (salt +0.26) and plan: vitamin A hangs on one field
+        lab = Lab(Farm(seed=204), run_dir=tempfile.mkdtemp())
+        rows = [e["data"]["crops"] for e in self.L if e["kind"] == "model_update" and e["data"].get("crops")]
+        last = {}
+        for table in rows:
+            for c in table:
+                last[c["crop"]] = c
+        for c, row in last.items():
+            b = lab.beliefs[c]
+            b.mean = np.array([row["traits"][k]["mean"] for k in TRAIT_IDS])
+            b.cov = np.diag([row["traits"][k]["sd"] ** 2 for k in TRAIT_IDS])
+            lab.trial_data[c] = self.lab.trial_data[c]
+        lab.phase = "planning"
+        p = lab.plan_season("replan as in the archived run")
+        risk = p["nutrient_risk"]
+        self.assertIn(risk["level"], ("high", "watch"))
+        self.assertLess(risk["if_worst_field_fails_p10"], p["people_p10"])
+        vit = risk["by_nutrient"]["vitA_ug"]
+        if risk["level"] == "high":
+            self.assertIn("backup_plan_id", risk)
+            self.assertGreater(risk["backup"]["if_worst_field_fails_p10"], risk["if_worst_field_fails_p10"])
+            r = lab.start_season(p["plan_id"], "go")
+            self.assertIn("refused", r)                                   # a decision is required
+            self.assertIn("refused", lab.start_season(p["plan_id"], "go", accept_nutrient_risk="  "))
+        self.assertGreater(vit["largest_share"], 0.5)
+
+    def test_repeated_alarms_require_an_escalation_not_a_dismiss_loop(self):
+        farm = Farm(seed=7)
+        farm.schedule("blight", 60, pick=0, severity=0.03)
+        lab = Lab(farm, run_dir=tempfile.mkdtemp(), perception=SimPerception())
+        lab.start_season(lab.plan_season("go")["plan_id"], "go", "rule", accept_nutrient_risk="test")
+        seen, refused = [], None
+        for _ in range(30):
+            r = lab.advance(60, "x")
+            if r.get("escalation_required"):
+                refused = r
+                break
+            if lab.anomaly:
+                seen.append((lab.anomaly["field"], lab.anomaly["signal"]))
+                lab.dismiss_anomaly("noise")
+            if lab.phase != "season":
+                break
+        self.assertIsNotNone(refused, f"alarms seen: {seen}")
+        e = refused["escalation_required"]
+        self.assertGreaterEqual(e["alarms"], Lab.ESCALATE_AFTER)
+        self.assertIn("error", lab.escalate(e["field"], "ignore", "unknown", "x"))
+        lab.escalate(e["field"], "more_evidence", "unknown", "check it")
+        self.assertIn("refused", lab.advance(10, "x"))                   # the evidence must come first
+        lab.field_test(e["field"], "leaf_inspection", "x")
+        self.assertNotIn("refused", lab.advance(5, "x"))
+        kinds = [x["kind"] for x in lab.ledger.entries]
+        self.assertIn("escalation", kinds)
+
+    def test_accepting_a_loss_states_it_and_stops_the_loop(self):
+        lab = Lab(Farm(seed=7), run_dir=tempfile.mkdtemp())
+        lab.start_season(lab.plan_season("go")["plan_id"], "go", "rule", accept_nutrient_risk="test")
+        lab.escalation_needed = {"field": "F2", "signal": "cc", "alarms": 3}
+        r = lab.escalate("F2", "accept_loss", "model_limitation", "the crop is failing on this soil; nothing left to fix")
+        self.assertTrue(r["ok"])
+        self.assertIn(("F2", "cc"), lab.muted)
+        self.assertIsNone(lab.escalation_needed)

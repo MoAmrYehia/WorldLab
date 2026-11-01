@@ -29,6 +29,7 @@ Method:
    If observe shows farmer_choices, the farmer picked the crop (and sowing season) for those fields: plan_season keeps them, so make sure your trials cover those crops, and tell the farmer honestly how their choice compares with yours (plan_season reports scientist_choice).
 5. plan_season again. If it relies on crops you never trialled (untested_crops), consider trialling them first.
    Then consider train_irrigation_policy for the final plan: reinforcement learning (evolution strategies) inside your calibrated model learns a daily irrigation and water-blend policy from the sensors, and reports it against the plan's fixed rule on held-out imagined seasons. Start the season with controller rl_policy only if it is recommended; remember it was trained in your model, not on the real farm.
+   plan_season also reports nutrient_risk: how much of each nutrient hangs on one field and what is left if that field fails. If it is high, start the backup plan it offers, or start your plan with accept_nutrient_risk and the evidence that the concentrated field will work.
    Then start_season.
 6. During the season, advance in steps (up to 60 days), and about once a month look_at_field on a field or two to check your model against the crop itself. The lab runs your model alongside the farm and stops when measurements leave the predicted band. Then investigate instead of guessing:
    - Soil drier than predicted: a clogged or leaking drip line (emitter_flow test) or the crop using more water than modelled.
@@ -38,6 +39,7 @@ Method:
    - Record competing hypotheses, run the test that tells them apart, conclude.
    - Act on what you found (adjust_field: repair_drip, pest_control, more desalinated water), then update_model with the measured value and the onset day so predictions match reality again. Use dismiss_anomaly only if the tests show nothing changed.
    - Instruments can be wrong as well as the farm. When no test explains an alarm, ask whether the measurement or your model is at fault before acting on the field. If your tools cannot establish a cause, conclude inconclusive, follow a real decline with update_model canopy_loss_unexplained, and request_review; never treat a cause you have not established.
+   - If the same field keeps raising alarms, dismissing them is not a fix: the lab will ask you to escalate (more evidence, a controller or water change, human review, or stating the loss) and to say whether the cause is physical or a limit of your model.
    - After a fault that cost water or yield, rebalance_water to re-plan irrigation for the rest of the season within the remaining quota.
    - The policy was trained on a fault-free farm. If you diagnose a fault, you may set_irrigation_controller back to rule.
 7. Keep advancing to the end of the season (30 June), then finish with an honest summary: what you learned about the varieties, what went wrong, what it cost, how many people the farm feeds.
@@ -85,9 +87,9 @@ TOOLS = [
     {"name": "train_irrigation_policy", "description": "Reinforcement learning: train a daily irrigation and desal-blend policy for a plan by evolution strategies inside your calibrated model (crop traits from your beliefs, weather from the climate). Takes about a minute. Returns the policy against the plan's fixed rule on held-out imagined seasons, and a recommendation.",
      "parameters": _obj({"plan_id": S, "rationale": S, "iterations": {"type": "integer", "minimum": 10, "maximum": 120, "description": "10-120, default 50"}},
                         ["plan_id", "rationale"])},
-    {"name": "start_season", "description": "Sow according to a plan. No more trials after this. controller: rule (the plan's fixed irrigation levels) or rl_policy (the trained policy for this plan).",
-     "parameters": _obj({"plan_id": S, "rationale": S, "controller": {"type": "string", "enum": ["rule", "rl_policy"]}},
-                        ["plan_id", "rationale"])},
+    {"name": "start_season", "description": "Sow according to a plan. No more trials after this. controller: rule (the plan's fixed irrigation levels) or rl_policy (the trained policy for this plan). If the plan's nutrient_risk is high (one field carries a nutrient), either start its backup plan or pass accept_nutrient_risk with the evidence that the concentrated field will work.",
+     "parameters": _obj({"plan_id": S, "rationale": S, "controller": {"type": "string", "enum": ["rule", "rl_policy"]},
+                         "accept_nutrient_risk": S}, ["plan_id", "rationale"])},
     {"name": "set_irrigation_controller", "description": "Switch daily irrigation between the plan's rule and the trained RL policy from today.",
      "parameters": _obj({"controller": {"type": "string", "enum": ["rule", "rl_policy"]}, "rationale": S}, ["controller", "rationale"])},
     {"name": "advance", "description": "Run the season forward up to 60 days. Stops early if measurements leave the model's predicted band.",
@@ -108,6 +110,10 @@ TOOLS = [
                         ["rationale", "finding", "value", "since_day"])},
     {"name": "dismiss_anomaly", "description": "Close an anomaly when tests show nothing physical changed.",
      "parameters": _obj({"rationale": S}, ["rationale"])},
+    {"name": "escalate", "description": "Required after repeated unresolved alarms on one field (the season will not advance until you decide). decision: more_evidence (then run a test or look there), revise_controller, reallocate_water (then change that field's water or rebalance), human_review, or accept_loss (state the loss; later alarms there are logged without stopping). cause: physical_fault, model_limitation or unknown.",
+     "parameters": _obj({"field": FIELD, "decision": {"type": "string", "enum": ["more_evidence", "revise_controller", "reallocate_water", "human_review", "accept_loss"]},
+                         "cause": {"type": "string", "enum": ["physical_fault", "model_limitation", "unknown"]}, "rationale": S},
+                        ["field", "decision", "cause", "rationale"])},
     {"name": "request_review", "description": "Ask a human expert (agronomist or lab) to look at a question your tools cannot settle. Logged with your evidence; the season continues.",
      "parameters": _obj({"field": {"type": "string", "enum": ["F1", "F2", "F3", "F4", "F5", "F6", "all"]}, "question": S, "evidence": S},
                         ["field", "question", "evidence"])},
@@ -190,7 +196,8 @@ def dispatch(lab: Lab, name: str, a: dict):
     if name == "train_irrigation_policy":
         return lab.train_irrigation_policy(a.get("plan_id", ""), a.get("rationale", ""), int(a.get("iterations") or 50))
     if name == "start_season":
-        return lab.start_season(a.get("plan_id", ""), a.get("rationale", ""), a.get("controller") or "rule")
+        return lab.start_season(a.get("plan_id", ""), a.get("rationale", ""), a.get("controller") or "rule",
+                                accept_nutrient_risk=a.get("accept_nutrient_risk"))
     if name == "set_irrigation_controller":
         return lab.set_irrigation_controller(a.get("controller", ""), a.get("rationale", ""))
     if name == "advance":
@@ -208,6 +215,8 @@ def dispatch(lab: Lab, name: str, a: dict):
                                 int(a.get("since_day", lab.day)), a.get("field"))
     if name == "dismiss_anomaly":
         return lab.dismiss_anomaly(a.get("rationale", ""))
+    if name == "escalate":
+        return lab.escalate(a.get("field", ""), a.get("decision", ""), a.get("cause", ""), a.get("rationale", ""))
     if name == "request_review":
         return lab.request_review(a.get("field", "all"), a.get("question", ""), a.get("evidence", ""))
     if name == "rebalance_water":
@@ -228,8 +237,9 @@ def _brief(name: str, r) -> dict:
     keep = {
         "run_trials": ["round", "plots_left", "refused"],
         "fit_crop_models": ["error"],
-        "plan_season": ["plan_id", "people_p10", "people_p50", "limiting", "cost_of_uncertainty_people", "untested_crops", "refused"],
-        "advance": ["stopped_because", "day", "date", "anomaly", "result", "refused"],
+        "plan_season": ["plan_id", "people_p10", "people_p50", "limiting", "cost_of_uncertainty_people", "untested_crops", "nutrient_risk", "refused"],
+        "start_season": ["ok", "plan_id", "controller", "refused", "options", "nutrient_risk"],
+        "advance": ["stopped_because", "day", "date", "anomaly", "result", "refused", "escalation_required", "escalation_pending"],
         "field_test": None,
         "look_at_field": ["field", "canopy_cover_measured", "canopy_cover_predicted", "plants_counted", "salt_crust_patches", "diagnosis", "source"],
         "rebalance_water": ["people_p10_before", "people_p10_after"],
@@ -410,12 +420,27 @@ class ScriptedScientist:
                                    "evidence": f"{missed} of {len(plots)} trial predictions missed; plan P10 {p0['people_p10']} -> "
                                                f"{p1['people_p10']} people; cost of uncertainty {p0['cost_of_uncertainty_people']} -> "
                                                f"{p1['cost_of_uncertainty_people']}"})
+        # nutrient risk (fixed rule, set before any evaluation): take the backup when it keeps at least 95% of the
+        # plan's bad-year result; otherwise accept the risk and record why
+        risk = p1.get("nutrient_risk") or {}
+        accept = None
+        if risk.get("level") == "high":
+            b = risk.get("backup") or {}
+            if risk.get("backup_plan_id") and b.get("people_p10", 0) >= 0.95 * p1["people_p10"]:
+                p1 = {**lab.plans[risk["backup_plan_id"]]}
+            else:
+                conc = risk.get("concentrated") or [{}]
+                accept = (f"backup would cost more than 5% of the bad-year result; {conc[0].get('field')} {conc[0].get('crop')} "
+                          f"has topsoil ECe {conc[0].get('topsoil_ece_dS_m')} against a believed threshold "
+                          f"{conc[0].get('believed_salt_threshold_dS_m')} dS/m with desal {conc[0].get('desal_blend')}")
         controller = "rule"
         if self.rl:
             t = self.call("train_irrigation_policy", {"plan_id": p1["plan_id"], "rationale": "learn a sensor-driven daily irrigation policy for this plan in the calibrated model"})
             controller = t.get("recommend", "rule")
-        self.call("start_season", {"plan_id": p1["plan_id"], "rationale": "best robust plan", "controller": controller})
-        for _ in range(40):
+        self.call("start_season", {"plan_id": p1["plan_id"], "rationale": "best robust plan", "controller": controller,
+                                   **({"accept_nutrient_risk": accept} if accept else {})})
+        for _ in range(60):
+            self._escalate_if_needed()
             r = self.call("advance", {"days": 60, "rationale": "run the season"})
             if lab.phase != "season":
                 break
@@ -446,6 +471,7 @@ class ScriptedScientist:
                     self.call("dismiss_anomaly", {"rationale": "baseline ignores anomalies"})
             if lab.phase != "season":
                 break
+            self._escalate_if_needed()
             r = self.call("advance", {"days": 60, "rationale": "continue the season after the handover"})
             if lab.phase != "season":
                 break
@@ -472,6 +498,23 @@ class ScriptedScientist:
                                 opts, "auto", {"field": a["field"], "signal": a["signal"]})
         if ch != "auto":
             self._test(a["field"], ch, "chosen by you in human decision mode")
+
+    def _escalate_if_needed(self):
+        """Fixed rule for repeated unresolved alarms: the first time on a field, move water there (a re-plan);
+        after that, state the loss. The protocol that ignores alarms states the loss at once."""
+        e = self.lab.escalation_needed
+        if not e:
+            return
+        self._esc = getattr(self, "_esc", {})
+        n = self._esc.get(e["field"], 0)
+        self._esc[e["field"]] = n + 1
+        if self.adapt and n == 0:
+            self.call("escalate", {"field": e["field"], "decision": "reallocate_water", "cause": "unknown",
+                                   "rationale": f"{e['alarms']} {e['signal']} alarms and the tests found no fault to fix: re-plan the water"})
+            self.call("rebalance_water", {"rationale": f"respond to repeated alarms on {e['field']}"})
+        else:
+            self.call("escalate", {"field": e["field"], "decision": "accept_loss", "cause": "unknown",
+                                   "rationale": f"{e['alarms']} {e['signal']} alarms remain unexplained after a re-plan: the loss on {e['field']} is stated, not hidden"})
 
     def _sensor_explains(self, f: str, a: dict) -> bool:
         """Is the soil-moisture sensor itself off? If so, recalibrate it rather than act on the soil."""
