@@ -3,7 +3,7 @@
 Each item is placed in exactly one column, by the strongest check it has actually passed:
 
 - **Implemented:** in the source.
-- **Locally tested:** passed the unit tests (90) or the browser checks, run against a local build.
+- **Locally tested:** passed the unit tests (92) or the browser checks, run against a local build.
 - **Deployed and tested:** checked on the public site or the hosted server.
 - **Owner confirmation required:** only the owner can do it or confirm it.
 
@@ -15,7 +15,7 @@ Each item is placed in exactly one column, by the strongest check it has actuall
 | One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | | ✓ Release run 41320205503 (commit `c35e96d`): tests, build, browser checks, website, server live check all passed | |
 | Release SHA in `/api/ready` and in View settings | | | ✓ The Render server reports the commit it runs (`RENDER_GIT_COMMIT`); the release waits for it to match | |
 | Live check: release, CORS, real progress, reconnect, cancellation, bounded Spark start | | | ✓ Passed against Render from GitHub Actions: guest session from the website's origin, the season progressed (6 → 35 ledger entries), the stream reconnected, stop cancelled the run (88 s), Muse Spark made a tool call and the lab ran it | |
-| Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | ✓ Render free plan, `https://worldlab-4b9q.onrender.com`. A guest started a Muse Spark season on the Unknown challenge from the public site | ✓ The free plan has 0.1 CPU: a season runs about ten times slower than on a laptop, and the server sleeps after 15 idle minutes (about a minute to wake). A paid plan is the owner's choice |
+| Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | ✓ Render free plan, `https://worldlab-4b9q.onrender.com`. A guest started a Muse Spark season on the Unknown challenge from the public site | ✓ The free plan has 0.1 CPU: a season runs about ten times slower than on a laptop, and the server sleeps after 15 idle minutes (about a minute to wake). A paid plan is the owner's choice. To help, drone frames now render about a third faster everywhere (byte-identical images), and the server sets `WORLDLAB_SMALL_HOST=1`: one live drone-feed frame every 36 days instead of 12, and RL training capped at 15 iterations. The ledger records both, so those seasons are not comparable with benchmark runs |
 
 ## Evidence and evaluation
 

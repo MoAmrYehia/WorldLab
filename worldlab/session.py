@@ -14,6 +14,12 @@ from .llm import LLMConfig
 from .farm.world import Farm
 
 
+SMALL_HOST_NOTE = {"live_drone_feed": "one frame every 36 days instead of 12 (display only)",
+                   "rl_training_iterations_max": 15,
+                   "why": "the server runs on a small host (WORLDLAB_SMALL_HOST=1); a lighter policy-training budget "
+                          "keeps a live season moving, so this run is not comparable with benchmark runs"}
+
+
 @dataclass
 class Settings:
     agent: str = "auto"            # auto | spark | glimmer | scripted | scripted-rl | scripted-noadapt
@@ -31,6 +37,7 @@ class Settings:
     human: bool = False            # human decision mode: pause for the person at tests and repairs
     parent_run: int | None = None  # the run this one branches from (one input changed)
     change: dict | None = None     # what was changed from the parent
+    small_host: bool = False       # set only by the server (WORLDLAB_SMALL_HOST=1): fewer feed frames, a capped RL budget
 
     def resolved_agent(self) -> str:
         if self.agent != "auto":
@@ -90,6 +97,7 @@ class Session:
         self.lab = Lab(self.farm, limits=Limits(**settings.limits), run_dir=self.run_dir,
                        perception=perception, bus=self.bus, speed=settings.speed)
         self.lab.human = bool(settings.human)
+        self.lab.small_host = bool(getattr(settings, "small_host", False))
         import json as _json
         (self.run_dir / "settings.json").write_text(_json.dumps(asdict(settings), default=str, indent=1))
         self.lab._log("session", {"agent": self.agent_kind, "farm_seed": settings.seed,
@@ -98,7 +106,8 @@ class Session:
                                   "soil_carried_over": bool(settings.soil), "human_mode": bool(settings.human),
                                   "budget_mode": "hard" if self.lab.limits.hard_budget else "soft",
                                   "parent_run": settings.parent_run, "change": settings.change,
-                                  "weather": {k: v for k, v in self.farm.weather_source.items() if k != "import_report"}})
+                                  "weather": {k: v for k, v in self.farm.weather_source.items() if k != "import_report"},
+                                  **({"small_host": SMALL_HOST_NOTE} if self.lab.small_host else {})})
         if settings.choices:
             self.lab.set_crop_choices(settings.choices)
         self.on_finish = None

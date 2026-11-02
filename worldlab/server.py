@@ -236,6 +236,7 @@ class App:
         if "salinity_scale" in ed:
             s.salinity_scale = SC.clamp("salinity_scale", ed["salinity_scale"])
         s.human = bool(body.get("human"))
+        s.small_host = os.environ.get("WORLDLAB_SMALL_HOST") == "1"
         for k in ("soil", "parent_run", "change"):            # set only by branch and next-season requests
             if k in body:
                 setattr(s, k, body[k])

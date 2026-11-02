@@ -10,6 +10,8 @@ agent never sees that record.
 from __future__ import annotations
 
 import math
+import threading
+from collections import OrderedDict
 
 import numpy as np
 from scipy import ndimage
@@ -24,6 +26,17 @@ ROW_DY = 75                    # drip line (bed) spacing in pixels
 ROW_Y0 = 40
 EMITTER_DX = 30
 _YY, _XX = np.mgrid[0:IH, 0:IW].astype(np.float32)
+_ROWS = np.arange(ROW_Y0, IH, ROW_DY, dtype=np.float32)
+_PHASE = ((_YY - ROW_Y0) % ROW_DY) / ROW_DY                        # 0 at a drip line
+_RELIEF = np.cos(2 * math.pi * _PHASE)                              # 1 on the bed, -1 in the furrow
+_BED = (1 + 0.05 * _RELIEF - 0.05 * np.sin(2 * math.pi * _PHASE))[..., None]
+
+# The bare soil (relief, crumb, stones) depends only on the frame's seed, and a field keeps its seed all season,
+# so it is drawn once per seed and reused with the random generator's state at that point: every frame stays
+# byte-identical to drawing it from scratch. A few fields' soil fits in about 7 MB each.
+_SOIL: "OrderedDict[int, tuple[np.ndarray, dict]]" = OrderedDict()
+_SOIL_LOCK = threading.Lock()
+_SOIL_KEEP = 8
 
 GRASS = {"wheat", "rice", "millet"}
 STRAP = {"maize", "sorghum"}
@@ -60,12 +73,9 @@ def _blend(img, color, alpha):
     img += a * np.asarray(color, np.float32)
 
 
-def render(crop, cc, stand, ksw, ece_top, pest, done, wet=0.5, deliver=1.0, seed=1, stage=0.5,
-           truth: dict | None = None) -> np.ndarray:
+def _draw_soil(seed: int) -> tuple[np.ndarray, np.random.Generator]:
+    """Sandy loam with relief, raised beds, crumb and stones: everything in a frame before the drip water."""
     rng = np.random.default_rng(seed)
-    t = {"plants": 0, "damaged_plants": 0, "salt_patches": 0, "salt_cover_pct": 0.0, "dry_emitters": 0, "emitters": 0}
-
-    # ---------------------------------------------------------------- soil: sandy loam with relief
     n1, n2 = fbm(rng, base=5), fbm(rng, base=24, octaves=3)
     grain = rng.standard_normal((IH, IW)).astype(np.float32)
     sand = np.array([186, 156, 116], np.float32)
@@ -74,10 +84,7 @@ def render(crop, cc, stand, ksw, ece_top, pest, done, wet=0.5, deliver=1.0, seed
     img += (14 * n1 + 7 * n2)[..., None] * np.array([1.0, 0.95, 0.85])
     img += (5 * grain)[..., None]
     # raised beds along the drip lines, lit from the upper left
-    rows = np.arange(ROW_Y0, IH, ROW_DY, dtype=np.float32)
-    phase = ((_YY - ROW_Y0) % ROW_DY) / ROW_DY                     # 0 at a drip line
-    relief = np.cos(2 * math.pi * phase)                            # 1 on the bed, -1 in the furrow
-    img *= (1 + 0.05 * relief - 0.05 * np.sin(2 * math.pi * phase))[..., None]
+    img *= _BED
     # fine crumb texture and a few small stones with highlights
     crumb = fbm(rng, base=140, octaves=2)
     img += (6 * crumb)[..., None]
@@ -95,6 +102,33 @@ def render(crop, cc, stand, ksw, ece_top, pest, done, wet=0.5, deliver=1.0, seed
         img[y0:y1, x0:x1] *= (1 - 0.18 * np.clip(r + 0.6 - sh, 0, 1))[..., None]
         m = np.clip(r + 0.4 - d, 0, 1)
         img[y0:y1, x0:x1] += ((c + 10 * np.clip(-(X + Y) / (r + 1e-3), 0, 1)) * m)[..., None]
+    return img, rng
+
+
+def _soil(seed: int) -> tuple[np.ndarray, np.random.Generator]:
+    """The soil layer for this seed (a fresh copy) and a generator positioned exactly where drawing it left off."""
+    with _SOIL_LOCK:
+        hit = _SOIL.get(seed)
+        if hit is not None:
+            _SOIL.move_to_end(seed)
+    if hit is None:
+        img, rng = _draw_soil(seed)
+        with _SOIL_LOCK:
+            _SOIL[seed] = (img.copy(), rng.bit_generator.state)
+            while len(_SOIL) > _SOIL_KEEP:
+                _SOIL.popitem(last=False)
+        return img, rng
+    img, state = hit
+    rng = np.random.Generator(np.random.PCG64())
+    rng.bit_generator.state = state
+    return img.copy(), rng
+
+
+def render(crop, cc, stand, ksw, ece_top, pest, done, wet=0.5, deliver=1.0, seed=1, stage=0.5,
+           truth: dict | None = None) -> np.ndarray:
+    t = {"plants": 0, "damaged_plants": 0, "salt_patches": 0, "salt_cover_pct": 0.0, "dry_emitters": 0, "emitters": 0}
+    img, rng = _soil(seed)
+    rows, relief = _ROWS, _RELIEF
 
     # ---------------------------------------------------------------- moisture around emitters
     wetmask = np.zeros((IH, IW), np.float32)
@@ -138,12 +172,15 @@ def render(crop, cc, stand, ksw, ece_top, pest, done, wet=0.5, deliver=1.0, seed
     # ---------------------------------------------------------------- drip lines (black PE tube)
     for ry in rows:
         w = wobble[float(ry)]
+        # tube, shadow and highlight are all zero more than ~7 px from the wobbling line, so only that band is drawn
+        b0, b1 = max(int(ry + w.min()) - 12, 0), min(int(ry + w.max()) + 14, IH)
+        band, YY = img[b0:b1], _YY[b0:b1]
         yline = ry + w[None, :]
-        d = np.abs(_YY - yline)
+        d = np.abs(YY - yline)
         tube = np.clip(2.6 - d, 0, 1)
-        img *= (1 - 0.30 * np.clip(3.8 - np.abs(_YY - yline - 2.5), 0, 1) * (1 - tube))[..., None]   # shadow
-        _blend(img, (34, 34, 36), tube)
-        _blend(img, (92, 92, 96), np.clip(0.9 - np.abs(_YY - yline + 1.0), 0, 1) * 0.6)                  # highlight
+        band *= (1 - 0.30 * np.clip(3.8 - np.abs(YY - yline - 2.5), 0, 1) * (1 - tube))[..., None]   # shadow
+        _blend(band, (34, 34, 36), tube)
+        _blend(band, (92, 92, 96), np.clip(0.9 - np.abs(YY - yline + 1.0), 0, 1) * 0.6)                  # highlight
 
     # ---------------------------------------------------------------- plants
     t["separate_plants"] = bool(crop and not done and crop not in GRASS and 0.004 < cc < 0.3)   # countable one by one
@@ -183,10 +220,20 @@ def _leaf(img, cx, cy, length, width, ang, color, shape, holes=None, lesions=Non
     reach = length + width + 2
     x0, x1 = int(max(cx - reach, 0)), int(min(cx + reach + 1, IW))
     y0, y1 = int(max(cy - reach, 0)), int(min(cy + reach + 1, IH))
+    ca, sa = math.cos(ang), math.sin(ang)
+    if not lesions and not holes:
+        # Only pixels with 0 <= along <= length and |across| < width + 0.9 + |bend| * length can be painted
+        # (the leaf's half-width never exceeds `width`), so the box around that strip, with a pixel to spare,
+        # gives exactly the same frame as the square box above. Lesions and holes are placed using the largest
+        # half-width over the whole square box, so leaves that carry them keep it.
+        hv = width + 0.9 + abs(bend) * length + 1.0
+        xs = (cx - hv * sa, cx + hv * sa, cx + length * ca - hv * sa, cx + length * ca + hv * sa)
+        ys = (cy + hv * ca, cy - hv * ca, cy + length * sa + hv * ca, cy + length * sa - hv * ca)
+        x0, x1 = max(x0, int(math.floor(min(xs))) - 1), min(x1, int(math.ceil(max(xs))) + 2)
+        y0, y1 = max(y0, int(math.floor(min(ys))) - 1), min(y1, int(math.ceil(max(ys))) + 2)
     if x1 <= x0 or y1 <= y0:
         return
     X, Y = _XX[y0:y1, x0:x1] - cx, _YY[y0:y1, x0:x1] - cy
-    ca, sa = math.cos(ang), math.sin(ang)
     u, v = X * ca + Y * sa, -X * sa + Y * ca                        # along, across
     s = np.clip(u / max(length, 1e-3), 0, 1)
     v = v - bend * length * s ** 2                                  # leaves arch and curve

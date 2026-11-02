@@ -137,6 +137,7 @@ class Lab:
                  perception=None, bus: Bus | None = None, speed: float = 0.0):
         self.farm = farm
         self.human = False                        # human decision mode: pause at selected decisions
+        self.small_host = False                   # server on a small host: fewer feed frames, capped RL budget (logged)
         self.perception_checks: list[dict] = []   # SAM 3.1 counts against what each drone frame shows
         self.run_status = "running"               # running | completed | failed | timeout | cancelled | degraded
         self.run_end_reason = None
@@ -704,6 +705,9 @@ class Lab:
         if self.phase in ("season", "harvested"):
             return {"refused": "train before the season starts; switch controllers with set_irrigation_controller"}
         iterations = int(max(10, min(iterations, 120)))
+        requested = iterations
+        if self.small_host:                       # a small server trains a lighter policy; the ledger says so
+            iterations = min(iterations, 15)
         fp, rows = [], []
         for i, f in enumerate(p["fields"]):
             if f.get("crop"):
@@ -715,7 +719,9 @@ class Lab:
                                     hard_budget=L.hard_budget, fields=self.fields)
         envs, val, test = mk(12, seed), mk(16, seed + 1), mk(40, seed + 2)
         self._log("rl_train_start", {"plan_id": plan_id, "iterations": iterations, "rationale": rationale,
-                                     "method": "evolution strategies (32 antithetic pairs, Adam) inside the belief model"})
+                                     "method": "evolution strategies (32 antithetic pairs, Adam) inside the belief model",
+                                     **({"iterations_requested": requested, "capped_for_small_host": True}
+                                        if iterations != requested else {})})
         self.bus.publish("rl_train", {"plan_id": plan_id, "iter": -1, "reset": True})
 
         def cb(rec):
@@ -748,6 +754,9 @@ class Lab:
                "note": ("held-out seasons come from the agent's own model of the farm; the real farm may differ, "
                         "and the monitoring keeps checking" if better else
                         "the policy did not beat the plan's rule on held-out seasons; keep the rule")}
+        if iterations != requested:
+            rec["capped_for_small_host"] = {"requested": requested, "used": iterations,
+                                            "note": "this server runs on a small host and trains a lighter policy"}
         self.bus.publish("rl", {**rec, "history": tr["history"], "validation": tr["validation"]})
         self._log("rl_policy", rec)
         return rec
@@ -904,7 +913,8 @@ class Lab:
         if d % 7 == 0:                          # the weekly forecast, the same product the scientist can ask for
             fc = self.farm.forecast(7)
             self.bus.publish("forecast", {"issued_day": self.day, **fc})
-        if drone_day and d % 12 == 7:          # every third survey flight, keep one camera frame for people to see
+        feed_every = 36 if self.small_host else 12  # each feed frame is a full render; a small host shows fewer
+        if drone_day and d % feed_every == 7:  # every third survey flight, keep one camera frame for people to see
             surveyed = [i for i, fr in enumerate(rec["fields"]) if "cc_obs" in fr]
             if surveyed:
                 i = surveyed[(d // 12) % len(surveyed)]
