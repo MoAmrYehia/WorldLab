@@ -17,3 +17,5 @@ services:
         value: https://moamryehia.github.io
       - key: WORLDLAB_MAX_RUNS            # a free instance is small: one season at a time
         value: "1"
+      - key: WORLDLAB_SMALL_HOST          # 0.1 CPU: fewer live drone-feed frames and a lighter RL budget, both logged
+        value: "1"

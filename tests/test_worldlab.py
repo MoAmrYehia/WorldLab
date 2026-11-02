@@ -1422,3 +1422,29 @@ class ScorerV21Tests(unittest.TestCase):
         L = [E(120, "anomaly", field="F5", detected_day=120, signal="cc"), E(121, "review_requested", field="F5", question="?")]
         s = score(L, [{"kind": "blight", "field": "F5", "day": 100}], "blight")
         self.assertEqual((s["faults"], s["faults_diagnosed"], s["unidentifiable_events"], s["unidentifiable_handled"]), (0, 0, 1, [True]))
+
+
+class SmallHostTests(unittest.TestCase):
+    """Cheaper live seasons on a small server, without changing what any other run computes."""
+
+    def test_cached_soil_gives_the_same_frame(self):
+        from worldlab.farm import drone_render as DR
+        args = ("maize", 0.5, 0.9, 0.7, 7.0, 0.0, False)
+        DR._SOIL.clear()
+        first = DR.render(*args, seed=4242)                 # draws the soil and caches it
+        again = DR.render(*args, seed=4242)                 # reuses the cached soil and generator state
+        DR._SOIL.clear()
+        fresh = DR.render(*args, seed=4242)
+        np.testing.assert_array_equal(first, again)
+        np.testing.assert_array_equal(first, fresh)
+
+    def test_small_host_caps_rl_training_and_says_so(self):
+        lab = Lab(Farm(seed=11), perception=None)
+        lab.small_host = True
+        p = lab.plan_season("plan")
+        t = lab.train_irrigation_policy(p["plan_id"], "learn irrigation", iterations=40)
+        self.assertEqual(t["iterations"], 15)
+        self.assertEqual(t["capped_for_small_host"]["requested"], 40)
+        start = [e for e in lab.ledger.entries if e["kind"] == "rl_train_start"][-1]["data"]
+        self.assertTrue(start["capped_for_small_host"])
+        self.assertEqual(start["iterations_requested"], 40)
