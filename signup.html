@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://worldlab-4b9q.onrender.com https://*.hf.space https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://worldlab-4b9q.onrender.com https://*.hf.space">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign up | WorldLab: Green Frontier</title>
+<meta name="description" content="Create a WorldLab account and plan your first desert farming season.">
+<meta name="robots" content="noindex, follow">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0b1210">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css?v=f3621d8e7e">
+<script src="config.js?v=f3621d8e7e"></script>
+</head>
+<body class="authpage">
+<main class="auth-shell">
+  <a class="logo" href="./"><img src="favicon.svg" alt="" width="30" height="30">WorldLab<span class="logo-sub">Green Frontier</span></a>
+  <form class="card auth-form" id="authForm" data-mode="signup" novalidate>
+    <h1>Create your account</h1>
+    <p class="sub">You get your own farm: six fields, ten crops, one growing year.</p>
+    <label for="name">Name</label>
+    <input id="name" name="name" autocomplete="name" required maxlength="80">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" aria-describedby="pwHint">
+    <p class="hint" id="pwHint">At least 8 characters.</p>
+    <p class="err" id="err" role="alert" hidden></p>
+    <button class="btn solid big" type="submit" id="submit">Create account</button>
+    <p class="swap">Already have an account? <a href="login" id="swapLink">Log in</a></p>
+  </form>
+  <p class="aside">No account needed to <a href="demo">watch a recorded season</a>.</p>
+</main>
+<script type="module" src="site.js?v=f3621d8e7e"></script>
+</body>
+</html>

@@ -1,0 +1,1807 @@
+{
+ "scenarios": [
+  {
+   "id": "baseline",
+   "title": "Baseline season",
+   "difficulty": "Standard",
+   "about": "The standard farm and limits, no hidden faults. A good first season.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "drip_fault",
+   "title": "Drip fault",
+   "difficulty": "Standard",
+   "about": "A drip line clogs in early January. The water meter can't see it.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "pest_outbreak",
+   "title": "Pest outbreak",
+   "difficulty": "Standard",
+   "about": "Pests arrive in one field in mid January and eat the canopy.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "hot_flowering",
+   "title": "Hot flowering",
+   "difficulty": "Standard",
+   "about": "A heat wave arrives in early March, when many crops flower. It is in the forecast.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 1
+  },
+  {
+   "id": "water_scarcity",
+   "title": "Water scarcity",
+   "difficulty": "Hard",
+   "about": "The groundwater quota is cut by a quarter, to 45,000 m\u00b3.",
+   "limits": {
+    "water_quota_m3": 45000.0
+   },
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "saline_start",
+   "title": "Elevated salinity",
+   "difficulty": "Hard",
+   "about": "Every field starts the season with half as much salt again in its soil.",
+   "limits": {},
+   "salinity_scale": 1.5,
+   "hidden_events": 0
+  },
+  {
+   "id": "compound",
+   "title": "Compound events",
+   "difficulty": "Expert",
+   "about": "A clogged drip line, then saltier groundwater, then a heat wave, with a 10% smaller water quota.",
+   "limits": {
+    "water_quota_m3": 54000.0
+   },
+   "salinity_scale": 1.0,
+   "hidden_events": 3
+  },
+  {
+   "id": "real_weather",
+   "title": "Real 2024\u201325 weather",
+   "difficulty": "Standard",
+   "about": "The season runs on the weather Al Ain actually had from October 2024 to June 2025 (NASA POWER daily data): hotter and drier than the simulator's usual climate. Soils, crop traits and faults stay simulated.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": 0
+  },
+  {
+   "id": "mystery",
+   "title": "Unknown challenge",
+   "difficulty": "Expert",
+   "about": "A hidden challenge drawn at random when the season starts, from the same families as the frozen holdout: possibly nothing, a fault, two faults, a faulty instrument, or a cause no test can establish. Revealed after the season.",
+   "limits": {},
+   "salinity_scale": 1.0,
+   "hidden_events": "unknown"
+  }
+ ],
+ "editor": {
+  "seed": [
+   1,
+   999
+  ],
+  "water_quota_m3": [
+   30000.0,
+   90000.0
+  ],
+  "energy_kwh": [
+   40000.0,
+   150000.0
+  ],
+  "salinity_scale": [
+   0.5,
+   2.0
+  ]
+ },
+ "seasons": [
+  {
+   "id": "autumn",
+   "label": "Autumn sowing",
+   "start": 0,
+   "end": 45,
+   "about": "Sow from 1 October to 15 November, as the heat breaks. Warm-season crops finish before the spring heat."
+  },
+  {
+   "id": "winter",
+   "label": "Winter sowing",
+   "start": 46,
+   "end": 91,
+   "about": "Sow from 16 November to 31 December. The coolest months suit wheat, potatoes and beans."
+  },
+  {
+   "id": "late_winter",
+   "label": "Late-winter sowing",
+   "start": 116,
+   "end": 165,
+   "about": "Sow from 25 January to 15 March. Heat-loving crops grow into the spring and are harvested by June."
+  }
+ ],
+ "summer": {
+  "id": "summer",
+  "label": "Summer",
+  "about": "July to September: fields rest. Daytime highs above 45 \u00b0C make open-field crops a poor use of water."
+ },
+ "crops": [
+  {
+   "crop": "wheat",
+   "label": "Wheat",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      30,
+      45
+     ],
+     "cycle_days": 92,
+     "yield_t_ha_p50": 4.1
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      75
+     ],
+     "cycle_days": 94,
+     "yield_t_ha_p50": 4.2
+    }
+   ]
+  },
+  {
+   "crop": "maize",
+   "label": "Maize",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 1.7,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      40
+     ],
+     "cycle_days": 122,
+     "yield_t_ha_p50": 9.0
+    }
+   ]
+  },
+  {
+   "crop": "potato",
+   "label": "Potato",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 1.7,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      15,
+      45
+     ],
+     "cycle_days": 73,
+     "yield_t_ha_p50": 7.7
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      60
+     ],
+     "cycle_days": 80,
+     "yield_t_ha_p50": 18.2
+    }
+   ]
+  },
+  {
+   "crop": "cassava",
+   "label": "Cassava",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 2.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      20
+     ],
+     "cycle_days": 232,
+     "yield_t_ha_p50": 9.2
+    }
+   ]
+  },
+  {
+   "crop": "beans",
+   "label": "Common beans",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 1.0,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      15,
+      45
+     ],
+     "cycle_days": 91,
+     "yield_t_ha_p50": 1.1
+    },
+    {
+     "season": "winter",
+     "sow": [
+      46,
+      60
+     ],
+     "cycle_days": 97,
+     "yield_t_ha_p50": 0.9
+    }
+   ]
+  },
+  {
+   "crop": "sweet_potato",
+   "label": "Sweet potatoes",
+   "good_for": [
+    "vitamin A"
+   ],
+   "salt_threshold_ds_m": 1.5,
+   "windows": [
+    {
+     "season": "autumn",
+     "sow": [
+      0,
+      40
+     ],
+     "cycle_days": 183,
+     "yield_t_ha_p50": 29.2
+    }
+   ]
+  },
+  {
+   "crop": "rice",
+   "label": "Rice",
+   "good_for": [
+    "calories"
+   ],
+   "salt_threshold_ds_m": 3.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      130,
+      160
+     ],
+     "cycle_days": 94,
+     "yield_t_ha_p50": 0.0
+    }
+   ]
+  },
+  {
+   "crop": "soybean",
+   "label": "Soybeans",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 5.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      160
+     ],
+     "cycle_days": 80,
+     "yield_t_ha_p50": 1.2
+    }
+   ]
+  },
+  {
+   "crop": "sorghum",
+   "label": "Sorghum",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.8,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      165
+     ],
+     "cycle_days": 92,
+     "yield_t_ha_p50": 6.4
+    }
+   ]
+  },
+  {
+   "crop": "millet",
+   "label": "Millet",
+   "good_for": [
+    "calories",
+    "protein"
+   ],
+   "salt_threshold_ds_m": 6.0,
+   "windows": [
+    {
+     "season": "late_winter",
+     "sow": [
+      120,
+      165
+     ],
+     "cycle_days": 84,
+     "yield_t_ha_p50": 4.0
+    }
+   ]
+  }
+ ],
+ "guides": {
+  "autumn": {
+   "season": {
+    "id": "autumn",
+    "label": "Autumn sowing",
+    "start": 0,
+    "end": 45,
+    "about": "Sow from 1 October to 15 November, as the heat breaks. Warm-season crops finish before the spring heat."
+   },
+   "crops": [
+    {
+     "crop": "wheat",
+     "label": "Wheat",
+     "sow_window": [
+      30,
+      45
+     ],
+     "sow_window_label": "31 Oct to 15 Nov",
+     "cycle_days": 92,
+     "harvest_label": "7 Feb",
+     "heat_limit_c": 31.0,
+     "salt_threshold_ds_m": 6.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 4.14,
+       "yield_t_ha_p10": 3.55,
+       "yield_t_ha_p90": 4.91,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.0,
+       "water_m3_p50": 5982,
+       "people_by_need_p50": {
+        "calories": 36.7,
+        "protein": 57.2,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 4.32,
+       "yield_t_ha_p10": 3.82,
+       "yield_t_ha_p90": 5.1,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 6023,
+       "people_by_need_p50": {
+        "calories": 38.3,
+        "protein": 59.7,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 4.03,
+       "yield_t_ha_p10": 3.44,
+       "yield_t_ha_p90": 4.76,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.1,
+       "water_m3_p50": 5949,
+       "people_by_need_p50": {
+        "calories": 35.8,
+        "protein": 55.7,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 3.74,
+       "yield_t_ha_p10": 3.41,
+       "yield_t_ha_p90": 4.57,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.0,
+       "water_m3_p50": 5957,
+       "people_by_need_p50": {
+        "calories": 33.1,
+        "protein": 51.6,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 4.34,
+       "yield_t_ha_p10": 3.91,
+       "yield_t_ha_p90": 5.19,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
+       "water_m3_p50": 6046,
+       "people_by_need_p50": {
+        "calories": 38.5,
+        "protein": 59.9,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 3.07,
+       "yield_t_ha_p10": 2.74,
+       "yield_t_ha_p90": 3.83,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.9,
+       "water_m3_p50": 5800,
+       "people_by_need_p50": {
+        "calories": 27.2,
+        "protein": 42.3,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "maize",
+     "label": "Maize",
+     "sow_window": [
+      0,
+      40
+     ],
+     "sow_window_label": "1 Oct to 10 Nov",
+     "cycle_days": 122,
+     "harvest_label": "20 Feb",
+     "heat_limit_c": 36.0,
+     "salt_threshold_ds_m": 1.7,
+     "good_for": [
+      "calories"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 9.9,
+       "yield_t_ha_p10": 8.58,
+       "yield_t_ha_p90": 11.44,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.6,
+       "water_m3_p50": 8427,
+       "people_by_need_p50": {
+        "calories": 94.3,
+        "protein": 102.0,
+        "vitamin A": 9.9
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 10.88,
+       "yield_t_ha_p10": 9.46,
+       "yield_t_ha_p90": 12.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.5,
+       "water_m3_p50": 8548,
+       "people_by_need_p50": {
+        "calories": 103.6,
+        "protein": 112.1,
+        "vitamin A": 10.9
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 11.26,
+       "yield_t_ha_p10": 10.16,
+       "yield_t_ha_p90": 12.71,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 2.9,
+       "water_m3_p50": 8445,
+       "people_by_need_p50": {
+        "calories": 107.3,
+        "protein": 116.0,
+        "vitamin A": 11.3
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 4.29,
+       "yield_t_ha_p10": 3.04,
+       "yield_t_ha_p90": 6.12,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.6,
+       "water_m3_p50": 7537,
+       "people_by_need_p50": {
+        "calories": 40.9,
+        "protein": 44.2,
+        "vitamin A": 4.3
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 8.15,
+       "yield_t_ha_p10": 7.39,
+       "yield_t_ha_p90": 10.37,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
+       "water_m3_p50": 8457,
+       "people_by_need_p50": {
+        "calories": 77.6,
+        "protein": 84.0,
+        "vitamin A": 8.2
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.1,
+       "yield_t_ha_p10": 0.01,
+       "yield_t_ha_p90": 3.19,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 8.9,
+       "water_m3_p50": 4269,
+       "people_by_need_p50": {
+        "calories": 1.0,
+        "protein": 1.0,
+        "vitamin A": 0.1
+       }
+      }
+     ]
+    },
+    {
+     "crop": "potato",
+     "label": "Potato",
+     "sow_window": [
+      15,
+      45
+     ],
+     "sow_window_label": "16 Oct to 15 Nov",
+     "cycle_days": 73,
+     "harvest_label": "12 Jan",
+     "heat_limit_c": 30.0,
+     "salt_threshold_ds_m": 1.7,
+     "good_for": [
+      "calories"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 8.75,
+       "yield_t_ha_p10": 2.56,
+       "yield_t_ha_p90": 16.52,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 4.9,
+       "water_m3_p50": 4550,
+       "people_by_need_p50": {
+        "calories": 17.6,
+        "protein": 19.2,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 9.51,
+       "yield_t_ha_p10": 2.91,
+       "yield_t_ha_p90": 18.03,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 5.3,
+       "water_m3_p50": 4636,
+       "people_by_need_p50": {
+        "calories": 19.1,
+        "protein": 20.9,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 10.73,
+       "yield_t_ha_p10": 3.19,
+       "yield_t_ha_p90": 19.96,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 4.0,
+       "water_m3_p50": 4704,
+       "people_by_need_p50": {
+        "calories": 21.6,
+        "protein": 23.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 2.69,
+       "yield_t_ha_p10": 1.02,
+       "yield_t_ha_p90": 6.07,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 6.7,
+       "water_m3_p50": 3891,
+       "people_by_need_p50": {
+        "calories": 5.4,
+        "protein": 5.9,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 6.67,
+       "yield_t_ha_p10": 2.11,
+       "yield_t_ha_p90": 13.04,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 6.4,
+       "water_m3_p50": 4339,
+       "people_by_need_p50": {
+        "calories": 13.4,
+        "protein": 14.6,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.05,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.31,
+       "heat_factor": 0.61,
+       "ece_root_zone_end": 9.7,
+       "water_m3_p50": 2406,
+       "people_by_need_p50": {
+        "calories": 0.1,
+        "protein": 0.1,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "cassava",
+     "label": "Cassava",
+     "sow_window": [
+      0,
+      20
+     ],
+     "sow_window_label": "1 Oct to 21 Oct",
+     "cycle_days": 232,
+     "harvest_label": "31 May",
+     "heat_limit_c": 40.0,
+     "salt_threshold_ds_m": 2.0,
+     "good_for": [
+      "calories"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 10.21,
+       "yield_t_ha_p10": 1.64,
+       "yield_t_ha_p90": 24.89,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.9,
+       "water_m3_p50": 19679,
+       "people_by_need_p50": {
+        "calories": 42.6,
+        "protein": 15.7,
+        "vitamin A": 0.9
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 10.58,
+       "yield_t_ha_p10": 1.72,
+       "yield_t_ha_p90": 25.68,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 6.6,
+       "water_m3_p50": 19944,
+       "people_by_need_p50": {
+        "calories": 44.2,
+        "protein": 16.2,
+        "vitamin A": 1.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 11.42,
+       "yield_t_ha_p10": 1.83,
+       "yield_t_ha_p90": 27.13,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.5,
+       "water_m3_p50": 19730,
+       "people_by_need_p50": {
+        "calories": 47.7,
+        "protein": 17.5,
+        "vitamin A": 1.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 5.24,
+       "yield_t_ha_p10": 0.85,
+       "yield_t_ha_p90": 15.47,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 6.4,
+       "water_m3_p50": 18620,
+       "people_by_need_p50": {
+        "calories": 21.9,
+        "protein": 8.0,
+        "vitamin A": 0.5
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 8.21,
+       "yield_t_ha_p10": 1.36,
+       "yield_t_ha_p90": 20.94,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 7.1,
+       "water_m3_p50": 19633,
+       "people_by_need_p50": {
+        "calories": 34.3,
+        "protein": 12.6,
+        "vitamin A": 0.7
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 1.41,
+       "yield_t_ha_p10": 0.13,
+       "yield_t_ha_p90": 11.41,
+       "heat_factor": 0.49,
+       "ece_root_zone_end": 5.9,
+       "water_m3_p50": 16438,
+       "people_by_need_p50": {
+        "calories": 5.9,
+        "protein": 2.2,
+        "vitamin A": 0.1
+       }
+      }
+     ]
+    },
+    {
+     "crop": "beans",
+     "label": "Common beans",
+     "sow_window": [
+      15,
+      45
+     ],
+     "sow_window_label": "16 Oct to 15 Nov",
+     "cycle_days": 91,
+     "harvest_label": "30 Jan",
+     "heat_limit_c": 32.0,
+     "salt_threshold_ds_m": 1.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 1.64,
+       "yield_t_ha_p10": 1.06,
+       "yield_t_ha_p90": 2.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.6,
+       "water_m3_p50": 5836,
+       "people_by_need_p50": {
+        "calories": 14.2,
+        "protein": 39.4,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 1.71,
+       "yield_t_ha_p10": 1.12,
+       "yield_t_ha_p90": 2.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.4,
+       "water_m3_p50": 5968,
+       "people_by_need_p50": {
+        "calories": 14.8,
+        "protein": 41.1,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 2.39,
+       "yield_t_ha_p10": 1.72,
+       "yield_t_ha_p90": 3.32,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.1,
+       "water_m3_p50": 6036,
+       "people_by_need_p50": {
+        "calories": 20.7,
+        "protein": 57.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.08,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.7,
+       "water_m3_p50": 1884,
+       "people_by_need_p50": {
+        "calories": 0.0,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 0.62,
+       "yield_t_ha_p10": 0.07,
+       "yield_t_ha_p90": 1.58,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.3,
+       "water_m3_p50": 5478,
+       "people_by_need_p50": {
+        "calories": 5.4,
+        "protein": 15.1,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 9.7,
+       "water_m3_p50": 1840,
+       "people_by_need_p50": {
+        "calories": 0.0,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "sweet_potato",
+     "label": "Sweet potatoes",
+     "sow_window": [
+      0,
+      40
+     ],
+     "sow_window_label": "1 Oct to 10 Nov",
+     "cycle_days": 183,
+     "harvest_label": "22 Apr",
+     "heat_limit_c": 38.0,
+     "salt_threshold_ds_m": 1.5,
+     "good_for": [
+      "vitamin A"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 32.99,
+       "yield_t_ha_p10": 16.91,
+       "yield_t_ha_p90": 44.88,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 14954,
+       "people_by_need_p50": {
+        "calories": 74.0,
+        "protein": 57.9,
+        "vitamin A": 2136.4
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 33.93,
+       "yield_t_ha_p10": 19.07,
+       "yield_t_ha_p90": 46.29,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
+       "water_m3_p50": 15160,
+       "people_by_need_p50": {
+        "calories": 76.1,
+        "protein": 59.5,
+        "vitamin A": 2196.9
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 37.29,
+       "yield_t_ha_p10": 21.66,
+       "yield_t_ha_p90": 49.15,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.4,
+       "water_m3_p50": 15035,
+       "people_by_need_p50": {
+        "calories": 83.7,
+        "protein": 65.4,
+        "vitamin A": 2414.4
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 15.3,
+       "yield_t_ha_p10": 1.38,
+       "yield_t_ha_p90": 26.4,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.4,
+       "water_m3_p50": 13112,
+       "people_by_need_p50": {
+        "calories": 34.3,
+        "protein": 26.8,
+        "vitamin A": 990.5
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 25.38,
+       "yield_t_ha_p10": 11.35,
+       "yield_t_ha_p90": 36.69,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.1,
+       "water_m3_p50": 14817,
+       "people_by_need_p50": {
+        "calories": 57.0,
+        "protein": 44.5,
+        "vitamin A": 1643.4
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.08,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 17.29,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 12.7,
+       "water_m3_p50": 6192,
+       "people_by_need_p50": {
+        "calories": 0.2,
+        "protein": 0.1,
+        "vitamin A": 5.0
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "winter": {
+   "season": {
+    "id": "winter",
+    "label": "Winter sowing",
+    "start": 46,
+    "end": 91,
+    "about": "Sow from 16 November to 31 December. The coolest months suit wheat, potatoes and beans."
+   },
+   "crops": [
+    {
+     "crop": "wheat",
+     "label": "Wheat",
+     "sow_window": [
+      46,
+      75
+     ],
+     "sow_window_label": "16 Nov to 15 Dec",
+     "cycle_days": 94,
+     "harvest_label": "4 Mar",
+     "heat_limit_c": 31.0,
+     "salt_threshold_ds_m": 6.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 4.24,
+       "yield_t_ha_p10": 3.8,
+       "yield_t_ha_p90": 5.28,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.2,
+       "water_m3_p50": 6568,
+       "people_by_need_p50": {
+        "calories": 37.6,
+        "protein": 58.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 4.41,
+       "yield_t_ha_p10": 3.99,
+       "yield_t_ha_p90": 5.48,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.0,
+       "water_m3_p50": 6615,
+       "people_by_need_p50": {
+        "calories": 39.1,
+        "protein": 60.9,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 4.1,
+       "yield_t_ha_p10": 3.63,
+       "yield_t_ha_p90": 5.13,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.4,
+       "water_m3_p50": 6530,
+       "people_by_need_p50": {
+        "calories": 36.3,
+        "protein": 56.6,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 3.87,
+       "yield_t_ha_p10": 3.42,
+       "yield_t_ha_p90": 4.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.9,
+       "water_m3_p50": 6549,
+       "people_by_need_p50": {
+        "calories": 34.4,
+        "protein": 53.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 4.45,
+       "yield_t_ha_p10": 3.97,
+       "yield_t_ha_p90": 5.54,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
+       "water_m3_p50": 6641,
+       "people_by_need_p50": {
+        "calories": 39.5,
+        "protein": 61.4,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 3.19,
+       "yield_t_ha_p10": 2.78,
+       "yield_t_ha_p90": 3.94,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 6398,
+       "people_by_need_p50": {
+        "calories": 28.3,
+        "protein": 44.0,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "potato",
+     "label": "Potato",
+     "sow_window": [
+      46,
+      60
+     ],
+     "sow_window_label": "16 Nov to 30 Nov",
+     "cycle_days": 80,
+     "harvest_label": "11 Feb",
+     "heat_limit_c": 30.0,
+     "salt_threshold_ds_m": 1.7,
+     "good_for": [
+      "calories"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 20.4,
+       "yield_t_ha_p10": 18.44,
+       "yield_t_ha_p90": 25.08,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 5023,
+       "people_by_need_p50": {
+        "calories": 41.0,
+        "protein": 44.7,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 21.71,
+       "yield_t_ha_p10": 20.08,
+       "yield_t_ha_p90": 26.81,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.3,
+       "water_m3_p50": 5086,
+       "people_by_need_p50": {
+        "calories": 43.6,
+        "protein": 47.6,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 24.06,
+       "yield_t_ha_p10": 21.62,
+       "yield_t_ha_p90": 29.04,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.9,
+       "water_m3_p50": 5089,
+       "people_by_need_p50": {
+        "calories": 48.3,
+        "protein": 52.7,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 9.36,
+       "yield_t_ha_p10": 6.91,
+       "yield_t_ha_p90": 13.59,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.3,
+       "water_m3_p50": 4518,
+       "people_by_need_p50": {
+        "calories": 18.8,
+        "protein": 20.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 15.95,
+       "yield_t_ha_p10": 14.66,
+       "yield_t_ha_p90": 20.02,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.5,
+       "water_m3_p50": 4822,
+       "people_by_need_p50": {
+        "calories": 32.0,
+        "protein": 35.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 2.9,
+       "yield_t_ha_p10": 0.08,
+       "yield_t_ha_p90": 8.3,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.5,
+       "water_m3_p50": 3466,
+       "people_by_need_p50": {
+        "calories": 5.8,
+        "protein": 6.4,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "beans",
+     "label": "Common beans",
+     "sow_window": [
+      46,
+      60
+     ],
+     "sow_window_label": "16 Nov to 30 Nov",
+     "cycle_days": 97,
+     "harvest_label": "28 Feb",
+     "heat_limit_c": 32.0,
+     "salt_threshold_ds_m": 1.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 1.55,
+       "yield_t_ha_p10": 1.19,
+       "yield_t_ha_p90": 1.83,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.5,
+       "water_m3_p50": 6028,
+       "people_by_need_p50": {
+        "calories": 13.5,
+        "protein": 37.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 1.66,
+       "yield_t_ha_p10": 1.2,
+       "yield_t_ha_p90": 1.93,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.1,
+       "water_m3_p50": 6212,
+       "people_by_need_p50": {
+        "calories": 14.4,
+        "protein": 40.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 2.42,
+       "yield_t_ha_p10": 1.97,
+       "yield_t_ha_p90": 2.7,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 3.0,
+       "water_m3_p50": 6414,
+       "people_by_need_p50": {
+        "calories": 21.1,
+        "protein": 58.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.8,
+       "water_m3_p50": 1942,
+       "people_by_need_p50": {
+        "calories": 0.0,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 0.25,
+       "yield_t_ha_p10": 0.07,
+       "yield_t_ha_p90": 0.87,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.2,
+       "water_m3_p50": 5258,
+       "people_by_need_p50": {
+        "calories": 2.1,
+        "protein": 6.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 9.6,
+       "water_m3_p50": 1933,
+       "people_by_need_p50": {
+        "calories": 0.0,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "late_winter": {
+   "season": {
+    "id": "late_winter",
+    "label": "Late-winter sowing",
+    "start": 116,
+    "end": 165,
+    "about": "Sow from 25 January to 15 March. Heat-loving crops grow into the spring and are harvested by June."
+   },
+   "crops": [
+    {
+     "crop": "rice",
+     "label": "Rice",
+     "sow_window": [
+      130,
+      160
+     ],
+     "sow_window_label": "8 Feb to 10 Mar",
+     "cycle_days": 94,
+     "harvest_label": "28 May",
+     "heat_limit_c": 36.0,
+     "salt_threshold_ds_m": 3.0,
+     "good_for": [
+      "calories"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.14,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 6.8,
+       "water_m3_p50": 11999,
+       "people_by_need_p50": {
+        "calories": 0.2,
+        "protein": 0.2,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.14,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 7.3,
+       "water_m3_p50": 12011,
+       "people_by_need_p50": {
+        "calories": 0.2,
+        "protein": 0.2,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 0.03,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.19,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 6.4,
+       "water_m3_p50": 12316,
+       "people_by_need_p50": {
+        "calories": 0.3,
+        "protein": 0.3,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 0.01,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.02,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 8.4,
+       "water_m3_p50": 8955,
+       "people_by_need_p50": {
+        "calories": 0.1,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 0.01,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.08,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 7.9,
+       "water_m3_p50": 11000,
+       "people_by_need_p50": {
+        "calories": 0.1,
+        "protein": 0.1,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.0,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.0,
+       "heat_factor": 0.01,
+       "ece_root_zone_end": 12.2,
+       "water_m3_p50": 5506,
+       "people_by_need_p50": {
+        "calories": 0.0,
+        "protein": 0.0,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "soybean",
+     "label": "Soybeans",
+     "sow_window": [
+      120,
+      160
+     ],
+     "sow_window_label": "29 Jan to 10 Mar",
+     "cycle_days": 80,
+     "harvest_label": "9 May",
+     "heat_limit_c": 35.0,
+     "salt_threshold_ds_m": 5.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 1.36,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.03,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 5.1,
+       "water_m3_p50": 10101,
+       "people_by_need_p50": {
+        "calories": 15.8,
+        "protein": 53.5,
+        "vitamin A": 0.1
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 1.36,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.04,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.1,
+       "water_m3_p50": 10102,
+       "people_by_need_p50": {
+        "calories": 15.8,
+        "protein": 53.7,
+        "vitamin A": 0.1
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 1.56,
+       "yield_t_ha_p10": 0.04,
+       "yield_t_ha_p90": 3.32,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 4.4,
+       "water_m3_p50": 10102,
+       "people_by_need_p50": {
+        "calories": 18.2,
+        "protein": 61.7,
+        "vitamin A": 0.1
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 0.45,
+       "yield_t_ha_p10": 0.01,
+       "yield_t_ha_p90": 1.44,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 5.6,
+       "water_m3_p50": 9565,
+       "people_by_need_p50": {
+        "calories": 5.3,
+        "protein": 17.8,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 0.97,
+       "yield_t_ha_p10": 0.03,
+       "yield_t_ha_p90": 2.48,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.9,
+       "water_m3_p50": 10099,
+       "people_by_need_p50": {
+        "calories": 11.3,
+        "protein": 38.1,
+        "vitamin A": 0.1
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 0.04,
+       "yield_t_ha_p10": 0.0,
+       "yield_t_ha_p90": 0.73,
+       "heat_factor": 0.46,
+       "ece_root_zone_end": 6.8,
+       "water_m3_p50": 6694,
+       "people_by_need_p50": {
+        "calories": 0.4,
+        "protein": 1.4,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "sorghum",
+     "label": "Sorghum",
+     "sow_window": [
+      120,
+      165
+     ],
+     "sow_window_label": "29 Jan to 15 Mar",
+     "cycle_days": 92,
+     "harvest_label": "23 May",
+     "heat_limit_c": 40.0,
+     "salt_threshold_ds_m": 6.8,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 6.52,
+       "yield_t_ha_p10": 1.02,
+       "yield_t_ha_p90": 7.68,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.6,
+       "water_m3_p50": 11500,
+       "people_by_need_p50": {
+        "calories": 56.0,
+        "protein": 78.6,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 6.79,
+       "yield_t_ha_p10": 1.07,
+       "yield_t_ha_p90": 8.06,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.6,
+       "water_m3_p50": 11598,
+       "people_by_need_p50": {
+        "calories": 58.3,
+        "protein": 81.9,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 6.34,
+       "yield_t_ha_p10": 1.01,
+       "yield_t_ha_p90": 7.5,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 11422,
+       "people_by_need_p50": {
+        "calories": 54.4,
+        "protein": 76.4,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 5.39,
+       "yield_t_ha_p10": 0.73,
+       "yield_t_ha_p90": 5.81,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.1,
+       "water_m3_p50": 11430,
+       "people_by_need_p50": {
+        "calories": 46.3,
+        "protein": 65.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 6.58,
+       "yield_t_ha_p10": 0.97,
+       "yield_t_ha_p90": 7.5,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.6,
+       "water_m3_p50": 11640,
+       "people_by_need_p50": {
+        "calories": 56.5,
+        "protein": 79.3,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 3.52,
+       "yield_t_ha_p10": 0.45,
+       "yield_t_ha_p90": 4.12,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.8,
+       "water_m3_p50": 10768,
+       "people_by_need_p50": {
+        "calories": 30.2,
+        "protein": 42.5,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    },
+    {
+     "crop": "millet",
+     "label": "Millet",
+     "sow_window": [
+      120,
+      165
+     ],
+     "sow_window_label": "29 Jan to 15 Mar",
+     "cycle_days": 84,
+     "harvest_label": "15 May",
+     "heat_limit_c": 41.0,
+     "salt_threshold_ds_m": 6.0,
+     "good_for": [
+      "calories",
+      "protein"
+     ],
+     "fields": [
+      {
+       "field": "F1",
+       "yield_t_ha_p50": 4.02,
+       "yield_t_ha_p10": 2.82,
+       "yield_t_ha_p90": 4.61,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.8,
+       "water_m3_p50": 9685,
+       "people_by_need_p50": {
+        "calories": 39.6,
+        "protein": 48.4,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F2",
+       "yield_t_ha_p50": 4.23,
+       "yield_t_ha_p10": 3.01,
+       "yield_t_ha_p90": 4.85,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 6.7,
+       "water_m3_p50": 9762,
+       "people_by_need_p50": {
+        "calories": 41.7,
+        "protein": 51.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F3",
+       "yield_t_ha_p50": 3.89,
+       "yield_t_ha_p10": 2.73,
+       "yield_t_ha_p90": 4.53,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 4.9,
+       "water_m3_p50": 9610,
+       "people_by_need_p50": {
+        "calories": 38.4,
+        "protein": 47.0,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F4",
+       "yield_t_ha_p50": 3.61,
+       "yield_t_ha_p10": 2.84,
+       "yield_t_ha_p90": 4.26,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 7.2,
+       "water_m3_p50": 9720,
+       "people_by_need_p50": {
+        "calories": 35.6,
+        "protein": 43.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F5",
+       "yield_t_ha_p50": 4.02,
+       "yield_t_ha_p10": 2.94,
+       "yield_t_ha_p90": 4.66,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 8.2,
+       "water_m3_p50": 9762,
+       "people_by_need_p50": {
+        "calories": 39.7,
+        "protein": 48.5,
+        "vitamin A": 0.0
+       }
+      },
+      {
+       "field": "F6",
+       "yield_t_ha_p50": 2.78,
+       "yield_t_ha_p10": 2.19,
+       "yield_t_ha_p90": 3.31,
+       "heat_factor": 1.0,
+       "ece_root_zone_end": 5.6,
+       "water_m3_p50": 9438,
+       "people_by_need_p50": {
+        "calories": 27.4,
+        "protein": 33.5,
+        "vitamin A": 0.0
+       }
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "fields": [
+  {
+   "id": "F1",
+   "name": "North",
+   "soil": "loamy sand",
+   "area_ha": 2.0,
+   "ece_top": 2.0,
+   "ece_layers": [
+    2.0,
+    2.5,
+    3.0
+   ]
+  },
+  {
+   "id": "F2",
+   "name": "Palm edge",
+   "soil": "sandy loam",
+   "area_ha": 2.0,
+   "ece_top": 1.5,
+   "ece_layers": [
+    1.5,
+    2.0,
+    2.5
+   ]
+  },
+  {
+   "id": "F3",
+   "name": "Dune",
+   "soil": "sand",
+   "area_ha": 2.0,
+   "ece_top": 1.0,
+   "ece_layers": [
+    1.0,
+    1.5,
+    2.0
+   ]
+  },
+  {
+   "id": "F4",
+   "name": "Old wadi",
+   "soil": "sandy loam",
+   "area_ha": 2.0,
+   "ece_top": 5.0,
+   "ece_layers": [
+    5.0,
+    6.0,
+    7.0
+   ]
+  },
+  {
+   "id": "F5",
+   "name": "Loam block",
+   "soil": "loam",
+   "area_ha": 2.0,
+   "ece_top": 3.0,
+   "ece_layers": [
+    3.0,
+    3.5,
+    4.0
+   ]
+  },
+  {
+   "id": "F6",
+   "name": "Sabkha rim",
+   "soil": "loamy sand",
+   "area_ha": 2.0,
+   "ece_top": 7.0,
+   "ece_layers": [
+    7.0,
+    8.0,
+    9.0
+   ]
+  }
+ ],
+ "assumptions": {
+  "irrigation_water_ec_ds_m": 4.5,
+  "desal_water_ec_ds_m": 0.4,
+  "management": "Previews use published crop values (no local calibration), sowing mid-window, irrigation at 90% of crop demand, groundwater only (no desalinated blend), the crop's recommended nitrogen and mulch. The scientist's plan can change all of these.",
+  "yield_basis": "fresh weight, t/ha, median of 10 simulated weather years (10th to 90th percentile in brackets)"
+ }
+}
