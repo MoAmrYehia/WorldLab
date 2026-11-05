@@ -1,6 +1,8 @@
 # Audit response checklist (30 October 2026)
 
-Response to the detailed audit of snapshot `ec95a56`. **Tested** means an automated check (Python suite in `tests/test_worldlab.py`, browser checks in `tests/browser/smoke.js`, both run in CI before publishing). **Seen** means inspected in screenshots of the generated site in a headless browser without WebGL (2D fallback). **Unverified** means not exercised in this round.
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](COMMIT-MAP.md).
+
+Response to the detailed audit of snapshot `07125ef`. **Tested** means an automated check (Python suite in `tests/test_worldlab.py`, browser checks in `tests/browser/smoke.js`, both run in CI before publishing). **Seen** means inspected in screenshots of the generated site in a headless browser without WebGL (2D fallback). **Unverified** means not exercised in this round.
 
 | ID | Finding | Status | Evidence |
 |---|---|---|---|

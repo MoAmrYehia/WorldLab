@@ -1,5 +1,7 @@
 # Benchmark v2
 
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](../../COMMIT-MAP.md).
+
 Every run is kept with its complete raw ledger (`runs/<scientist>__<perception>/<case>/ledger.jsonl.gz`) and a manifest.
 The manifest records:
 
@@ -21,7 +23,7 @@ The manifest records:
   - *salinity:* groundwater goes from 4.5 to 9 dS/m;
   - *heatwave:* a heat wave that appears in the forecast.
 - **Fault field:** the affected field is the middle one among those growing a crop.
-- **Scientists:** Muse Spark (`muse-spark-1.3`), and the scripted protocol with its learned irrigation policy as reference. They have the same tools, budgets and hard water and energy limits. Runs were recorded at source commit `5498e84` (prompt hash `3cbd1503…`, the same prompt as the recorded demo season).
+- **Scientists:** Muse Spark (`muse-spark-1.3`), and the scripted protocol with its learned irrigation policy as reference. They have the same tools, budgets and hard water and energy limits. Runs were recorded at source commit `a802c01` (prompt hash `3cbd1503…`, the same prompt as the recorded demo season).
 - **Perception conditions:**
   - *meta:* SAM 3.1 plus Muse Spark vision;
   - *meta-sam:* SAM only;

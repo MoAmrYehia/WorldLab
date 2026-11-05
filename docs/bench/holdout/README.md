@@ -1,10 +1,12 @@
 # Frozen holdout challenge v1
 
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](../../COMMIT-MAP.md).
+
 Eight unfamiliar cases, generated once and committed **before any run**, so nothing was tuned against them.
 
 - **The suite:** `holdout_v1.json` (cases SHA-256 `3f80955a…dfccf321d`).
-- **Generator:** `scripts/make_holdout.py`, seed 20261101, run at commit `43f4299`.
-- **Frozen at:** commit `9ab1c57`.
+- **Generator:** `scripts/make_holdout.py`, seed 20261101, run at commit `296a6a8`.
+- **Frozen at:** commit `59505eb`.
 - **Prompt and tools:** the prompt and tool-schema hashes are recorded in the suite file and in every run's manifest.
 
 ## Protocol (as frozen)

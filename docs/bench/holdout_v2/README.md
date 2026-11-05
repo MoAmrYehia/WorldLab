@@ -1,12 +1,14 @@
 # Holdout v2: results against the pre-registered criteria
 
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](../../COMMIT-MAP.md).
+
 **Setup**
 - **Suite:** eight new farms (seeds 601–608), frozen in `holdout_v2.json` (cases SHA-256 `bf86e4fd…5e5938a82`).
 - **Criteria:** written in [`CRITERIA.md`](CRITERIA.md) before any run.
-- **Freeze:** commit `b4144b8`.
+- **Freeze:** commit `31a2f50`.
 - **Conditions:** three, each run once per farm, all with Meta perception (SAM 3.1 and Muse Spark vision):
   - Muse Spark on the new code;
-  - Muse Spark on the code before the second-review fixes (`8c15a7e`, run from a separate checkout of that commit);
+  - Muse Spark on the code before the second-review fixes (`f23b324`, run from a separate checkout of that commit);
   - the scripted protocol with RL on the new code.
 - **Runs:** all 24 completed. Every ledger and manifest is in `runs/`.
 - **Scoring:** scorer 2.1. `summary.md` has the full table and `cases.md` lists every run.
@@ -88,7 +90,7 @@ not show that Muse Spark farms better.
 ```bash
 H=docs/bench/holdout_v2/holdout_v2.json
 python -m worldlab bench2 --agents spark,scripted-rl --perception meta --holdout $H --out runs/holdout_v2/new
-git worktree add ../wl-old 8c15a7e && (cd ../wl-old && python -m worldlab bench2 --agents spark --perception meta --holdout ../worldlab/$H --out ../worldlab/runs/holdout_v2/old)
+git worktree add ../wl-old f23b324 && (cd ../wl-old && python -m worldlab bench2 --agents spark --perception meta --holdout ../worldlab/$H --out ../worldlab/runs/holdout_v2/old)
 python scripts/rescore.py docs/bench/holdout_v2/runs
 python -m worldlab bench2-summary docs/bench/holdout_v2/runs --out docs/bench/holdout_v2 --reference "scripted-rl/meta (new code)"
 ```

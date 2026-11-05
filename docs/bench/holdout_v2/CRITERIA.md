@@ -1,5 +1,7 @@
 # Holdout v2: pre-registered criteria (written before any run)
 
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](../../COMMIT-MAP.md).
+
 This suite has eight new farms (seeds 601–608), one hidden challenge each, drawn from the same families as holdout v1
 with a new generator seed (20261102). It was frozen after the second-review fixes and before any run on these farms.
 
@@ -10,7 +12,7 @@ hard limits. Each runs once per farm.
 
 1. **Muse Spark, new code.** The release under test: multi-start calibration, the nutrient-risk report with a backup
    plan, and escalation after repeated alarms.
-2. **Muse Spark, old code.** Commit `8c15a7e`, before those fixes, run from a separate checkout of that commit. Its
+2. **Muse Spark, old code.** Commit `f23b324`, before those fixes, run from a separate checkout of that commit. Its
    manifests name that commit.
 3. **Scripted protocol with RL, new code.** It has fixed rules for the nutrient-risk gate (take the backup if it keeps at
    least 95% of the bad-year result, otherwise accept and record why) and for escalation (re-plan the water first, then

@@ -1,5 +1,7 @@
 # Submission: status, evidence and the owner's checklist
 
+> Commit IDs here are current. Run manifests keep the original IDs from before the 6 Nov 2026 history rewrite; see [`COMMIT-MAP.md`](COMMIT-MAP.md).
+
 Each item is placed in exactly one column, by the strongest check it has actually passed:
 
 - **Implemented:** in the source.
@@ -12,7 +14,7 @@ Each item is placed in exactly one column, by the strongest check it has actuall
 | Item | Implemented | Locally tested | Deployed and tested | Owner confirmation required |
 |---|---|---|---|---|
 | Static site, judge walkthrough, limitations card, evidence download, CSP | | | ✓ Public site: the walkthrough ran with 3D on a real GPU, no CSP errors, and the evidence bundle downloaded and verified | |
-| One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | | ✓ Release run 41320205503 (commit `c35e96d`): tests, build, browser checks, website, server live check all passed | |
+| One release pipeline: tested once, both surfaces from one build, newest commit only, required server deploy | | | ✓ Release run 41320205503 (commit `35c2c62`): tests, build, browser checks, website, server live check all passed | |
 | Release SHA in `/api/ready` and in View settings | | | ✓ The Render server reports the commit it runs (`RENDER_GIT_COMMIT`); the release waits for it to match | |
 | Live check: release, CORS, real progress, reconnect, cancellation, bounded Spark start | | | ✓ Passed against Render from GitHub Actions: guest session from the website's origin, the season progressed (6 → 35 ledger entries), the stream reconnected, stop cancelled the run (88 s), Muse Spark made a tool call and the lab ran it | |
 | Hosted server (guest seasons, Unknown challenge, live Muse Spark) | | | ✓ Render free plan, `https://worldlab-4b9q.onrender.com`. A guest started a Muse Spark season on the Unknown challenge from the public site | ✓ The free plan has 0.1 CPU: a season runs about ten times slower than on a laptop, and the server sleeps after 15 idle minutes (about a minute to wake). A paid plan is the owner's choice. To help, drone frames now render about a third faster everywhere (byte-identical images), and the server sets `WORLDLAB_SMALL_HOST=1`: one live drone-feed frame every 36 days instead of 12, and RL training capped at 15 iterations. The ledger records both, so those seasons are not comparable with benchmark runs |
@@ -53,7 +55,7 @@ Confirm every required field in the signed-in portal; this list is not a substit
 
 - [x] **Live server:** deployed on Render (free plan) from `render.yaml`; `MODEL_API_KEY` is set in Render, and the GitHub variables `SERVER_DEPLOY=render` and `WORLDLAB_SERVER` point the release at it. The release's live check passes, including the bounded Muse Spark check.
   - Optional: a full Muse Spark season on the hosted server, with its result and model cost recorded here.
-- [ ] **History:** keep `main` as it is. Its history supports the build timeline and the holdouts' freeze-before-run provenance. Rewriting it is a separate decision, not a submission step.
+- [x] **History:** on 6 Nov 2026 (after the submission deadline) the owner had `main` rewritten to remove co-author lines from commit messages. Files are unchanged, and the order and dates of commits are kept, so the build timeline and the holdouts' freeze-before-run order still hold. Every commit has a new ID; [`COMMIT-MAP.md`](COMMIT-MAP.md) maps the original IDs, which the run manifests keep.
 - [ ] **Video:** a 3-minute cut with burnt-in captions and a narration script is made (recorded season plus a live segment). Confirm the **actual length limit** in the portal, record the narration, and upload it.
 - [ ] **Theme and track:** *Push the Frontier* is the theme; the **track** (Indie Developer or Startup) is a separate portal choice.
 - [ ] **Owner-only declarations:** eligibility and affiliation, team, rights, final terms.
